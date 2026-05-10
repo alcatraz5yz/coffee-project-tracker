@@ -167,6 +167,13 @@ function renderMachines() {
     `).join("");
 }
 
+function updateSidebarBuildSelection() {
+  machineList.querySelectorAll("[data-build-select]").forEach((pill) => {
+    const machine = pill.closest("button[data-id]");
+    pill.classList.toggle("active", machine?.dataset.id === activeProject?.id && pill.dataset.buildSelect === activeBuild);
+  });
+}
+
 // ── Product image ─────────────────────────────────────────────
 function loadProductImage(projectId) {
   const n = projectId.replace(/\D/g, "");
@@ -579,6 +586,13 @@ function renderAll() {
   renderFachfreigabe(activeProject);
 }
 
+function renderBuildChange() {
+  updateSidebarBuildSelection();
+  activeEvidenceGroup = null;
+  renderSubtopic(activeProject);
+  renderDocs(activeProject);
+}
+
 // ── Events ────────────────────────────────────────────────────
 machineList.addEventListener("click", async (event) => {
   const pill = event.target.closest("[data-build-select]");
@@ -589,11 +603,18 @@ machineList.addEventListener("click", async (event) => {
     event.stopPropagation();
     if (btn.dataset.id !== activeProject?.id) {
       activeProject = await apiFetch(`/api/projects/${btn.dataset.id}`);
+      activeBuild = pill.dataset.buildSelect;
+      activeSubtopic = "Approbation";
+      activeEvidenceGroup = null;
+      subtopicFilter.value = "all";
+      renderAll();
+      setView(activeView === "docs" ? "docs" : "subtopic");
+      return;
     }
     activeBuild = pill.dataset.buildSelect;
     activeSubtopic = "Approbation";
     subtopicFilter.value = "all";
-    renderAll();
+    renderBuildChange();
     setView(activeView === "docs" ? "docs" : "subtopic");
     return;
   }
