@@ -247,17 +247,8 @@ function renderOverview(project) {
   document.querySelector("#next-count").textContent =
     `${(project.tasks || []).filter((t) => t.status !== "Done").length} offen`;
 
-  document.querySelector("#pcs-strip").innerHTML = `
-    <article class="closeout-gates">
-      <span>Abschluss-Gates</span>
-      ${(project.closeout?.gates || []).map((gate) => `
-        <div>
-          <b>${gate.label}</b>
-          <em class="${statusClass(gate.status)}">${statusLabel(gate.status)}</em>
-        </div>
-      `).join("")}
-    </article>
-  `;
+  document.querySelector("#pcs-strip").classList.add("hidden");
+  document.querySelector("#pcs-strip").innerHTML = "";
 
   document.querySelector("#cert-list").innerHTML = openCertifications.length
     ? openCertifications.map((item) => `
