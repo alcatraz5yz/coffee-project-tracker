@@ -92,6 +92,13 @@ function termLabel(value) { return termLabels[value] || value; }
 function evidenceCacheKey(projectId, groupName) {
   return `${projectId}:${groupName}`;
 }
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
 
 function applyTheme(theme) {
   document.body.dataset.theme = theme;
@@ -331,7 +338,7 @@ function renderTasks(project) {
         <div class="task-block-reason">
           <label for="block-reason-${task.id}">Blocker-Grund</label>
           <textarea id="block-reason-${task.id}" rows="2" data-task-block-reason="${task.id}"
-            placeholder="Warum ist diese Massnahme blockiert?">${task.block_reason || ""}</textarea>
+            placeholder="Warum ist diese Massnahme blockiert?">${escapeHtml(task.block_reason)}</textarea>
         </div>
       ` : ""}
     `).join("") : `<p class="empty-state">Keine Massnahmen fuer ${activeBuild} in diesem Bereich.</p>`}
@@ -720,21 +727,43 @@ document.querySelector("#task-table").addEventListener("click", async (event) =>
   }).catch(console.error);
 });
 
-let taskBlockReasonTimer = null;
-document.querySelector("#task-table").addEventListener("input", (event) => {
-  const field = event.target.closest("[data-task-block-reason]");
-  if (!field) return;
+const taskBlockReasonTimers = new Map();
+function saveTaskBlockReason(projectId, task) {
+  if (!projectId || !task) return;
+  apiPut(`/api/projects/${projectId}/tasks/${task.id}`, {
+    status: task.status,
+    block_reason: task.block_reason || ""
+  }).catch(console.error);
+}
+
+function handleTaskBlockReasonInput(field, immediate = false) {
   const taskId = field.dataset.taskBlockReason;
   const task = activeProject.tasks?.find((t) => String(t.id) === taskId);
   if (!task) return;
+  const projectId = activeProject.id;
   task.block_reason = field.value;
-  clearTimeout(taskBlockReasonTimer);
-  taskBlockReasonTimer = setTimeout(() => {
-    apiPut(`/api/projects/${activeProject.id}/tasks/${taskId}`, {
-      status: task.status,
-      block_reason: task.block_reason
-    }).catch(console.error);
-  }, 500);
+  clearTimeout(taskBlockReasonTimers.get(taskId));
+  if (immediate) {
+    saveTaskBlockReason(projectId, task);
+    taskBlockReasonTimers.delete(taskId);
+    return;
+  }
+  taskBlockReasonTimers.set(taskId, setTimeout(() => {
+    saveTaskBlockReason(projectId, task);
+    taskBlockReasonTimers.delete(taskId);
+  }, 300));
+}
+
+document.querySelector("#task-table").addEventListener("input", (event) => {
+  const field = event.target.closest("[data-task-block-reason]");
+  if (!field) return;
+  handleTaskBlockReasonInput(field);
+});
+
+document.querySelector("#task-table").addEventListener("focusout", (event) => {
+  const field = event.target.closest("[data-task-block-reason]");
+  if (!field) return;
+  handleTaskBlockReasonInput(field, true);
 });
 
 // Open local folder in Finder/Explorer via local backend
