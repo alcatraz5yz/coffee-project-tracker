@@ -417,7 +417,7 @@ function renderSubtopic(project) {
       <span>Z.</span><span>Thema</span><span>Status</span>
     </div>
     ${ziffern.map((item) => `
-      <div class="ziffer-row">
+      <div class="ziffer-row ${item.status === "Done" ? "ziffer-row-done" : ""} ${item.status === "Blocked" ? "ziffer-row-blocked" : ""} ${item.status === "Not needed" ? "ziffer-row-muted" : ""}">
         <span class="ziffer-number">${item.nr}</span>
         <span class="ziffer-topic">
           <strong>${item.title}</strong>
