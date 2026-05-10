@@ -1018,7 +1018,6 @@ h2 {
   flex-direction: column;
   gap: 10px;
   border: 1px solid var(--line);
-  border-left: 4px solid var(--line);
   border-radius: 8px;
   padding: 14px;
   background: var(--panel);
@@ -1038,10 +1037,6 @@ h2 {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent), var(--shadow);
 }
 
-.document-group-card.available { border-left-color: var(--good); }
-.document-group-card.blocked   { border-left-color: var(--bad); }
-.document-group-card.open      { border-left-color: #d4a520; }
-.document-group-card.current   { border-left-color: var(--accent); }
 
 .document-group-detail {
   grid-column: 1 / -1;
