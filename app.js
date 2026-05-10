@@ -718,7 +718,6 @@ document.querySelector("#task-table").addEventListener("click", async (event) =>
   if (!task) return;
   const next = taskFlow[(taskFlow.indexOf(task.status) + 1) % taskFlow.length];
   task.status = next;
-  if (next !== "Blocked") task.block_reason = "";
   renderTasks(activeProject);
   renderOverview(activeProject);
   apiPut(`/api/projects/${activeProject.id}/tasks/${taskId}`, {
