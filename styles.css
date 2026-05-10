@@ -1348,6 +1348,42 @@ h2 {
   color: var(--bad);
 }
 
+.task-block-reason {
+  display: grid;
+  gap: 6px;
+  min-width: 980px;
+  padding: 10px 12px 12px 267px;
+  border-bottom: 1px solid var(--line);
+  border-left: 4px solid var(--bad);
+  background: color-mix(in srgb, var(--bad) 8%, var(--panel));
+}
+
+.task-block-reason label {
+  color: var(--bad);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.task-block-reason textarea {
+  width: 100%;
+  min-height: 58px;
+  resize: vertical;
+  border: 1px solid color-mix(in srgb, var(--bad) 28%, var(--line));
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.task-block-reason textarea:focus {
+  outline: none;
+  border-color: var(--bad);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 14%, transparent);
+}
+
 .ziffer-row:not(.head):hover {
   background: color-mix(in srgb, var(--accent) 7%, var(--panel));
 }

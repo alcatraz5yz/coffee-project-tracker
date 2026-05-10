@@ -327,6 +327,13 @@ function renderTasks(project) {
           ${statusLabel(task.status)}
         </button>
       </div>
+      ${task.status === "Blocked" ? `
+        <div class="task-block-reason">
+          <label for="block-reason-${task.id}">Blocker-Grund</label>
+          <textarea id="block-reason-${task.id}" rows="2" data-task-block-reason="${task.id}"
+            placeholder="Warum ist diese Massnahme blockiert?">${task.block_reason || ""}</textarea>
+        </div>
+      ` : ""}
     `).join("") : `<p class="empty-state">Keine Massnahmen fuer ${activeBuild} in diesem Bereich.</p>`}
   `;
 }
@@ -704,9 +711,30 @@ document.querySelector("#task-table").addEventListener("click", async (event) =>
   if (!task) return;
   const next = taskFlow[(taskFlow.indexOf(task.status) + 1) % taskFlow.length];
   task.status = next;
+  if (next !== "Blocked") task.block_reason = "";
   renderTasks(activeProject);
   renderOverview(activeProject);
-  apiPut(`/api/projects/${activeProject.id}/tasks/${taskId}`, { status: next }).catch(console.error);
+  apiPut(`/api/projects/${activeProject.id}/tasks/${taskId}`, {
+    status: next,
+    block_reason: task.block_reason || ""
+  }).catch(console.error);
+});
+
+let taskBlockReasonTimer = null;
+document.querySelector("#task-table").addEventListener("input", (event) => {
+  const field = event.target.closest("[data-task-block-reason]");
+  if (!field) return;
+  const taskId = field.dataset.taskBlockReason;
+  const task = activeProject.tasks?.find((t) => String(t.id) === taskId);
+  if (!task) return;
+  task.block_reason = field.value;
+  clearTimeout(taskBlockReasonTimer);
+  taskBlockReasonTimer = setTimeout(() => {
+    apiPut(`/api/projects/${activeProject.id}/tasks/${taskId}`, {
+      status: task.status,
+      block_reason: task.block_reason
+    }).catch(console.error);
+  }, 500);
 });
 
 // Open local folder in Finder/Explorer via local backend

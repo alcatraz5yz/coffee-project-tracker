@@ -40,7 +40,8 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
     area TEXT, task TEXT, owner TEXT, due TEXT, status TEXT DEFAULT 'Open',
-    builds TEXT DEFAULT 'Alle'
+    builds TEXT DEFAULT 'Alle',
+    block_reason TEXT DEFAULT ''
   );
 
   CREATE TABLE IF NOT EXISTS risks (
@@ -126,6 +127,7 @@ db.exec(`
 // ── Migrations ────────────────────────────────────────────────────────────
 try { db.exec("ALTER TABLE ziffern ADD COLUMN builds TEXT DEFAULT ''"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE tasks ADD COLUMN builds TEXT DEFAULT 'Alle'"); } catch { /* exists */ }
+try { db.exec("ALTER TABLE tasks ADD COLUMN block_reason TEXT DEFAULT ''"); } catch { /* exists */ }
 db.prepare("UPDATE tasks SET status = 'Open' WHERE status = 'In progress'").run();
 
 {
@@ -273,7 +275,12 @@ function updateFachfreigabeMeta(projectId, confirmed_by, datum, notiz) {
   `).run(projectId, confirmed_by || "", datum || "", notiz || "");
 }
 
-function updateTaskStatus(projectId, taskId, status) {
+function updateTaskStatus(projectId, taskId, status, blockReason) {
+  if (typeof blockReason === "string") {
+    db.prepare("UPDATE tasks SET status = ?, block_reason = ? WHERE id = ? AND project_id = ?")
+      .run(status, blockReason, taskId, projectId);
+    return;
+  }
   db.prepare("UPDATE tasks SET status = ? WHERE id = ? AND project_id = ?")
     .run(status, taskId, projectId);
 }

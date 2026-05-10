@@ -234,9 +234,9 @@ app.put("/api/projects/:id/ziffern/:subtopic/:nr", (req, res) => {
 // ── Task status ────────────────────────────────────────────
 app.put("/api/projects/:id/tasks/:taskId", (req, res) => {
   const { id, taskId } = req.params;
-  const { status } = req.body;
+  const { status, block_reason } = req.body;
   if (!status) return res.status(400).json({ error: "status fehlt" });
-  updateTaskStatus(id, taskId, status);
+  updateTaskStatus(id, taskId, status, block_reason);
   res.json({ ok: true });
 });
 
