@@ -34,7 +34,7 @@ const evidenceEntries = new Map();
 // ── Labels / helpers ─────────────────────────────────────────
 const statusFlow = ["Open", "Done", "Not needed"];
 const taskFlow = ["Open", "Done", "Blocked"];
-const freigabeFlow = ["Offen", "Ja", "Nein", "Teilweise"];
+const freigabeFlow = ["Offen", "Ja", "Nein"];
 
 const statusLabels = {
   Available: "Vorhanden",
@@ -61,7 +61,6 @@ const statusLabels = {
   Ja: "Ja",
   Nein: "Nein",
   Offen: "Offen",
-  Teilweise: "Teilweise"
 };
 
 const termLabels = {
@@ -133,6 +132,9 @@ function statusClass(value) {
 function statusLabel(value) { return statusLabels[value] || value; }
 function termLabel(value) { return termLabels[value] || value; }
 function approbationLabel(value) { return approbationText[value] || value; }
+function freigabeStatus(value) {
+  return freigabeFlow.includes(value) ? value : "Offen";
+}
 function evidenceCacheKey(projectId, groupName) {
   return `${projectId}:${groupName}`;
 }
@@ -617,7 +619,7 @@ function renderDocs(project) {
 // ── Fachfreigabe ──────────────────────────────────────────────
 function freigabeGesamtstatus(gates) {
   if (!gates.length) return "Not started";
-  const statuses = gates.map((g) => g.status || "Offen");
+  const statuses = gates.map((g) => freigabeStatus(g.status));
   if (statuses.every((s) => s === "Ja")) return "Abgeschlossen";
   if (statuses.some((s) => s === "Nein")) return "Blocked";
   if (statuses.every((s) => s === "Offen")) return "Not started";
@@ -643,8 +645,8 @@ function renderFachfreigabe(project) {
         ${gates.length ? gates.map((gate) => `
           <div class="freigabe-gate-row">
             <span class="freigabe-gate-label">${gate.label}</span>
-            <button class="freigabe-btn ${statusClass(gate.status || "Offen")}" type="button"
-              data-label="${gate.label}">${statusLabel(gate.status || "Offen")}</button>
+            <button class="freigabe-btn ${statusClass(freigabeStatus(gate.status))}" type="button"
+              data-label="${gate.label}">${statusLabel(freigabeStatus(gate.status))}</button>
           </div>
         `).join("") : `<p class="empty-state">Keine Freigabe-Kriterien für dieses Projekt definiert.</p>`}
       </div>
@@ -775,7 +777,7 @@ document.querySelector("#freigabe-view").addEventListener("click", (event) => {
   if (!btn) return;
   const gate = activeProject.fachfreigabe?.gates?.find((g) => g.label === btn.dataset.label);
   if (!gate) return;
-  const next = freigabeFlow[(freigabeFlow.indexOf(gate.status || "Offen") + 1) % freigabeFlow.length];
+  const next = freigabeFlow[(freigabeFlow.indexOf(freigabeStatus(gate.status)) + 1) % freigabeFlow.length];
   gate.status = next; // optimistic update
   renderFachfreigabe(activeProject);
   apiPut(`/api/projects/${activeProject.id}/fachfreigabe/gates`, { label: btn.dataset.label, status: next })

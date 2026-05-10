@@ -136,7 +136,7 @@ Zeigt den technischen Abschlussfortschritt automatisch:
 Manueller Bestätigungsbereich — nur durch Rücksprache mit VDE, Approbation oder Projektleitung auszufüllen.
 
 ### Bestätigungs-Gates
-**Status pro Gate:** Offen → Ja → Nein → Teilweise (per Klick wechseln)
+**Status pro Gate:** Offen → Ja → Nein (per Klick wechseln)
 
 **Gesamtstatus** wird automatisch berechnet:
 - Alle Ja → Abgeschlossen
