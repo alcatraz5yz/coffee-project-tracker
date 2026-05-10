@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PCS Kaffee Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <span>PCS</span>
+        <strong>Kaffee Dashboard</strong>
+      </div>
+      <label class="search">
+        <span>Suche</span>
+        <input id="search" type="search" placeholder="Maschine, Build, Nachweis">
+      </label>
+      <nav id="machine-list" class="machine-list" aria-label="Maschinen"></nav>
+      <div class="scan-bar">
+        <button id="scan-btn" type="button">P:\PCS scannen</button>
+        <span id="scan-status"></span>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div class="topbar-title">
+          <div>
+            <p id="project-family">PCS Maschinensteuerung</p>
+            <h1 id="project-title">Projekt</h1>
+          </div>
+        </div>
+        <img id="product-image" class="product-image" alt="">
+        <div class="top-actions">
+          <button id="view-overview" class="active" type="button">PCS Status</button>
+          <button id="view-subtopic" type="button">Approbation</button>
+          <button id="view-tasks" type="button">Massnahmen</button>
+          <button id="view-docs" type="button">Nachweise</button>
+          <button id="view-freigabe" type="button">Freigabe</button>
+        </div>
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Darstellung wechseln">
+          <span></span>
+          <strong>Dark</strong>
+        </button>
+      </header>
+
+      <section id="overview-view">
+        <div class="summary-grid" id="summary-grid"></div>
+        <div class="pcs-strip" id="pcs-strip"></div>
+        <div class="work-grid">
+          <section class="panel">
+            <header class="panel-header">
+              <h2>Zulassungsstatus</h2>
+              <span id="cert-progress"></span>
+            </header>
+            <div id="cert-list" class="check-list"></div>
+          </section>
+          <section class="panel">
+            <header class="panel-header">
+              <h2>Builds & Muster</h2>
+              <span id="build-progress"></span>
+            </header>
+            <div id="build-list" class="timeline"></div>
+          </section>
+          <section class="panel">
+            <header class="panel-header">
+              <h2>PCS Blocker</h2>
+              <span id="risk-count"></span>
+            </header>
+            <div id="risk-list" class="risk-list"></div>
+          </section>
+          <section class="panel">
+            <header class="panel-header">
+              <h2>Naechste PCS Massnahmen</h2>
+              <span id="next-count"></span>
+            </header>
+            <div id="next-list" class="task-list"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="tasks-view" class="hidden">
+        <div class="table-panel">
+          <div class="table-header">
+            <h2>PCS Massnahmen</h2>
+            <select id="task-filter">
+              <option value="all">Alle Bereiche</option>
+              <option value="Certification">Zulassung</option>
+              <option value="Electronics">Elektronik</option>
+              <option value="Build">Build</option>
+              <option value="PCS">PCS</option>
+              <option value="Approbation">Approbation</option>
+            </select>
+          </div>
+          <div id="task-table" class="task-table"></div>
+        </div>
+      </section>
+
+      <section id="subtopic-view" class="hidden">
+        <div class="table-panel">
+          <div class="table-header">
+            <div>
+              <h2 id="subtopic-title">PCS Approbation</h2>
+              <p id="subtopic-summary"></p>
+            </div>
+            <select id="subtopic-filter">
+              <option value="all">Alle Stati</option>
+              <option value="Done">Erledigt</option>
+              <option value="Open">Offen</option>
+              <option value="Not needed">Nicht noetig</option>
+              <option value="Blocked">Blockiert</option>
+            </select>
+          </div>
+          <div id="ziffer-table" class="ziffer-table"></div>
+        </div>
+      </section>
+
+      <section id="docs-view" class="hidden">
+        <div class="table-panel report-panel">
+          <div class="table-header">
+            <div>
+              <h2>PCS Nachweisindex</h2>
+              <p>Kritische Nachweisgruppen aus dem EF1157 PCS-Paket, gruppiert fuer schnelle Durchsicht.</p>
+            </div>
+          </div>
+          <div id="document-group-grid" class="document-group-grid"></div>
+        </div>
+        <div id="reports-panel" class="table-panel report-panel hidden">
+          <div class="table-header">
+            <div>
+              <h2 id="report-title">PCS Approbationsberichte</h2>
+              <p>Aktuelle und archivierte Word-Berichtsversionen aus 12 Untersuchungen.</p>
+            </div>
+          </div>
+          <div id="report-table" class="report-table"></div>
+        </div>
+      </section>
+
+      <section id="freigabe-view" class="hidden">
+        <div id="freigabe-container"></div>
+      </section>
+    </main>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

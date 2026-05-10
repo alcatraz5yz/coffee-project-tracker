@@ -1,0 +1,19 @@
+{
+  "name": "coffee-project-tracker",
+  "version": "1.0.0",
+  "description": "Local PCS dashboard for tracking coffee machine builds, samples, approbation evidence, report versions, blockers, and critical documents.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js",
+    "seed": "node seed.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "better-sqlite3": "^12.9.0",
+    "express": "^5.2.1"
+  }
+}

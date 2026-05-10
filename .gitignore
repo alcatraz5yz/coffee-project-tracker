@@ -1,0 +1,15 @@
+node_modules/
+
+# Local runtime database and SQLite sidecar files
+*.db
+*.db-shm
+*.db-wal
+
+# Local/company evidence folders or symlinks
+evidence-*
+evidence-*/
+files/
+
+# macOS/editor noise
+.DS_Store
+*.swp
