@@ -294,11 +294,6 @@ main {
   height: 80px;
   width: auto;
   object-fit: contain;
-  border-radius: 10px;
-  border: 1px solid var(--line);
-  background: white;
-  padding: 5px;
-  box-shadow: 0 2px 8px rgba(20,32,42,0.07);
   flex-shrink: 0;
   justify-self: center;
 }
