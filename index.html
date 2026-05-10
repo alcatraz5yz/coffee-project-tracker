@@ -7,6 +7,9 @@
     <link rel="stylesheet" href="styles.css">
   </head>
   <body class="dashboard-mode">
+    <script>
+      document.body.dataset.theme = localStorage.getItem("pcs-theme") || "light";
+    </script>
     <aside class="sidebar">
       <button id="dashboard-link" class="brand" type="button">
         <span>PCS</span>
@@ -27,8 +30,8 @@
       <header class="topbar">
         <div class="topbar-title">
           <div>
-            <p id="project-family">PCS Maschinensteuerung</p>
-            <h1 id="project-title">Projekt</h1>
+            <p id="project-family">PCS Projektübersicht</p>
+            <h1 id="project-title">Kaffee Dashboard</h1>
           </div>
         </div>
         <img id="product-image" class="product-image" alt="">
