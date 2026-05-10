@@ -218,7 +218,7 @@ function renderSummary(project) {
       <div><i style="width:${project.progress}%"></i></div>
       <p>${project.phase}</p>
     </article>
-    ${(project.stats || []).map(([title, value, note]) => {
+    ${(project.stats || []).filter(([title]) => title !== "Certification").map(([title, value, note]) => {
       const isSubtopic = Boolean(project.subtopics?.[title]);
       const tag = isSubtopic ? "button" : "article";
       const type = isSubtopic ? ' type="button"' : "";
@@ -237,8 +237,18 @@ function renderSummary(project) {
 
 // ── Overview panels ───────────────────────────────────────────
 function renderOverview(project) {
+  const freigabeIsJa = (label) =>
+    (project.fachfreigabe?.gates || []).some((gate) => gate.label === label && gate.status === "Ja");
+  const coveredByFreigabe = (item) => {
+    const name = item.name || "";
+    if (/EMC|ErP/i.test(name)) return freigabeIsJa("EMC / ErP Berichte akzeptiert");
+    if (/Declaration|conformity|final/i.test(name)) return freigabeIsJa("Finale Dokumente vollstaendig");
+    if (/IEC|60335|review/i.test(name)) return freigabeIsJa("Ziffern fachlich geprueft") || freigabeIsJa("VDE bestanden");
+    if (/VDE/i.test(name)) return freigabeIsJa("VDE bestanden");
+    return false;
+  };
   const openCertifications = (project.certification || [])
-    .filter((c) => !c.done && !["Done", "Not needed", "Abgeschlossen"].includes(c.state));
+    .filter((c) => !c.done && !["Done", "Not needed", "Abgeschlossen"].includes(c.state) && !coveredByFreigabe(c));
   const certDone = (project.certification || []).filter((c) => c.done).length;
   const openBuilds = (project.builds || []).filter((b) => !["Done", "Not needed"].includes(b.state)).length;
   document.querySelector("#cert-progress").textContent = `${certDone}/${(project.certification || []).length}`;

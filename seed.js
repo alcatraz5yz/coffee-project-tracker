@@ -51,9 +51,6 @@ const insertZiffer = db.prepare(
 const insertEvidenceLink = db.prepare(
   "INSERT INTO evidence_links (ziffer_id, label, href) VALUES (?, ?, ?)"
 );
-const insertCloseoutGate = db.prepare(
-  "INSERT INTO closeout_gates (project_id, label, status, sort_order) VALUES (?, ?, ?, ?)"
-);
 const insertFfGate = db.prepare(
   "INSERT INTO fachfreigabe_gates (project_id, label, status, sort_order) VALUES (?, ?, ?, ?)"
 );
@@ -124,10 +121,6 @@ const seed = db.transaction(() => {
         );
       });
     });
-
-    (p.closeout?.gates || []).forEach((g, i) =>
-      insertCloseoutGate.run(p.id, g.label, g.status, i)
-    );
 
     (p.fachfreigabe?.gates || []).forEach((g, i) =>
       insertFfGate.run(p.id, g.label, g.status || "Offen", i)

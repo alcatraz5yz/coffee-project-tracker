@@ -231,16 +231,6 @@ function getProject(id) {
     project.subtopics[z.subtopic].ziffern.push(ziffer);
   });
 
-  // Closeout gates
-  const closeoutGates = db.prepare(
-    "SELECT label, status FROM closeout_gates WHERE project_id = ? ORDER BY sort_order"
-  ).all(id);
-  project.closeout = {
-    status: project.closeout_status || "Open",
-    summary: project.closeout_summary || "",
-    gates: closeoutGates
-  };
-
   // Fachfreigabe
   const ffGates = db.prepare(
     "SELECT label, status FROM fachfreigabe_gates WHERE project_id = ? ORDER BY sort_order"
