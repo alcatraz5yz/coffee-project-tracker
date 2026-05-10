@@ -886,7 +886,6 @@ h2 {
 }
 
 .ziffer-row-open {
-  border-left: 4px solid var(--watch);
   background: color-mix(in srgb, var(--watch) 12%, var(--panel));
 }
 
@@ -899,7 +898,6 @@ h2 {
 }
 
 .ziffer-row-done {
-  border-left: 4px solid var(--good);
   background: color-mix(in srgb, var(--good) 12%, var(--panel));
 }
 
@@ -912,7 +910,6 @@ h2 {
 }
 
 .ziffer-row-muted {
-  border-left: 4px solid var(--muted);
   background: color-mix(in srgb, var(--muted) 10%, var(--panel));
 }
 
@@ -1457,7 +1454,6 @@ h2 {
 }
 
 .row-done {
-  border-left: 4px solid var(--good);
   background: color-mix(in srgb, var(--good) 12%, var(--panel));
 }
 
@@ -1471,7 +1467,6 @@ h2 {
 }
 
 .row-blocked {
-  border-left: 4px solid var(--bad);
   background: color-mix(in srgb, var(--bad) 12%, var(--panel));
 }
 
@@ -1489,7 +1484,6 @@ h2 {
   min-width: 980px;
   padding: 10px 12px 12px 267px;
   border-bottom: 1px solid var(--line);
-  border-left: 4px solid var(--bad);
   background: color-mix(in srgb, var(--bad) 8%, var(--panel));
 }
 
