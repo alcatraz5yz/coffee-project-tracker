@@ -227,7 +227,6 @@ function renderOverview(project) {
     .filter((c) => !c.done && !["Done", "Not needed", "Abgeschlossen"].includes(c.state));
   const certDone = (project.certification || []).filter((c) => c.done).length;
   const openBuilds = (project.builds || []).filter((b) => !["Done", "Not needed"].includes(b.state)).length;
-  const blockedTasks = (project.tasks || []).filter((t) => t.status === "Blocked").length;
   document.querySelector("#cert-progress").textContent = `${certDone}/${(project.certification || []).length}`;
   document.querySelector("#build-progress").textContent = `${openBuilds} offen`;
   document.querySelector("#risk-count").textContent = `${(project.risks || []).length} Risiken`;
@@ -235,21 +234,6 @@ function renderOverview(project) {
     `${(project.tasks || []).filter((t) => t.status !== "Done").length} offen`;
 
   document.querySelector("#pcs-strip").innerHTML = `
-    <article class="closeout-status ${statusClass(project.closeout?.status || "Open")}">
-      <span>Abschlussstatus</span>
-      <strong>${statusLabel(project.closeout?.status || "Open")}</strong>
-      <p>${project.closeout?.summary || "Noch kein Abschlussstatus definiert."}</p>
-    </article>
-    <article>
-      <span>Offene Build-Gates</span>
-      <strong>${openBuilds}</strong>
-      <p>Muster / Versand / Nachweise</p>
-    </article>
-    <article>
-      <span>Blockierte PCS Punkte</span>
-      <strong>${blockedTasks}</strong>
-      <p>Entscheid oder Input noetig</p>
-    </article>
     <article class="closeout-gates">
       <span>Abschluss-Gates</span>
       ${(project.closeout?.gates || []).map((gate) => `
