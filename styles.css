@@ -812,6 +812,11 @@ h2 {
   background: color-mix(in srgb, var(--muted) 10%, var(--panel));
 }
 
+.ziffer-row-muted .ziffer-topic strong,
+.ziffer-row-muted .ziffer-topic small {
+  text-decoration: line-through;
+}
+
 .ziffer-topic {
   display: flex;
   flex-direction: column;
