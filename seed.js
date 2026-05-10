@@ -34,7 +34,7 @@ const insertBuild = db.prepare(
   "INSERT INTO builds (project_id, label, date, state, samples, note) VALUES (?, ?, ?, ?, ?, ?)"
 );
 const insertTask = db.prepare(
-  "INSERT INTO tasks (project_id, area, task, owner, due, status) VALUES (?, ?, ?, ?, ?, ?)"
+  "INSERT INTO tasks (project_id, area, task, owner, due, status, builds) VALUES (?, ?, ?, ?, ?, ?, ?)"
 );
 const insertRisk = db.prepare(
   "INSERT INTO risks (project_id, level, text) VALUES (?, ?, ?)"
@@ -102,7 +102,7 @@ const seed = db.transaction(() => {
     );
 
     (p.tasks || []).forEach((t) =>
-      insertTask.run(p.id, t.area, t.task, t.owner, t.due, t.status)
+      insertTask.run(p.id, t.area, t.task, t.owner, t.due, t.status, t.builds || "Alle")
     );
 
     (p.risks || []).forEach((r) =>

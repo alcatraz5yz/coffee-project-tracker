@@ -147,15 +147,15 @@ const projects = [
       { level: "Medium", text: "Need final mapping between build samples and approval documents." }
     ],
     tasks: [
-      { area: "Certification", task: "Confirm latest VDE order scope", owner: "Approbation", due: "2026-05-14", status: "Open" },
-      { area: "Electronics", task: "Review EF1157 mainboard Rev B against wiring diagram", owner: "HW", due: "2026-05-16", status: "Open" },
-      { area: "Build", task: "Link TS1 / TS2 dispatch lists to actual samples", owner: "PCS", due: "2026-05-17", status: "Open" },
-      { area: "PCS", task: "Create sample evidence matrix", owner: "PCS", due: "2026-05-20", status: "In progress" },
-      { area: "Approbation", task: "Check safety, EMC, ErP report completeness", owner: "Approbation", due: "2026-05-22", status: "Open" },
-      { area: "Certification", task: "Prepare final conformity document list", owner: "Approbation", due: "2026-05-28", status: "Blocked" },
-      { area: "Approbation", task: "Clarify missing final CB / EMC / ErP report package", owner: "Approbation", due: "2026-05-29", status: "Blocked" },
-      { area: "Build", task: "Create clean TS1 / TS2 sample and dispatch overview", owner: "PCS", due: "2026-05-30", status: "Open" },
-      { area: "Certification", task: "Confirm country implementation folder scope", owner: "Approbation", due: "2026-06-03", status: "Open" }
+      { area: "Certification", task: "Confirm latest VDE order scope", owner: "Approbation", due: "2026-05-14", status: "Open", builds: "Alle" },
+      { area: "Electronics", task: "Review EF1157 mainboard Rev B against wiring diagram", owner: "HW", due: "2026-05-16", status: "Open", builds: "PT1" },
+      { area: "Build", task: "Link TS1 / TS2 dispatch lists to actual samples", owner: "PCS", due: "2026-05-17", status: "Open", builds: "TS1,TS2" },
+      { area: "PCS", task: "Create sample evidence matrix", owner: "PCS", due: "2026-05-20", status: "In progress", builds: "PT1,OOT,TS1,TS2" },
+      { area: "Approbation", task: "Check safety, EMC, ErP report completeness", owner: "Approbation", due: "2026-05-22", status: "Open", builds: "TS1" },
+      { area: "Certification", task: "Prepare final conformity document list", owner: "Approbation", due: "2026-05-28", status: "Blocked", builds: "TS2" },
+      { area: "Approbation", task: "Clarify missing final CB / EMC / ErP report package", owner: "Approbation", due: "2026-05-29", status: "Blocked", builds: "TS2" },
+      { area: "Build", task: "Create clean TS1 / TS2 sample and dispatch overview", owner: "PCS", due: "2026-05-30", status: "Open", builds: "TS1,TS2" },
+      { area: "Certification", task: "Confirm country implementation folder scope", owner: "Approbation", due: "2026-06-03", status: "Open", builds: "TS1,TS2" }
     ],
     documents: [
       { name: "User manual draft", path: "03 User Manual/EF1157 UM CoffeeB Pluto_Draft.pdf", state: "Available" },
@@ -425,11 +425,11 @@ const projects = [
       { level: "Medium", text: "Carry-over from EF1157 must be documented row by row, not assumed globally." }
     ],
     tasks: [
-      { area: "Certification", task: "Confirm Brazil approval route and required standards", owner: "Approbation", due: "2026-05-15", status: "Open" },
-      { area: "Build", task: "Define PT1 Brazil sample configuration", owner: "PCS", due: "2026-05-18", status: "Open" },
-      { area: "Approbation", task: "Create EF1157 to EF1234 delta matrix", owner: "Approbation", due: "2026-05-20", status: "Open" },
-      { area: "Electronics", task: "Check mains, cord, plug, and PCB carry-over", owner: "HW", due: "2026-05-22", status: "Blocked" },
-      { area: "PCS", task: "Link Brazil samples to evidence package", owner: "PCS", due: "2026-05-28", status: "Open" }
+      { area: "Certification", task: "Confirm Brazil approval route and required standards", owner: "Approbation", due: "2026-05-15", status: "Open", builds: "Alle" },
+      { area: "Build", task: "Define PT1 Brazil sample configuration", owner: "PCS", due: "2026-05-18", status: "Open", builds: "PT1" },
+      { area: "Approbation", task: "Create EF1157 to EF1234 delta matrix", owner: "Approbation", due: "2026-05-20", status: "Open", builds: "PT1,TS1" },
+      { area: "Electronics", task: "Check mains, cord, plug, and PCB carry-over", owner: "HW", due: "2026-05-22", status: "Blocked", builds: "PT1,TS1" },
+      { area: "PCS", task: "Link Brazil samples to evidence package", owner: "PCS", due: "2026-05-28", status: "Open", builds: "PT1,TS1" }
     ],
     documents: [
       { name: "EF1157 carry-over baseline", path: "EF1157 approval package", state: "Available" },
@@ -509,7 +509,7 @@ const projects = [
       { level: "Medium", text: "Carry-over assumptions must be explicitly confirmed." }
     ],
     tasks: [
-      { area: "Approbation", task: "Compare shared approval documents with EF1157", owner: "Approbation", due: "2026-05-21", status: "Open" }
+      { area: "Approbation", task: "Compare shared approval documents with EF1157", owner: "Approbation", due: "2026-05-21", status: "Open", builds: "PT1,TS1" }
     ],
     documents: [
       { name: "Product specification", path: "05 Pflichtenheft.../230828_1107_product specification...", state: "Available" },

@@ -39,7 +39,8 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS tasks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
-    area TEXT, task TEXT, owner TEXT, due TEXT, status TEXT DEFAULT 'Open'
+    area TEXT, task TEXT, owner TEXT, due TEXT, status TEXT DEFAULT 'Open',
+    builds TEXT DEFAULT 'Alle'
   );
 
   CREATE TABLE IF NOT EXISTS risks (
@@ -124,6 +125,7 @@ db.exec(`
 
 // ── Migrations ────────────────────────────────────────────────────────────
 try { db.exec("ALTER TABLE ziffern ADD COLUMN builds TEXT DEFAULT ''"); } catch { /* exists */ }
+try { db.exec("ALTER TABLE tasks ADD COLUMN builds TEXT DEFAULT 'Alle'"); } catch { /* exists */ }
 
 {
   const setBuilds = db.prepare(
@@ -139,6 +141,33 @@ try { db.exec("ALTER TABLE ziffern ADD COLUMN builds TEXT DEFAULT ''"); } catch 
   for (const [nr, builds] of Object.entries(ef1157)) setBuilds.run(builds, "EF1157", nr);
   // EF1234 and EF1107 default to PT1,TS1
   db.prepare("UPDATE ziffern SET builds = 'PT1,TS1' WHERE project_id != 'EF1157' AND (builds IS NULL OR builds = '')").run();
+}
+
+{
+  const setTaskBuilds = db.prepare(
+    "UPDATE tasks SET builds = ? WHERE project_id = ? AND task = ? AND (builds IS NULL OR builds = '' OR builds = 'Alle')"
+  );
+  const ef1157 = [
+    ["Confirm latest VDE order scope", "Alle"],
+    ["Review EF1157 mainboard Rev B against wiring diagram", "PT1"],
+    ["Link TS1 / TS2 dispatch lists to actual samples", "TS1,TS2"],
+    ["Create sample evidence matrix", "PT1,OOT,TS1,TS2"],
+    ["Check safety, EMC, ErP report completeness", "TS1"],
+    ["Prepare final conformity document list", "TS2"],
+    ["Clarify missing final CB / EMC / ErP report package", "TS2"],
+    ["Create clean TS1 / TS2 sample and dispatch overview", "TS1,TS2"],
+    ["Confirm country implementation folder scope", "TS1,TS2"]
+  ];
+  ef1157.forEach(([task, builds]) => setTaskBuilds.run(builds, "EF1157", task));
+  const ef1234 = [
+    ["Confirm Brazil approval route and required standards", "Alle"],
+    ["Define PT1 Brazil sample configuration", "PT1"],
+    ["Create EF1157 to EF1234 delta matrix", "PT1,TS1"],
+    ["Check mains, cord, plug, and PCB carry-over", "PT1,TS1"],
+    ["Link Brazil samples to evidence package", "PT1,TS1"]
+  ];
+  ef1234.forEach(([task, builds]) => setTaskBuilds.run(builds, "EF1234", task));
+  setTaskBuilds.run("PT1,TS1", "EF1107", "Compare shared approval documents with EF1157");
 }
 
 // ── Queries ────────────────────────────────────────────────────────────────

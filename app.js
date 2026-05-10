@@ -293,17 +293,26 @@ function renderOverview(project) {
 // ── Tasks table ───────────────────────────────────────────────
 function renderTasks(project) {
   const area = taskFilter.value;
-  const tasks = area === "all"
+  let tasks = area === "all"
     ? (project.tasks || [])
     : (project.tasks || []).filter((t) => t.area === area);
+  if (activeBuild !== "Alle") {
+    tasks = tasks.filter((task) => {
+      const builds = String(task.builds || "Alle").split(",").map((b) => b.trim());
+      return builds.includes("Alle") || builds.includes(activeBuild);
+    });
+  }
+  const buildLabel = activeBuild !== "Alle" ? ` — ${activeBuild}` : "";
+  document.querySelector("#task-title").textContent = `PCS Massnahmen${buildLabel}`;
 
   document.querySelector("#task-table").innerHTML = `
     <div class="row head">
-      <span>Bereich</span><span>PCS Massnahme</span>
+      <span>Build</span><span>Bereich</span><span>PCS Massnahme</span>
       <span>Verantwortlich</span><span>Faellig</span><span>Status</span>
     </div>
-    ${tasks.map((task) => `
+    ${tasks.length ? tasks.map((task) => `
       <div class="row ${task.status === "Done" ? "row-done" : ""}">
+        <span>${task.builds || "Alle"}</span>
         <span>${termLabel(task.area)}</span>
         <strong>${task.task}</strong>
         <span>${task.owner}</span>
@@ -313,7 +322,7 @@ function renderTasks(project) {
           ${statusLabel(task.status)}
         </button>
       </div>
-    `).join("")}
+    `).join("") : `<p class="empty-state">Keine Massnahmen fuer ${activeBuild} in diesem Bereich.</p>`}
   `;
 }
 
@@ -590,6 +599,7 @@ function renderBuildChange() {
   updateSidebarBuildSelection();
   activeEvidenceGroup = null;
   renderSubtopic(activeProject);
+  renderTasks(activeProject);
   renderDocs(activeProject);
 }
 

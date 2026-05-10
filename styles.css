@@ -681,7 +681,7 @@ h2 {
 
 .row {
   display: grid;
-  grid-template-columns: 130px minmax(280px, 1fr) 130px 110px 120px;
+  grid-template-columns: 95px 130px minmax(280px, 1fr) 130px 110px 120px;
   gap: 10px;
   align-items: center;
   min-width: 820px;
