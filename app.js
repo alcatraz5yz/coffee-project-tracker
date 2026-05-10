@@ -724,7 +724,7 @@ machineList.addEventListener("click", async (event) => {
     return;
   }
 
-  openProject(btn.dataset.id, "overview");
+  openProject(btn.dataset.id, activeView === "dashboard" ? "overview" : activeView);
 });
 
 dashboardLink.addEventListener("click", () => {
