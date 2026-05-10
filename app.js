@@ -207,11 +207,13 @@ function relatedProjects() {
 
 function renderMachines() {
   const q = search.value.trim().toLowerCase();
-  machineList.innerHTML = relatedProjects()
-    .filter((p) =>
-      [p.id, p.name, p.owner, p.phase, p.market, p.variant_group, p.variant_of]
-        .join(" ").toLowerCase().includes(q)
-    )
+  const source = activeView === "dashboard" ? projectList : relatedProjects();
+  machineList.innerHTML = source
+    .filter((p) => {
+      if (activeView === "dashboard" && !q) return true;
+      return [p.id, p.name, p.owner, p.phase, p.market, p.variant_group, p.variant_of]
+        .join(" ").toLowerCase().includes(q);
+    })
     .map((p) => `
       <button class="${p.id === activeProject?.id ? "active" : ""}" data-id="${p.id}" type="button">
         <strong>${p.id}</strong>
@@ -683,8 +685,8 @@ async function openProject(projectId, view = "overview") {
   activeBuild = "Alle";
   activeEvidenceGroup = null;
   subtopicFilter.value = "all";
-  renderAll();
   setView(view);
+  renderAll();
 }
 
 function renderBuildChange() {
