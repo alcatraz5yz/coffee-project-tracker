@@ -223,6 +223,8 @@ function renderSummary(project) {
 
 // ── Overview panels ───────────────────────────────────────────
 function renderOverview(project) {
+  const openCertifications = (project.certification || [])
+    .filter((c) => !c.done && !["Done", "Not needed", "Abgeschlossen"].includes(c.state));
   const certDone = (project.certification || []).filter((c) => c.done).length;
   const openBuilds = (project.builds || []).filter((b) => !["Done", "Not needed"].includes(b.state)).length;
   const blockedTasks = (project.tasks || []).filter((t) => t.status === "Blocked").length;
@@ -273,13 +275,15 @@ function renderOverview(project) {
     </article>
   `;
 
-  document.querySelector("#cert-list").innerHTML = (project.certification || []).map((item) => `
-    <div>
-      <b>${item.done ? "Erledigt" : "Offen"}</b>
-      <span>${item.name}</span>
-      <em>${statusLabel(item.state)}</em>
-    </div>
-  `).join("");
+  document.querySelector("#cert-list").innerHTML = openCertifications.length
+    ? openCertifications.map((item) => `
+      <div>
+        <b>Offen</b>
+        <span>${item.name}</span>
+        <em>${statusLabel(item.state)}</em>
+      </div>
+    `).join("")
+    : `<p class="empty-state">Keine offenen Zulassungspunkte.</p>`;
 
   document.querySelector("#build-list").innerHTML = (project.builds || []).map((build) => `
     <article class="build-card">
