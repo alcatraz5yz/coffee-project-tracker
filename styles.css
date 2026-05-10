@@ -45,6 +45,7 @@ body[data-theme="dark"] {
 body {
   display: grid;
   grid-template-columns: 290px minmax(0, 1fr);
+  min-width: 980px;
   min-height: 100vh;
   margin: 0;
   background: var(--bg);
@@ -1564,12 +1565,12 @@ h2 {
 
 @media (max-width: 760px) {
   body {
-    display: block;
+    grid-template-columns: 290px minmax(690px, 1fr);
   }
 
   .sidebar {
-    position: static;
-    height: auto;
+    position: sticky;
+    height: 100vh;
   }
 
   .topbar {
