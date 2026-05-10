@@ -249,9 +249,8 @@ function renderOverview(project) {
   };
   const openCertifications = (project.certification || [])
     .filter((c) => !c.done && !["Done", "Not needed", "Abgeschlossen"].includes(c.state) && !coveredByFreigabe(c));
-  const certDone = (project.certification || []).filter((c) => c.done).length;
   const openBuilds = (project.builds || []).filter((b) => !["Done", "Not needed"].includes(b.state)).length;
-  document.querySelector("#cert-progress").textContent = `${certDone}/${(project.certification || []).length}`;
+  document.querySelector("#cert-progress").textContent = `${openCertifications.length} offen`;
   document.querySelector("#build-progress").textContent = `${openBuilds} offen`;
   document.querySelector("#risk-count").textContent = `${(project.risks || []).length} Risiken`;
   document.querySelector("#next-count").textContent =
