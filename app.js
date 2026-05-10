@@ -43,7 +43,7 @@ const statusLabels = {
   Draft: "Entwurf",
   Good: "Gut",
   "In progress": "In Arbeit",
-  "In review": "In Pruefung",
+  "In review": "In Prüfung",
   "Needs check": "Pruefen",
   "Not needed": "Nicht noetig",
   "Not started": "Nicht gestartet",
@@ -86,43 +86,43 @@ const termLabels = {
 
 const approbationText = {
   "IEC / VDE approval checklist by Ziffer. Status values are a first draft from the EF1157 folder and should be corrected as the team reviews evidence.":
-    "IEC-/VDE-Checkliste nach Ziffer. Die Stati sind ein erster Entwurf aus dem EF1157-Ordner und sollen bei der fachlichen Pruefung korrigiert werden.",
+    "IEC-/VDE-Checkliste nach Ziffer. Die Stati sind ein erster Entwurf aus dem EF1157-Ordner und sollen bei der fachlichen Prüfung korrigiert werden.",
   "General conditions / product scope": "Allgemeine Bedingungen / Produktscope",
   "Marking and instructions": "Kennzeichnung und Anleitungen",
-  "Protection against live parts": "Schutz gegen Beruehrung spannungsfuehrender Teile",
+  "Protection against live parts": "Schutz gegen Berührung spannungsfuehrender Teile",
   "Input and current": "Leistungsaufnahme und Strom",
-  Heating: "Erwaermung",
+  Heating: "Erwärmung",
   "Leakage current / electric strength": "Ableitstrom / elektrische Festigkeit",
-  "Moisture resistance": "Feuchtebestaendigkeit",
-  "Leakage after moisture": "Ableitstrom nach Feuchtepruefung",
+  "Moisture resistance": "Feuchtebeständigkeit",
+  "Leakage after moisture": "Ableitstrom nach Feuchteprüfung",
   "Overload protection": "Ueberlastschutz",
-  "Abnormal operation / motor heating": "Abnormaler Betrieb / Motorerwaermung",
+  "Abnormal operation / motor heating": "Abnormaler Betrieb / Motorerwärmung",
   "Stability and mechanical hazards": "Standfestigkeit und mechanische Gefahren",
   Construction: "Konstruktion",
   Components: "Komponenten",
   "Supply connection / external cords": "Netzanschluss / externe Leitungen",
   "Earthing provision": "Schutzleiteranschluss",
   "Clearances / creepage distances": "Luft- und Kriechstrecken",
-  "Resistance to heat and fire": "Bestaendigkeit gegen Waerme und Feuer",
-  "Radiation / toxicity / similar hazards": "Strahlung / Toxizitaet / aehnliche Gefahren",
-  "Project scope exists; final scope confirmation still useful.": "Produktscope vorhanden; finale Scope-Bestaetigung noch sinnvoll.",
+  "Resistance to heat and fire": "Beständigkeit gegen Wärme und Feuer",
+  "Radiation / toxicity / similar hazards": "Strahlung / Toxizität / ähnliche Gefahren",
+  "Project scope exists; final scope confirmation still useful.": "Produktscope vorhanden; finale Scope-Bestätigung noch sinnvoll.",
   "Need final rating plate and manual consistency check.": "Finaler Abgleich von Typenschild und Anleitung noetig.",
   "Needs explicit evidence set.": "Expliziter Nachweissatz noetig.",
   "Measurement files are present.": "Messdateien vorhanden.",
-  "Folder contains heater/TCO measurement evidence.": "Ordner enthaelt Messnachweise zu Heizung/TCO.",
+  "Folder contains heater/TCO measurement evidence.": "Ordner enthält Messnachweise zu Heizung/TCO.",
   "Need final result mapping.": "Finale Zuordnung der Resultate noetig.",
   "Check if test is done or not applicable.": "Pruefen, ob Test erledigt oder nicht anwendbar ist.",
   "Needs final report status.": "Finaler Berichtstatus noetig.",
   "Placeholder until standard matrix is reviewed.": "Platzhalter bis die Normmatrix geprueft ist.",
-  "Folder explicitly contains Ziffer 19 measurement evidence.": "Ordner enthaelt explizite Messnachweise zu Ziffer 19.",
+  "Folder explicitly contains Ziffer 19 measurement evidence.": "Ordner enthält explizite Messnachweise zu Ziffer 19.",
   "Need mechanical checklist.": "Mechanische Checkliste noetig.",
   "Needs final construction review.": "Finale Konstruktionspruefung noetig.",
   "Many component certificates are present.": "Viele Komponentenzertifikate vorhanden.",
   "Cord approval folders are present.": "Nachweisordner fuer Netzkabel vorhanden.",
-  "Need confirm appliance class and PE concept.": "Geraeteklasse und Schutzleiterkonzept bestaetigen.",
+  "Need confirm appliance class and PE concept.": "Geräteklasse und Schutzleiterkonzept bestätigen.",
   "Needs PCB review record.": "PCB-Pruefnachweis noetig.",
   "Ziffer_30 folder exists.": "Ziffer-30-Ordner vorhanden.",
-  "Likely not applicable, confirm in matrix.": "Voraussichtlich nicht anwendbar; in Matrix bestaetigen."
+  "Likely not applicable, confirm in matrix.": "Voraussichtlich nicht anwendbar; in Matrix bestätigen."
 };
 
 function statusClass(value) {
@@ -284,8 +284,8 @@ function renderOverview(project) {
   const coveredByFreigabe = (item) => {
     const name = item.name || "";
     if (/EMC|ErP/i.test(name)) return freigabeIsJa("EMC / ErP Berichte akzeptiert");
-    if (/Declaration|conformity|final/i.test(name)) return freigabeIsJa("Finale Dokumente vollstaendig");
-    if (/IEC|60335|review/i.test(name)) return freigabeIsJa("Ziffern fachlich geprueft") || freigabeIsJa("VDE bestanden");
+    if (/Declaration|conformity|final/i.test(name)) return freigabeIsJa("Finale Dokumente vollständig");
+    if (/IEC|60335|review/i.test(name)) return freigabeIsJa("Ziffern fachlich geprüft") || freigabeIsJa("VDE bestanden");
     if (/VDE/i.test(name)) return freigabeIsJa("VDE bestanden");
     return false;
   };
@@ -362,7 +362,7 @@ function renderTasks(project) {
   document.querySelector("#task-table").innerHTML = `
     <div class="row head">
       <span>Build</span><span>Bereich</span><span>PCS Massnahme</span>
-      <span>Verantwortlich</span><span>Faellig</span><span>Status</span>
+      <span>Verantwortlich</span><span>Fällig</span><span>Status</span>
     </div>
     ${tasks.length ? tasks.map((task) => `
       <div class="row ${task.status === "Done" ? "row-done" : ""} ${task.status === "Blocked" ? "row-blocked" : ""}">
@@ -372,7 +372,7 @@ function renderTasks(project) {
         <span>${task.owner}</span>
         <span>${task.due}</span>
         <button class="status-toggle ${statusClass(task.status)}" type="button"
-          data-task-id="${task.id}" aria-label="Status aendern">
+          data-task-id="${task.id}" aria-label="Status ändern">
           ${statusLabel(task.status)}
         </button>
       </div>
@@ -466,7 +466,7 @@ function renderSubtopic(project) {
           ${item.note ? `<small>${approbationLabel(item.note)}</small>` : ""}
         </span>
         <button class="status-toggle ${statusClass(item.status)}" type="button"
-          data-nr="${item.nr}" aria-label="Status aendern">
+          data-nr="${item.nr}" aria-label="Status ändern">
           ${statusLabel(item.status)}
         </button>
       </div>
@@ -491,7 +491,7 @@ function renderDocs(project) {
   const reportMarkup = reports.length ? `
     <div class="report-row head">
       <span>Projekt</span><span>Build</span><span>Version</span>
-      <span>Geaendert</span><span>Status</span><span>Datei</span>
+      <span>Geändert</span><span>Status</span><span>Datei</span>
     </div>
     ${reports.map((r) => `
       <div class="report-row">
@@ -518,7 +518,7 @@ function renderDocs(project) {
         ? `<p class="empty-state">Ordnerinhalt konnte nicht gelesen werden.</p>`
         : entries.length ? `
           <div class="evidence-file-row head">
-            <span>Name</span><span>Typ</span><span>Geaendert</span><span>Aktion</span>
+            <span>Name</span><span>Typ</span><span>Geändert</span><span>Aktion</span>
           </div>
           ${entries.map((entry) => `
             <div class="evidence-file-row">
@@ -531,7 +531,7 @@ function renderDocs(project) {
               </span>
             </div>
           `).join("")}
-        ` : `<p class="empty-state">Dieser Ordner enthaelt keine sichtbaren Dateien.</p>`;
+        ` : `<p class="empty-state">Dieser Ordner enthält keine sichtbaren Dateien.</p>`;
 
     return `
       <section class="document-group-detail">
@@ -600,11 +600,11 @@ function renderFachfreigabe(project) {
       <div class="freigabe-header">
         <div>
           <h2>Fachliche Freigabe</h2>
-          <p>Manuelle Bestaetigung durch PCS-Chef / Verantwortliche nach Ruecksprache mit VDE, Approbation oder Projektleitung. Diese Punkte koennen nicht automatisch erkannt werden.</p>
+          <p>Manuelle Bestätigung durch PCS-Chef / Verantwortliche nach Rücksprache mit VDE, Approbation oder Projektleitung. Diese Punkte können nicht automatisch erkannt werden.</p>
         </div>
         <em class="${statusClass(gesamtstatus)} freigabe-badge">${statusLabel(gesamtstatus)}</em>
       </div>
-      <h3 class="freigabe-section-title">Bestaetigung der Abschluss-Kriterien</h3>
+      <h3 class="freigabe-section-title">Bestätigung der Abschluss-Kriterien</h3>
       <div class="freigabe-gates">
         ${gates.length ? gates.map((gate) => `
           <div class="freigabe-gate-row">
@@ -615,10 +615,10 @@ function renderFachfreigabe(project) {
         `).join("") : `<p class="empty-state">Keine Freigabe-Kriterien fuer dieses Projekt definiert.</p>`}
       </div>
       <div class="freigabe-divider"></div>
-      <h3 class="freigabe-section-title">Ruecksprache &amp; Dokumentation</h3>
+      <h3 class="freigabe-section-title">Rücksprache &amp; Dokumentation</h3>
       <div class="freigabe-meta">
         <div class="freigabe-field">
-          <label for="ff-bestaetigt">Bestaetigt von</label>
+          <label for="ff-bestaetigt">Bestätigt von</label>
           <input id="ff-bestaetigt" type="text" placeholder="Name / Funktion" value="${meta.confirmed_by || ""}">
         </div>
         <div class="freigabe-field">
@@ -626,7 +626,7 @@ function renderFachfreigabe(project) {
           <input id="ff-datum" type="date" value="${meta.datum || ""}">
         </div>
         <div class="freigabe-field freigabe-field-wide">
-          <label for="ff-notiz">Notiz / Ruecksprache</label>
+          <label for="ff-notiz">Notiz / Rücksprache</label>
           <textarea id="ff-notiz" rows="4"
             placeholder="z.B. VDE Rueckfragen per E-Mail beantwortet am 15.05.2026, finaler Bericht erwartet bis 30.05.2026.">${meta.notiz || ""}</textarea>
         </div>

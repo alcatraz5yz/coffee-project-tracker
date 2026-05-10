@@ -96,7 +96,7 @@ function sendDirectoryListing(req, res, root, mountPath) {
         </div>
       </header>
       <section class="panel">
-        <div class="row head"><span>Name</span><span>Typ</span><span>Geaendert</span></div>
+        <div class="row head"><span>Name</span><span>Typ</span><span>Geändert</span></div>
         ${parentHref ? `<div class="row"><a href="${escapeHtml(parentHref)}">..</a><span class="type">Ordner</span><span></span></div>` : ""}
         ${entries.map((entry) => {
           const full = path.join(target, entry.name);

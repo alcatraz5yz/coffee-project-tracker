@@ -29,9 +29,9 @@ const projects = [
         { label: "Finaler VDE/CB Bericht akzeptiert" },
         { label: "EMC / ErP Berichte akzeptiert" },
         { label: "Keine offenen VDE Rueckfragen" },
-        { label: "Ziffern fachlich geprueft" },
-        { label: "Finale Dokumente vollstaendig" },
-        { label: "PCS Abschluss bestaetigt" }
+        { label: "Ziffern fachlich geprüft" },
+        { label: "Finale Dokumente vollständig" },
+        { label: "PCS Abschluss bestätigt" }
       ]
     },
     stats: [
@@ -359,7 +359,7 @@ const projects = [
       status: "In Arbeit",
       summary: "Brazil variant is not ready for VDE/INMETRO closeout; delta scope and local documents are still open.",
       gates: [
-        { label: "Delta Scope EF1157 -> EF1234 bestaetigt", status: "Open" },
+        { label: "Delta Scope EF1157 -> EF1234 bestätigt", status: "Open" },
         { label: "Brazil Unterlagen eingereicht", status: "Open" },
         { label: "Pruefungen bestanden", status: "Open" },
         { label: "Finale Brazil Dokumente abgelegt", status: "Blocked" }
@@ -367,11 +367,11 @@ const projects = [
     },
     fachfreigabe: {
       gates: [
-        { label: "Delta-Scope EF1157 zu EF1234 bestaetigt" },
-        { label: "Brazil-Unterlagen fachlich geprueft" },
+        { label: "Delta-Scope EF1157 zu EF1234 bestätigt" },
+        { label: "Brazil-Unterlagen fachlich geprüft" },
         { label: "Pruefungen bestanden" },
-        { label: "Finale Brazil Dokumente vollstaendig" },
-        { label: "PCS Abschluss bestaetigt" }
+        { label: "Finale Brazil Dokumente vollständig" },
+        { label: "PCS Abschluss bestätigt" }
       ]
     },
     stats: [
@@ -466,15 +466,15 @@ const projects = [
       summary: "Reference project is mostly usable, but carry-over applicability still needs explicit confirmation.",
       gates: [
         { label: "Reference VDE Dokumente vorhanden", status: "Done" },
-        { label: "Carry-over bestaetigt", status: "Open" },
+        { label: "Carry-over bestätigt", status: "Open" },
         { label: "Finale Vergleichsnotiz abgelegt", status: "Open" }
       ]
     },
     fachfreigabe: {
       gates: [
-        { label: "Reference-Dokumente vollstaendig" },
-        { label: "Carry-over fachlich bestaetigt" },
-        { label: "PCS Abschluss bestaetigt" }
+        { label: "Reference-Dokumente vollständig" },
+        { label: "Carry-over fachlich bestätigt" },
+        { label: "PCS Abschluss bestätigt" }
       ]
     },
     stats: [
