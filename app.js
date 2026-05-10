@@ -210,7 +210,7 @@ function renderMachines() {
   const source = activeView === "dashboard" ? projectList : relatedProjects();
   machineList.innerHTML = source
     .filter((p) => {
-      if (activeView === "dashboard") return true;
+      if (activeView === "dashboard" && !q) return true;
       return [p.id, p.name, p.owner, p.phase, p.market, p.variant_group, p.variant_of]
         .join(" ").toLowerCase().includes(q);
     })
