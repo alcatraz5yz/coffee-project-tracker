@@ -294,6 +294,14 @@ main {
   overflow: hidden;
 }
 
+body.dashboard-mode .sidebar {
+  display: none;
+}
+
+body.dashboard-mode main {
+  margin-left: 0;
+}
+
 .topbar {
   display: flex;
   gap: 18px;

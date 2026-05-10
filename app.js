@@ -193,6 +193,7 @@ function toggleEvidenceGroup(groupName) {
 // ── View switching ───────────────────────────────────────────
 function setView(name) {
   activeView = name;
+  document.body.classList.toggle("dashboard-mode", name === "dashboard");
   Object.entries(views).forEach(([k, el]) => el.classList.toggle("hidden", k !== name));
   Object.entries(buttons).forEach(([k, btn]) => btn.classList.toggle("active", k === name));
   document.querySelector(".top-actions").classList.toggle("hidden", name === "dashboard");
