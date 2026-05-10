@@ -84,11 +84,53 @@ const termLabels = {
   Watch: "Beobachten"
 };
 
+const approbationText = {
+  "IEC / VDE approval checklist by Ziffer. Status values are a first draft from the EF1157 folder and should be corrected as the team reviews evidence.":
+    "IEC-/VDE-Checkliste nach Ziffer. Die Stati sind ein erster Entwurf aus dem EF1157-Ordner und sollen bei der fachlichen Pruefung korrigiert werden.",
+  "General conditions / product scope": "Allgemeine Bedingungen / Produktscope",
+  "Marking and instructions": "Kennzeichnung und Anleitungen",
+  "Protection against live parts": "Schutz gegen Beruehrung spannungsfuehrender Teile",
+  "Input and current": "Leistungsaufnahme und Strom",
+  Heating: "Erwaermung",
+  "Leakage current / electric strength": "Ableitstrom / elektrische Festigkeit",
+  "Moisture resistance": "Feuchtebestaendigkeit",
+  "Leakage after moisture": "Ableitstrom nach Feuchtepruefung",
+  "Overload protection": "Ueberlastschutz",
+  "Abnormal operation / motor heating": "Abnormaler Betrieb / Motorerwaermung",
+  "Stability and mechanical hazards": "Standfestigkeit und mechanische Gefahren",
+  Construction: "Konstruktion",
+  Components: "Komponenten",
+  "Supply connection / external cords": "Netzanschluss / externe Leitungen",
+  "Earthing provision": "Schutzleiteranschluss",
+  "Clearances / creepage distances": "Luft- und Kriechstrecken",
+  "Resistance to heat and fire": "Bestaendigkeit gegen Waerme und Feuer",
+  "Radiation / toxicity / similar hazards": "Strahlung / Toxizitaet / aehnliche Gefahren",
+  "Project scope exists; final scope confirmation still useful.": "Produktscope vorhanden; finale Scope-Bestaetigung noch sinnvoll.",
+  "Need final rating plate and manual consistency check.": "Finaler Abgleich von Typenschild und Anleitung noetig.",
+  "Needs explicit evidence set.": "Expliziter Nachweissatz noetig.",
+  "Measurement files are present.": "Messdateien vorhanden.",
+  "Folder contains heater/TCO measurement evidence.": "Ordner enthaelt Messnachweise zu Heizung/TCO.",
+  "Need final result mapping.": "Finale Zuordnung der Resultate noetig.",
+  "Check if test is done or not applicable.": "Pruefen, ob Test erledigt oder nicht anwendbar ist.",
+  "Needs final report status.": "Finaler Berichtstatus noetig.",
+  "Placeholder until standard matrix is reviewed.": "Platzhalter bis die Normmatrix geprueft ist.",
+  "Folder explicitly contains Ziffer 19 measurement evidence.": "Ordner enthaelt explizite Messnachweise zu Ziffer 19.",
+  "Need mechanical checklist.": "Mechanische Checkliste noetig.",
+  "Needs final construction review.": "Finale Konstruktionspruefung noetig.",
+  "Many component certificates are present.": "Viele Komponentenzertifikate vorhanden.",
+  "Cord approval folders are present.": "Nachweisordner fuer Netzkabel vorhanden.",
+  "Need confirm appliance class and PE concept.": "Geraeteklasse und Schutzleiterkonzept bestaetigen.",
+  "Needs PCB review record.": "PCB-Pruefnachweis noetig.",
+  "Ziffer_30 folder exists.": "Ziffer-30-Ordner vorhanden.",
+  "Likely not applicable, confirm in matrix.": "Voraussichtlich nicht anwendbar; in Matrix bestaetigen."
+};
+
 function statusClass(value) {
   return String(value).toLowerCase().replaceAll(" ", "-").replaceAll("/", "-");
 }
 function statusLabel(value) { return statusLabels[value] || value; }
 function termLabel(value) { return termLabels[value] || value; }
+function approbationLabel(value) { return approbationText[value] || value; }
 function evidenceCacheKey(projectId, groupName) {
   return `${projectId}:${groupName}`;
 }
@@ -391,7 +433,7 @@ function renderSubtopic(project) {
   const subtopic = project.subtopics?.[activeSubtopic];
   const table = document.querySelector("#ziffer-table");
   const buildLabel = activeBuild !== "Alle" ? ` — ${activeBuild}` : "";
-  document.querySelector("#subtopic-title").textContent = `PCS ${activeSubtopic} / Ziffer Checkliste${buildLabel}`;
+  document.querySelector("#subtopic-title").textContent = `PCS Approbation / Ziffer-Checkliste${buildLabel}`;
 
   if (!subtopic) {
     document.querySelector("#subtopic-summary").textContent = "Fuer diesen Bereich ist noch keine Checkliste angelegt.";
@@ -399,7 +441,7 @@ function renderSubtopic(project) {
     return;
   }
 
-  document.querySelector("#subtopic-summary").textContent = subtopic.summary;
+  document.querySelector("#subtopic-summary").textContent = approbationLabel(subtopic.summary);
 
   // Filter by build then by status
   let ziffern = subtopic.ziffern || [];
@@ -420,8 +462,8 @@ function renderSubtopic(project) {
       <div class="ziffer-row ${item.status === "Done" ? "ziffer-row-done" : ""} ${item.status === "Blocked" ? "ziffer-row-blocked" : ""} ${item.status === "Not needed" ? "ziffer-row-muted" : ""}">
         <span class="ziffer-number">${item.nr}</span>
         <span class="ziffer-topic">
-          <strong>${item.title}</strong>
-          ${item.note ? `<small>${item.note}</small>` : ""}
+          <strong>${approbationLabel(item.title)}</strong>
+          ${item.note ? `<small>${approbationLabel(item.note)}</small>` : ""}
         </span>
         <button class="status-toggle ${statusClass(item.status)}" type="button"
           data-nr="${item.nr}" aria-label="Status aendern">
