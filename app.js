@@ -316,7 +316,7 @@ function renderTasks(project) {
       <span>Verantwortlich</span><span>Faellig</span><span>Status</span>
     </div>
     ${tasks.length ? tasks.map((task) => `
-      <div class="row ${task.status === "Done" ? "row-done" : ""}">
+      <div class="row ${task.status === "Done" ? "row-done" : ""} ${task.status === "Blocked" ? "row-blocked" : ""}">
         <span class="task-builds">${renderBuildTags(task.builds)}</span>
         <span>${termLabel(task.area)}</span>
         <strong>${task.task}</strong>

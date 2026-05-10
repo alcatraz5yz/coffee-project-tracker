@@ -1329,6 +1329,19 @@ h2 {
   text-decoration: line-through;
 }
 
+.row-blocked {
+  border-left: 4px solid var(--bad);
+  background: color-mix(in srgb, var(--bad) 12%, var(--panel));
+}
+
+.row-blocked:hover {
+  background: color-mix(in srgb, var(--bad) 16%, var(--panel));
+}
+
+.row-blocked strong {
+  color: var(--bad);
+}
+
 .ziffer-row:not(.head):hover {
   background: color-mix(in srgb, var(--accent) 7%, var(--panel));
 }
