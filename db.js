@@ -206,7 +206,7 @@ function getProject(id) {
   project.certification = db.prepare("SELECT * FROM certification WHERE project_id = ?").all(id)
     .map((r) => ({ ...r, done: Boolean(r.done) }));
 
-  project.documentGroups = db.prepare("SELECT * FROM document_groups WHERE project_id = ?").all(id)
+  project.documentGroups = db.prepare("SELECT * FROM document_groups WHERE project_id = ? ORDER BY primary_doc").all(id)
     .map((r) => ({ area: r.area, status: r.status, count: r.count, summary: r.summary, primary: r.primary_doc, href: r.href }));
 
   project.reportVersions = db.prepare("SELECT * FROM report_versions WHERE project_id = ?").all(id);
