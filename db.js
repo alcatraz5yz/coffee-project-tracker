@@ -128,7 +128,7 @@ db.exec(`
 try { db.exec("ALTER TABLE ziffern ADD COLUMN builds TEXT DEFAULT ''"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE tasks ADD COLUMN builds TEXT DEFAULT 'Alle'"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE tasks ADD COLUMN block_reason TEXT DEFAULT ''"); } catch { /* exists */ }
-db.prepare("UPDATE tasks SET status = 'Open' WHERE status = 'In progress'").run();
+try { db.exec("ALTER TABLE document_groups ADD COLUMN folder_mtime TEXT"); } catch { /* exists */ }
 
 {
   const setBuilds = db.prepare(
@@ -230,6 +230,16 @@ function getProject(id) {
     }
     project.subtopics[z.subtopic].ziffern.push(ziffer);
   });
+
+  // Closeout gates
+  const closeoutGates = db.prepare(
+    "SELECT label, status FROM closeout_gates WHERE project_id = ? ORDER BY sort_order"
+  ).all(id);
+  project.closeout = {
+    status: project.closeout_status || "Open",
+    summary: project.closeout_summary || "",
+    gates: closeoutGates
+  };
 
   // Fachfreigabe
   const ffGates = db.prepare(

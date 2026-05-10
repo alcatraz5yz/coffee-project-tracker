@@ -257,20 +257,28 @@ app.put("/api/projects/:id/fachfreigabe/meta", (req, res) => {
 });
 
 // ── Scanner ────────────────────────────────────────────────
-app.post("/api/scan", (_req, res) => {
-  try {
-    const result = scan();
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+let scanInProgress = false;
+let scanProgress = { done: 0, total: 0, current: "" };
+
+// Start scan in background, return immediately
+app.post("/api/scan/start", (_req, res) => {
+  if (scanInProgress) return res.json({ started: false });
+  scanInProgress = true;
+  scanProgress = { done: 0, total: 0, current: "" };
+  scan(null, (p) => { scanProgress = p; })
+    .then((r) => console.log(`Scan fertig: ${r.projects.length} Projekt(e)`))
+    .catch((err) => console.error("Scan-Fehler:", err.message))
+    .finally(() => { scanInProgress = false; });
+  res.json({ started: true });
 });
 
 app.get("/api/scan/status", (_req, res) => {
-  const last = db.prepare(
-    "SELECT * FROM scan_log ORDER BY id DESC LIMIT 1"
-  ).get();
-  res.json(last || { scanned_at: null, projects_found: 0, files_found: 0 });
+  const last = db.prepare("SELECT * FROM scan_log ORDER BY id DESC LIMIT 1").get();
+  res.json({
+    ...(last || { scanned_at: null, projects_found: 0, files_found: 0 }),
+    in_progress: scanInProgress,
+    progress: scanInProgress ? scanProgress : null
+  });
 });
 
 // ── Local file manager opener ───────────────────────────────

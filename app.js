@@ -931,48 +931,37 @@ themeToggle.addEventListener("click", () => {
 const scanBtn = document.querySelector("#scan-btn");
 const scanStatus = document.querySelector("#scan-status");
 
-async function loadScanStatus() {
-  try {
-    const s = await apiFetch("/api/scan/status");
-    if (s.scanned_at) {
-      const d = new Date(s.scanned_at);
-      const fmt = d.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit" })
-        + " " + d.toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" });
-      scanStatus.textContent = `${fmt} · ${s.projects_found} Proj.`;
-    } else {
-      scanStatus.textContent = "Noch nicht gescannt";
-    }
-  } catch { /* ignore */ }
+function showScanDone(s) {
+  if (!s?.scanned_at) { scanStatus.textContent = "Noch nicht gescannt"; return; }
+  const d = new Date(s.scanned_at);
+  const fmt = d.toLocaleDateString("de-CH", { day: "2-digit", month: "2-digit" })
+    + " " + d.toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" });
+  scanStatus.textContent = `${fmt} · ${s.projects_found} Proj.`;
 }
 
-scanBtn.addEventListener("click", async () => {
+async function startScanStream() {
   scanBtn.disabled = true;
-  scanBtn.textContent = "Scanne...";
-  scanStatus.textContent = "";
-  try {
-    const result = await apiFetch("/api/scan", { method: "POST" });
-    const n = result.projects?.length || 0;
-    const f = result.totalFiles || 0;
-    scanStatus.textContent = `${n} Proj. · ${f} Dateien`;
-    // Reload project list and active project after scan
-    projectList = await apiFetch("/api/projects");
-    if (activeProject) {
-      activeProject = await apiFetch(`/api/projects/${activeProject.id}`);
-    }
-    if (activeView === "dashboard") {
-      renderMachines();
-      renderDashboard();
+  scanStatus.textContent = "Scanne…";
+  await apiFetch("/api/scan/start", { method: "POST" });
+  while (true) {
+    await new Promise((r) => setTimeout(r, 500));
+    const s = await apiFetch("/api/scan/status");
+    if (s.in_progress) {
+      if (s.progress?.total > 0) {
+        scanStatus.textContent = `${s.progress.done}/${s.progress.total}  ${s.progress.current}`;
+      }
     } else {
-      renderAll();
+      showScanDone(s);
+      scanBtn.disabled = false;
+      projectList = await apiFetch("/api/projects");
+      if (activeProject) activeProject = await apiFetch(`/api/projects/${activeProject.id}`);
+      if (activeView === "dashboard") { renderMachines(); renderDashboard(); } else renderAll();
+      break;
     }
-  } catch (err) {
-    scanStatus.textContent = "Fehler";
-    console.error("Scan error:", err);
-  } finally {
-    scanBtn.disabled = false;
-    scanBtn.textContent = "P:\\PCS scannen";
   }
-});
+}
+
+scanBtn.addEventListener("click", startScanStream);
 
 // ── Init ──────────────────────────────────────────────────────
 (async () => {
@@ -985,5 +974,5 @@ scanBtn.addEventListener("click", async () => {
   renderMachines();
   renderDashboard();
   document.body.classList.remove("app-loading");
-  loadScanStatus();
+  startScanStream();
 })();
