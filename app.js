@@ -422,14 +422,6 @@ function renderSubtopic(project) {
         <span class="ziffer-topic">
           <strong>${item.title}</strong>
           ${item.note ? `<small>${item.note}</small>` : ""}
-          ${item.evidenceLinks?.length ? `
-            <span class="ziffer-links">
-              ${item.evidenceLinks.slice(0, 3).map((link) => {
-                const href = officeEditHref(link) || evidenceHref(link);
-                return `<a href="${href}" target="_blank" rel="noreferrer">${link.label}</a>`;
-              }).join("")}
-            </span>
-          ` : ""}
         </span>
         <button class="status-toggle ${statusClass(item.status)}" type="button"
           data-nr="${item.nr}" aria-label="Status aendern">
