@@ -508,7 +508,9 @@ function renderSubtopic(project) {
 
 // ── Docs / Evidence ───────────────────────────────────────────
 function renderDocs(project) {
-  const groups = project.documentGroups || [];
+  const groups = (project.documentGroups || [])
+    .slice()
+    .sort((a, b) => String(a.primary || "").localeCompare(String(b.primary || "")));
   const reportBuildMatches = (report) => {
     if (activeBuild === "Alle") return true;
     const build = String(report.build || "").toLowerCase();
