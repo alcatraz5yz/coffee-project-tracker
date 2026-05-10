@@ -150,7 +150,7 @@ const projects = [
       { area: "Certification", task: "Confirm latest VDE order scope", owner: "Approbation", due: "2026-05-14", status: "Open", builds: "Alle" },
       { area: "Electronics", task: "Review EF1157 mainboard Rev B against wiring diagram", owner: "HW", due: "2026-05-16", status: "Open", builds: "PT1" },
       { area: "Build", task: "Link TS1 / TS2 dispatch lists to actual samples", owner: "PCS", due: "2026-05-17", status: "Open", builds: "TS1,TS2" },
-      { area: "PCS", task: "Create sample evidence matrix", owner: "PCS", due: "2026-05-20", status: "In progress", builds: "PT1,OOT,TS1,TS2" },
+      { area: "PCS", task: "Create sample evidence matrix", owner: "PCS", due: "2026-05-20", status: "Open", builds: "PT1,OOT,TS1,TS2" },
       { area: "Approbation", task: "Check safety, EMC, ErP report completeness", owner: "Approbation", due: "2026-05-22", status: "Open", builds: "TS1" },
       { area: "Certification", task: "Prepare final conformity document list", owner: "Approbation", due: "2026-05-28", status: "Blocked", builds: "TS2" },
       { area: "Approbation", task: "Clarify missing final CB / EMC / ErP report package", owner: "Approbation", due: "2026-05-29", status: "Blocked", builds: "TS2" },

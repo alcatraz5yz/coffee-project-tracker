@@ -31,7 +31,7 @@ const evidenceEntries = new Map();
 
 // ── Labels / helpers ─────────────────────────────────────────
 const statusFlow = ["Open", "Done", "Not needed", "Blocked"];
-const taskFlow = ["Open", "In progress", "Done", "Blocked"];
+const taskFlow = ["Open", "Done", "Blocked"];
 const freigabeFlow = ["Offen", "Ja", "Nein", "Teilweise"];
 
 const statusLabels = {

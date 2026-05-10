@@ -126,6 +126,7 @@ db.exec(`
 // ── Migrations ────────────────────────────────────────────────────────────
 try { db.exec("ALTER TABLE ziffern ADD COLUMN builds TEXT DEFAULT ''"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE tasks ADD COLUMN builds TEXT DEFAULT 'Alle'"); } catch { /* exists */ }
+db.prepare("UPDATE tasks SET status = 'Open' WHERE status = 'In progress'").run();
 
 {
   const setBuilds = db.prepare(
