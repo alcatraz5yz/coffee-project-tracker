@@ -781,6 +781,19 @@ h2 {
   font-size: 13px;
 }
 
+.ziffer-row-open {
+  border-left: 4px solid var(--watch);
+  background: color-mix(in srgb, var(--watch) 12%, var(--panel));
+}
+
+.ziffer-row-open strong {
+  color: var(--watch);
+}
+
+.ziffer-row-open:hover {
+  background: color-mix(in srgb, var(--watch) 16%, var(--panel));
+}
+
 .ziffer-row-done {
   border-left: 4px solid var(--good);
   background: color-mix(in srgb, var(--good) 12%, var(--panel));
