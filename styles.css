@@ -1322,11 +1322,17 @@ h2 {
 }
 
 .row-done {
-  opacity: 0.55;
+  border-left: 4px solid var(--good);
+  background: color-mix(in srgb, var(--good) 12%, var(--panel));
 }
 
 .row-done strong {
+  color: var(--good);
   text-decoration: line-through;
+}
+
+.row-done:hover {
+  background: color-mix(in srgb, var(--good) 16%, var(--panel));
 }
 
 .row-blocked {
