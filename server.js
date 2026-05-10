@@ -244,7 +244,7 @@ app.put("/api/projects/:id/tasks/:taskId", (req, res) => {
 app.put("/api/projects/:id/fachfreigabe/gates", (req, res) => {
   const { id } = req.params;
   const { label, status } = req.body;
-  if (!label || !status) return res.status(400).json({ error: "label und status benoetigt" });
+  if (!label || !status) return res.status(400).json({ error: "label und status benötigt" });
   updateFachfreigabeGate(id, label, status);
   res.json({ ok: true });
 });

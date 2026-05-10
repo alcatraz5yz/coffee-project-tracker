@@ -44,8 +44,8 @@ const statusLabels = {
   Good: "Gut",
   "In progress": "In Arbeit",
   "In review": "In Prüfung",
-  "Needs check": "Pruefen",
-  "Not needed": "Nicht noetig",
+  "Needs check": "Prüfen",
+  "Not needed": "Nicht nötig",
   "Not started": "Nicht gestartet",
   Open: "Offen",
   Partial: "Teilweise",
@@ -89,13 +89,13 @@ const approbationText = {
     "IEC-/VDE-Checkliste nach Ziffer. Die Stati sind ein erster Entwurf aus dem EF1157-Ordner und sollen bei der fachlichen Prüfung korrigiert werden.",
   "General conditions / product scope": "Allgemeine Bedingungen / Produktscope",
   "Marking and instructions": "Kennzeichnung und Anleitungen",
-  "Protection against live parts": "Schutz gegen Berührung spannungsfuehrender Teile",
+  "Protection against live parts": "Schutz gegen Berührung spannungsführender Teile",
   "Input and current": "Leistungsaufnahme und Strom",
   Heating: "Erwärmung",
   "Leakage current / electric strength": "Ableitstrom / elektrische Festigkeit",
   "Moisture resistance": "Feuchtebeständigkeit",
   "Leakage after moisture": "Ableitstrom nach Feuchteprüfung",
-  "Overload protection": "Ueberlastschutz",
+  "Overload protection": "Überlastschutz",
   "Abnormal operation / motor heating": "Abnormaler Betrieb / Motorerwärmung",
   "Stability and mechanical hazards": "Standfestigkeit und mechanische Gefahren",
   Construction: "Konstruktion",
@@ -106,21 +106,21 @@ const approbationText = {
   "Resistance to heat and fire": "Beständigkeit gegen Wärme und Feuer",
   "Radiation / toxicity / similar hazards": "Strahlung / Toxizität / ähnliche Gefahren",
   "Project scope exists; final scope confirmation still useful.": "Produktscope vorhanden; finale Scope-Bestätigung noch sinnvoll.",
-  "Need final rating plate and manual consistency check.": "Finaler Abgleich von Typenschild und Anleitung noetig.",
-  "Needs explicit evidence set.": "Expliziter Nachweissatz noetig.",
+  "Need final rating plate and manual consistency check.": "Finaler Abgleich von Typenschild und Anleitung nötig.",
+  "Needs explicit evidence set.": "Expliziter Nachweissatz nötig.",
   "Measurement files are present.": "Messdateien vorhanden.",
   "Folder contains heater/TCO measurement evidence.": "Ordner enthält Messnachweise zu Heizung/TCO.",
-  "Need final result mapping.": "Finale Zuordnung der Resultate noetig.",
-  "Check if test is done or not applicable.": "Pruefen, ob Test erledigt oder nicht anwendbar ist.",
-  "Needs final report status.": "Finaler Berichtstatus noetig.",
-  "Placeholder until standard matrix is reviewed.": "Platzhalter bis die Normmatrix geprueft ist.",
+  "Need final result mapping.": "Finale Zuordnung der Resultate nötig.",
+  "Check if test is done or not applicable.": "Prüfen, ob Test erledigt oder nicht anwendbar ist.",
+  "Needs final report status.": "Finaler Berichtstatus nötig.",
+  "Placeholder until standard matrix is reviewed.": "Platzhalter bis die Normmatrix geprüft ist.",
   "Folder explicitly contains Ziffer 19 measurement evidence.": "Ordner enthält explizite Messnachweise zu Ziffer 19.",
-  "Need mechanical checklist.": "Mechanische Checkliste noetig.",
-  "Needs final construction review.": "Finale Konstruktionspruefung noetig.",
+  "Need mechanical checklist.": "Mechanische Checkliste nötig.",
+  "Needs final construction review.": "Finale Konstruktionsprüfung nötig.",
   "Many component certificates are present.": "Viele Komponentenzertifikate vorhanden.",
-  "Cord approval folders are present.": "Nachweisordner fuer Netzkabel vorhanden.",
+  "Cord approval folders are present.": "Nachweisordner für Netzkabel vorhanden.",
   "Need confirm appliance class and PE concept.": "Geräteklasse und Schutzleiterkonzept bestätigen.",
-  "Needs PCB review record.": "PCB-Pruefnachweis noetig.",
+  "Needs PCB review record.": "PCB-Prüfnachweis nötig.",
   "Ziffer_30 folder exists.": "Ziffer-30-Ordner vorhanden.",
   "Likely not applicable, confirm in matrix.": "Voraussichtlich nicht anwendbar; in Matrix bestätigen."
 };
@@ -383,7 +383,7 @@ function renderTasks(project) {
             placeholder="Warum ist diese Massnahme blockiert?">${escapeHtml(task.block_reason)}</textarea>
         </div>
       ` : ""}
-    `).join("") : `<p class="empty-state">Keine Massnahmen fuer ${activeBuild} in diesem Bereich.</p>`}
+    `).join("") : `<p class="empty-state">Keine Massnahmen für ${activeBuild} in diesem Bereich.</p>`}
   `;
 }
 
@@ -436,7 +436,7 @@ function renderSubtopic(project) {
   document.querySelector("#subtopic-title").textContent = `PCS Approbation / Ziffer-Checkliste${buildLabel}`;
 
   if (!subtopic) {
-    document.querySelector("#subtopic-summary").textContent = "Fuer diesen Bereich ist noch keine Checkliste angelegt.";
+    document.querySelector("#subtopic-summary").textContent = "Für diesen Bereich ist noch keine Checkliste angelegt.";
     table.innerHTML = "";
     return;
   }
@@ -502,11 +502,11 @@ function renderDocs(project) {
         <em class="${statusClass(r.state)}">${statusLabel(r.state)}</em>
         <span class="report-file">
           <a href="${evidenceHref(r)}" target="_blank" rel="noreferrer">${r.file}</a>
-          ${isWordFile(r.file) ? `<button class="word-action" type="button" data-open-word-href="${evidenceHref(r)}">In Word oeffnen</button>` : ""}
+          ${isWordFile(r.file) ? `<button class="word-action" type="button" data-open-word-href="${evidenceHref(r)}">In Word öffnen</button>` : ""}
         </span>
       </div>
     `).join("")}
-  ` : `<p class="empty-state">Fuer ${activeBuild} sind keine PCS Approbationsberichte indexiert.</p>`;
+  ` : `<p class="empty-state">Für ${activeBuild} sind keine PCS Approbationsberichte indexiert.</p>`;
 
   const groupDetailMarkup = (group, isReportsGroup) => {
     const key = evidenceCacheKey(project.id, group.primary);
@@ -526,8 +526,8 @@ function renderDocs(project) {
               <span>${entry.size || entry.type}</span>
               <span>${entry.modified}</span>
               <span class="evidence-file-actions">
-                ${entry.type === "Datei" && isWordFile(entry.name) ? `<button class="word-action" type="button" data-open-word-href="${entry.href}">In Word oeffnen</button>` : ""}
-                <button class="finder-action" type="button" data-open-href="${entry.href}">${entry.type === "Ordner" ? "Finder" : "Oeffnen"}</button>
+                ${entry.type === "Datei" && isWordFile(entry.name) ? `<button class="word-action" type="button" data-open-word-href="${entry.href}">In Word öffnen</button>` : ""}
+                <button class="finder-action" type="button" data-open-href="${entry.href}">${entry.type === "Ordner" ? "Finder" : "Öffnen"}</button>
               </span>
             </div>
           `).join("")}
@@ -575,7 +575,7 @@ function renderDocs(project) {
           </article>
           ${isSelected ? groupDetailMarkup(group, isReportsGroup) : ""}`;
       }).join("")
-    : `<p class="empty-state">Fuer dieses Projekt ist noch kein PCS Nachweisindex angelegt.</p>`;
+    : `<p class="empty-state">Für dieses Projekt ist noch kein PCS Nachweisindex angelegt.</p>`;
 
   document.querySelector("#reports-panel")?.classList.add("hidden");
 }
@@ -612,7 +612,7 @@ function renderFachfreigabe(project) {
             <button class="freigabe-btn ${statusClass(gate.status || "Offen")}" type="button"
               data-label="${gate.label}">${statusLabel(gate.status || "Offen")}</button>
           </div>
-        `).join("") : `<p class="empty-state">Keine Freigabe-Kriterien fuer dieses Projekt definiert.</p>`}
+        `).join("") : `<p class="empty-state">Keine Freigabe-Kriterien für dieses Projekt definiert.</p>`}
       </div>
       <div class="freigabe-divider"></div>
       <h3 class="freigabe-section-title">Rücksprache &amp; Dokumentation</h3>
@@ -628,7 +628,7 @@ function renderFachfreigabe(project) {
         <div class="freigabe-field freigabe-field-wide">
           <label for="ff-notiz">Notiz / Rücksprache</label>
           <textarea id="ff-notiz" rows="4"
-            placeholder="z.B. VDE Rueckfragen per E-Mail beantwortet am 15.05.2026, finaler Bericht erwartet bis 30.05.2026.">${meta.notiz || ""}</textarea>
+            placeholder="z.B. VDE Rückfragen per E-Mail beantwortet am 15.05.2026, finaler Bericht erwartet bis 30.05.2026.">${meta.notiz || ""}</textarea>
         </div>
       </div>
     </div>

@@ -16,10 +16,10 @@ const projects = [
       summary: "VDE package is in work; final CB/Safety/EMC/ErP reports and closing document set are not confirmed yet.",
       gates: [
         { label: "VDE Unterlagen eingereicht", status: "Done" },
-        { label: "Pruefungen bestanden", status: "Open" },
+        { label: "Prüfungen bestanden", status: "Open" },
         { label: "Finaler VDE/CB Bericht vorhanden", status: "Blocked" },
         { label: "EMC / ErP Reports vorhanden", status: "Blocked" },
-        { label: "Keine offenen VDE Rueckfragen", status: "Open" },
+        { label: "Keine offenen VDE Rückfragen", status: "Open" },
         { label: "Finale Dokumente abgelegt", status: "Open" }
       ]
     },
@@ -28,7 +28,7 @@ const projects = [
         { label: "VDE bestanden" },
         { label: "Finaler VDE/CB Bericht akzeptiert" },
         { label: "EMC / ErP Berichte akzeptiert" },
-        { label: "Keine offenen VDE Rueckfragen" },
+        { label: "Keine offenen VDE Rückfragen" },
         { label: "Ziffern fachlich geprüft" },
         { label: "Finale Dokumente vollständig" },
         { label: "PCS Abschluss bestätigt" }
@@ -97,7 +97,7 @@ const projects = [
             { label: "Wiring diagram", href: "evidence-1157/Zulassungen/IEC/08 Schema Gerät/Elektroschema/1157A801-w00.02.00.Wiring Diagramm.pdf" },
             { label: "Fluid system", href: "evidence-1157/Zulassungen/IEC/08 Schema Gerät/Fluidschema/EF1157_EF1156-BU_Fluidsystem.pdf" }
           ], note: "Needs final construction review." },
-          { nr: "24", title: "Components", status: "Done", owner: "Approbation", evidence: "10 Komponenten, 11 Materialpruefungen, approvals", evidenceLinks: [
+          { nr: "24", title: "Components", status: "Done", owner: "Approbation", evidence: "10 Komponenten, 11 Materialprüfungen, approvals", evidenceLinks: [
             { label: "Component evidence folder", href: "evidence-1157/Zulassungen/IEC/10 Komponenten/Komponenten Nachweise/" },
             { label: "Pump VDE marks approval", href: "evidence-1157/Zulassungen/IEC/10 Komponenten/0155224 _0152436  Pump Sysko SPX.H122A/VDE_Marks_Approval_40060855_300.pdf" },
             { label: "TCO pump approval", href: "evidence-1157/Zulassungen/IEC/10 Komponenten/0153271 TCO Pump  SF94R0/VDE 40035880.pdf" }
@@ -165,7 +165,7 @@ const projects = [
       { name: "MMI schematic", path: "07 Elektronik/.../EF1157-MMI-SCH-002-B-V1.PDF", state: "Available" },
       { name: "Fault imitation sheet", path: "07 Elektronik/EF1157-V003HW_V00-47SW_230V_Fault Imitation Sheet_EN.pdf", state: "Available" },
       { name: "Approval BOM", path: "06 Materialliste Explo/EF1157_Approbation BOM_V0.0_20251212.xlsm", state: "Available" },
-      { name: "Final CB / VDE report", path: "15 CB Pruefberichte Safety EMC ErP", state: "Needs check" }
+      { name: "Final CB / VDE report", path: "15 CB Prüfberichte Safety EMC ErP", state: "Needs check" }
     ],
     documentGroups: [
       {
@@ -332,12 +332,12 @@ const projects = [
       },
       {
         project: "EF1157",
-        build: "TS1 / Typenpruefung",
+        build: "TS1 / Typenprüfung",
         version: "VDE 338940 UB",
         modified: "2026-02-16 14:19",
         size: "14.5 MB",
         state: "Current",
-        file: "xxxx_EF1157 VDE 338940 UB Typenpruefung.docm",
+        file: "xxxx_EF1157 VDE 338940 UB Typenprüfung.docm",
         href: "evidence-1157/Zulassungen/IEC/12 Untersuchungen/TS1-Serie/xxxx_EF1157  VDE 338940 UB Typenprüfung.docm"
       }
     ]
@@ -361,7 +361,7 @@ const projects = [
       gates: [
         { label: "Delta Scope EF1157 -> EF1234 bestätigt", status: "Open" },
         { label: "Brazil Unterlagen eingereicht", status: "Open" },
-        { label: "Pruefungen bestanden", status: "Open" },
+        { label: "Prüfungen bestanden", status: "Open" },
         { label: "Finale Brazil Dokumente abgelegt", status: "Blocked" }
       ]
     },
@@ -369,7 +369,7 @@ const projects = [
       gates: [
         { label: "Delta-Scope EF1157 zu EF1234 bestätigt" },
         { label: "Brazil-Unterlagen fachlich geprüft" },
-        { label: "Pruefungen bestanden" },
+        { label: "Prüfungen bestanden" },
         { label: "Finale Brazil Dokumente vollständig" },
         { label: "PCS Abschluss bestätigt" }
       ]
