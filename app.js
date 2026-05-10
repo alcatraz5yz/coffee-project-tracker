@@ -984,5 +984,6 @@ scanBtn.addEventListener("click", async () => {
   setView("dashboard");
   renderMachines();
   renderDashboard();
+  document.body.classList.remove("app-loading");
   loadScanStatus();
 })();

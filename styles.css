@@ -302,6 +302,10 @@ body.dashboard-mode main {
   margin-left: 0;
 }
 
+body.app-loading main {
+  visibility: hidden;
+}
+
 .topbar {
   display: flex;
   gap: 18px;
