@@ -681,10 +681,10 @@ h2 {
 
 .row {
   display: grid;
-  grid-template-columns: 95px 130px minmax(280px, 1fr) 130px 110px 120px;
+  grid-template-columns: 120px 130px minmax(300px, 1fr) 130px 110px 120px;
   gap: 10px;
   align-items: center;
-  min-width: 820px;
+  min-width: 980px;
   padding: 11px 12px;
   border-bottom: 1px solid var(--line);
 }
@@ -699,6 +699,21 @@ h2 {
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.task-builds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.task-builds em {
+  border-radius: 5px;
+  padding: 2px 6px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 11px;
+  line-height: 1.25;
 }
 
 .build-tabs {

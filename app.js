@@ -291,6 +291,11 @@ function renderOverview(project) {
 }
 
 // ── Tasks table ───────────────────────────────────────────────
+function renderBuildTags(value) {
+  return String(value || "Alle").split(",").map((build) => build.trim()).filter(Boolean)
+    .map((build) => `<em>${build}</em>`).join("");
+}
+
 function renderTasks(project) {
   const area = taskFilter.value;
   let tasks = area === "all"
@@ -312,7 +317,7 @@ function renderTasks(project) {
     </div>
     ${tasks.length ? tasks.map((task) => `
       <div class="row ${task.status === "Done" ? "row-done" : ""}">
-        <span>${task.builds || "Alle"}</span>
+        <span class="task-builds">${renderBuildTags(task.builds)}</span>
         <span>${termLabel(task.area)}</span>
         <strong>${task.task}</strong>
         <span>${task.owner}</span>
