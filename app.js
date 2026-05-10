@@ -602,7 +602,7 @@ function renderDocs(project) {
             <span class="dgc-area">${termLabel(group.area)}</span>
             <div class="dgc-count">${num}<span>Dateien</span></div>
             <div class="dgc-actions">
-              <button class="finder-action primary" type="button" data-evidence-group="${group.primary}">${isSelected ? "Details ausblenden" : "Details anzeigen"}</button>
+              <button class="finder-action" type="button" data-evidence-group="${group.primary}">${isSelected ? "Details ausblenden" : "Details anzeigen"}</button>
               <a class="dgc-link" href="${evidenceHref(group)}" target="_blank" rel="noreferrer">Ordner anzeigen →</a>
               <button class="finder-action" type="button" data-open-href="${evidenceHref(group)}">Im Finder öffnen</button>
             </div>
