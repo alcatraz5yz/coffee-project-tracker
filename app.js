@@ -608,14 +608,14 @@ machineList.addEventListener("click", async (event) => {
       activeEvidenceGroup = null;
       subtopicFilter.value = "all";
       renderAll();
-      setView(activeView === "docs" ? "docs" : "subtopic");
+      setView(activeView);
       return;
     }
     activeBuild = pill.dataset.buildSelect;
     activeSubtopic = "Approbation";
     subtopicFilter.value = "all";
     renderBuildChange();
-    setView(activeView === "docs" ? "docs" : "subtopic");
+    setView(activeView);
     return;
   }
 
