@@ -73,7 +73,14 @@ select {
   display: flex;
   gap: 10px;
   align-items: center;
+  width: 100%;
   margin-bottom: 22px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: white;
+  cursor: pointer;
+  text-align: left;
 }
 
 .brand span {
@@ -84,6 +91,14 @@ select {
   border-radius: 7px;
   background: var(--accent);
   font-weight: 800;
+}
+
+.brand strong {
+  font-size: 16px;
+}
+
+.brand:hover strong {
+  color: #8cc8df;
 }
 
 .search {
@@ -386,6 +401,80 @@ body[data-theme="dark"] .theme-toggle span::after {
   grid-template-columns: 1.25fr repeat(5, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 14px;
+}
+
+.dashboard-hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: end;
+  margin-bottom: 16px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.dashboard-hero p,
+.dashboard-hero h2 {
+  margin: 0;
+}
+
+.dashboard-hero p,
+.dashboard-hero span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.dashboard-hero h2 {
+  margin-top: 4px;
+  font-size: 26px;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dashboard-card {
+  display: grid;
+  gap: 8px;
+  min-height: 170px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--panel);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+
+.dashboard-card:hover {
+  border-color: var(--accent);
+}
+
+.dashboard-card span,
+.dashboard-card small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.dashboard-card strong {
+  font-size: 34px;
+}
+
+.dashboard-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.35;
 }
 
 .summary-card,
@@ -1458,6 +1547,7 @@ h2 {
 
   .summary-grid,
   .pcs-strip,
+  .dashboard-grid,
   .document-group-grid,
   .doc-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1493,6 +1583,7 @@ h2 {
 
   .summary-grid,
   .pcs-strip,
+  .dashboard-grid,
   .document-group-grid,
   .doc-grid {
     grid-template-columns: 1fr;

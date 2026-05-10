@@ -2,6 +2,7 @@
 const machineList = document.querySelector("#machine-list");
 const search = document.querySelector("#search");
 const views = {
+  dashboard: document.querySelector("#dashboard-view"),
   overview: document.querySelector("#overview-view"),
   subtopic: document.querySelector("#subtopic-view"),
   tasks: document.querySelector("#tasks-view"),
@@ -19,6 +20,7 @@ const taskFilter = document.querySelector("#task-filter");
 const subtopicFilter = document.querySelector("#subtopic-filter");
 const zifferTable = document.querySelector("#ziffer-table");
 const themeToggle = document.querySelector("#theme-toggle");
+const dashboardLink = document.querySelector("#dashboard-link");
 
 // ── State ────────────────────────────────────────────────────
 let projectList = [];
@@ -193,12 +195,19 @@ function setView(name) {
   activeView = name;
   Object.entries(views).forEach(([k, el]) => el.classList.toggle("hidden", k !== name));
   Object.entries(buttons).forEach(([k, btn]) => btn.classList.toggle("active", k === name));
+  document.querySelector(".top-actions").classList.toggle("hidden", name === "dashboard");
+  document.querySelector("#product-image").style.display = name === "dashboard" ? "none" : document.querySelector("#product-image").style.display;
 }
 
 // ── Machine list ─────────────────────────────────────────────
+function relatedProjects() {
+  if (!activeProject || activeView === "dashboard") return projectList;
+  return projectList.filter((p) => p.family === activeProject.family);
+}
+
 function renderMachines() {
   const q = search.value.trim().toLowerCase();
-  machineList.innerHTML = projectList
+  machineList.innerHTML = relatedProjects()
     .filter((p) =>
       [p.id, p.name, p.owner, p.phase, p.market, p.variant_group, p.variant_of]
         .join(" ").toLowerCase().includes(q)
@@ -214,6 +223,26 @@ function renderMachines() {
           </div>` : ""}
       </button>
     `).join("");
+}
+
+function renderDashboard() {
+  const q = search.value.trim().toLowerCase();
+  const projects = projectList.filter((p) =>
+    [p.id, p.name, p.owner, p.family, p.market, p.phase, p.variant_group, p.variant_of]
+      .join(" ").toLowerCase().includes(q)
+  );
+  document.querySelector("#project-family").textContent = "PCS Projektübersicht";
+  document.querySelector("#project-title").textContent = "Kaffee Dashboard";
+  document.querySelector("#dashboard-count").textContent = `${projects.length} Projekte`;
+  document.querySelector("#dashboard-grid").innerHTML = projects.length ? projects.map((p) => `
+    <button class="dashboard-card" type="button" data-dashboard-project="${p.id}">
+      <span>${p.family || "PCS Maschine"}</span>
+      <strong>${p.id}</strong>
+      <p>${p.name}</p>
+      <em class="${statusClass(p.health)}">${statusLabel(p.health)}</em>
+      <small>${p.market ? `${termLabel(p.market)} / ` : ""}${p.phase || ""}</small>
+    </button>
+  `).join("") : `<p class="empty-state">Keine Projekte gefunden.</p>`;
 }
 
 function updateSidebarBuildSelection() {
@@ -648,6 +677,16 @@ function renderAll() {
   renderFachfreigabe(activeProject);
 }
 
+async function openProject(projectId, view = "overview") {
+  activeProject = await apiFetch(`/api/projects/${projectId}`);
+  activeSubtopic = "Approbation";
+  activeBuild = "Alle";
+  activeEvidenceGroup = null;
+  subtopicFilter.value = "all";
+  renderAll();
+  setView(view);
+}
+
 function renderBuildChange() {
   updateSidebarBuildSelection();
   activeEvidenceGroup = null;
@@ -671,26 +710,36 @@ machineList.addEventListener("click", async (event) => {
       activeEvidenceGroup = null;
       subtopicFilter.value = "all";
       renderAll();
-      setView(activeView);
+      setView(activeView === "dashboard" ? "subtopic" : activeView);
       return;
     }
     activeBuild = pill.dataset.buildSelect;
     activeSubtopic = "Approbation";
     subtopicFilter.value = "all";
     renderBuildChange();
-    setView(activeView);
+    setView(activeView === "dashboard" ? "subtopic" : activeView);
     return;
   }
 
-  activeProject = await apiFetch(`/api/projects/${btn.dataset.id}`);
-  activeSubtopic = "Approbation";
-  activeBuild = "Alle";
-  activeEvidenceGroup = null;
-  subtopicFilter.value = "all";
-  renderAll();
+  openProject(btn.dataset.id, "overview");
 });
 
-search.addEventListener("input", renderMachines);
+dashboardLink.addEventListener("click", () => {
+  setView("dashboard");
+  renderMachines();
+  renderDashboard();
+});
+
+document.querySelector("#dashboard-grid").addEventListener("click", (event) => {
+  const card = event.target.closest("[data-dashboard-project]");
+  if (!card) return;
+  openProject(card.dataset.dashboardProject, "overview");
+});
+
+search.addEventListener("input", () => {
+  renderMachines();
+  if (activeView === "dashboard") renderDashboard();
+});
 taskFilter.addEventListener("change", () => renderTasks(activeProject));
 subtopicFilter.addEventListener("change", () => renderSubtopic(activeProject));
 
@@ -907,7 +956,12 @@ scanBtn.addEventListener("click", async () => {
     if (activeProject) {
       activeProject = await apiFetch(`/api/projects/${activeProject.id}`);
     }
-    renderAll();
+    if (activeView === "dashboard") {
+      renderMachines();
+      renderDashboard();
+    } else {
+      renderAll();
+    }
   } catch (err) {
     scanStatus.textContent = "Fehler";
     console.error("Scan error:", err);
@@ -924,6 +978,8 @@ scanBtn.addEventListener("click", async () => {
     const preferred = projectList.find((project) => project.id === "EF1157") || projectList[0];
     activeProject = await apiFetch(`/api/projects/${preferred.id}`);
   }
-  renderAll();
+  setView("dashboard");
+  renderMachines();
+  renderDashboard();
   loadScanStatus();
 })();

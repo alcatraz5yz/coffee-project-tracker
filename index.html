@@ -8,10 +8,10 @@
   </head>
   <body>
     <aside class="sidebar">
-      <div class="brand">
+      <button id="dashboard-link" class="brand" type="button">
         <span>PCS</span>
         <strong>Kaffee Dashboard</strong>
-      </div>
+      </button>
       <label class="search">
         <span>Suche</span>
         <input id="search" type="search" placeholder="Maschine, Build, Nachweis">
@@ -44,6 +44,17 @@
           <strong>Dark</strong>
         </button>
       </header>
+
+      <section id="dashboard-view" class="hidden">
+        <div class="dashboard-hero">
+          <div>
+            <p>PCS Projektübersicht</p>
+            <h2>Alle EF-Maschinen</h2>
+          </div>
+          <span id="dashboard-count"></span>
+        </div>
+        <div id="dashboard-grid" class="dashboard-grid"></div>
+      </section>
 
       <section id="overview-view">
         <div class="summary-grid" id="summary-grid"></div>
