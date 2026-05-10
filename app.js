@@ -201,7 +201,7 @@ function loadProductImage(projectId) {
 function renderSummary(project) {
   const relation = project.variant_of ? ` / Variante von ${project.variant_of}` : "";
   document.querySelector("#project-family").textContent =
-    `PCS Steuerung / ${project.family} / ${termLabel(project.market || "Global")}${relation}`;
+    `${project.family} / ${termLabel(project.market || "Global")}${relation}`;
   document.querySelector("#project-title").textContent = project.name;
 
   document.querySelector("#summary-grid").innerHTML = `
