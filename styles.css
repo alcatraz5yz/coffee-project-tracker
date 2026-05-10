@@ -252,7 +252,7 @@ em,
 }
 
 .status-toggle.in-progress {
-  background: #fff0d5;
+  background: color-mix(in srgb, var(--watch) 18%, var(--panel));
   color: var(--watch);
 }
 
