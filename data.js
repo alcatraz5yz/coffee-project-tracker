@@ -107,7 +107,7 @@ const projects = [
             { label: "CH cord VDE", href: "evidence-1157/Zulassungen/IEC/10 Komponenten/Komponenten Nachweise/0156693 Netzkabel CH SF 285/0054494 Cord H05VV-F3G 0.75/VDE 120557.pdf" },
             { label: "Alternative EU cord", href: "evidence-1157/Zulassungen/IEC/10 Komponenten/Komponenten Nachweise/0156694 Netzkabel EU  CW3191/0106886_cord H05VV-F3G 0.75/VDE 109835.pdf" }
           ], note: "Cord approval folders are present." },
-          { nr: "27", title: "Earthing provision", status: "Blocked", owner: "Safety", evidence: "Wiring diagram", evidenceLinks: [
+          { nr: "27", title: "Earthing provision", status: "Open", owner: "Safety", evidence: "Wiring diagram", evidenceLinks: [
             { label: "Wiring diagram", href: "evidence-1157/Zulassungen/IEC/08 Schema Gerät/Elektroschema/1157A801-w00.02.00.Wiring Diagramm.pdf" },
             { label: "Mainboard schematic", href: "evidence-1157/Zulassungen/IEC/07 Elektronik/Elektronik  BOM_Schema_Layout/Elektonink BOM_Schema_Layout/EF1157-Mainboard-SCH-003-B-V1-CE.PDF" }
           ], note: "Need confirm appliance class and PE concept." },
@@ -398,7 +398,7 @@ const projects = [
           { nr: "20", title: "Stability and mechanical hazards", status: "Not needed", owner: "Mechanical", evidence: "EF1157 carry-over", note: "Carry-over if mechanical design unchanged." },
           { nr: "22", title: "Construction", status: "Open", owner: "Safety", evidence: "Delta construction review", note: "Document all Brazil-specific differences." },
           { nr: "24", title: "Components", status: "Open", owner: "Approbation", evidence: "Brazil BOM delta", note: "Check plug, cord, label, PSU/heater variants." },
-          { nr: "25", title: "Supply connection / external cords", status: "Blocked", owner: "Approbation", evidence: "Brazil cord/plug approval", note: "Needs Brazil-specific cord and plug decision." },
+          { nr: "25", title: "Supply connection / external cords", status: "Open", owner: "Approbation", evidence: "Brazil cord/plug approval", note: "Needs Brazil-specific cord and plug decision." },
           { nr: "27", title: "Earthing provision", status: "Open", owner: "Safety", evidence: "Wiring diagram delta", note: "Confirm appliance class and PE concept." },
           { nr: "29", title: "Clearances / creepage distances", status: "Not needed", owner: "HW", evidence: "EF1157 PCB carry-over", note: "Carry-over if PCB and voltage class unchanged." },
           { nr: "30", title: "Resistance to heat and fire", status: "Open", owner: "Materials", evidence: "Material carry-over list", note: "Confirm materials and suppliers unchanged." },

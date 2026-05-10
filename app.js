@@ -30,7 +30,7 @@ let activeEvidenceGroup = null;
 const evidenceEntries = new Map();
 
 // ── Labels / helpers ─────────────────────────────────────────
-const statusFlow = ["Open", "Done", "Not needed", "Blocked"];
+const statusFlow = ["Open", "Done", "Not needed"];
 const taskFlow = ["Open", "Done", "Blocked"];
 const freigabeFlow = ["Offen", "Ja", "Nein", "Teilweise"];
 
@@ -459,7 +459,7 @@ function renderSubtopic(project) {
       <span>Z.</span><span>Thema</span><span>Status</span>
     </div>
     ${ziffern.map((item) => `
-      <div class="ziffer-row ${item.status === "Done" ? "ziffer-row-done" : ""} ${item.status === "Blocked" ? "ziffer-row-blocked" : ""} ${item.status === "Not needed" ? "ziffer-row-muted" : ""}">
+      <div class="ziffer-row ${item.status === "Done" ? "ziffer-row-done" : ""} ${item.status === "Not needed" ? "ziffer-row-muted" : ""}">
         <span class="ziffer-number">${item.nr}</span>
         <span class="ziffer-topic">
           <strong>${approbationLabel(item.title)}</strong>

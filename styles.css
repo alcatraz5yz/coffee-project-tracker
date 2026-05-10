@@ -794,19 +794,6 @@ h2 {
   background: color-mix(in srgb, var(--good) 16%, var(--panel));
 }
 
-.ziffer-row-blocked {
-  border-left: 4px solid var(--bad);
-  background: color-mix(in srgb, var(--bad) 12%, var(--panel));
-}
-
-.ziffer-row-blocked strong {
-  color: var(--bad);
-}
-
-.ziffer-row-blocked:hover {
-  background: color-mix(in srgb, var(--bad) 16%, var(--panel));
-}
-
 .ziffer-row-muted {
   border-left: 4px solid var(--muted);
   background: color-mix(in srgb, var(--muted) 10%, var(--panel));
