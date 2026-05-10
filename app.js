@@ -229,9 +229,6 @@ function renderOverview(project) {
   const openBuilds = (project.builds || []).filter((b) => !["Done", "Not needed"].includes(b.state)).length;
   const blockedTasks = (project.tasks || []).filter((t) => t.status === "Blocked").length;
   const currentReports = (project.reportVersions || []).filter((r) => r.state === "Current").length;
-  const currentBuild = [...(project.builds || [])].reverse()
-    .find((b) => !["Not started", "Planned"].includes(b.state)) || project.builds?.at(-1);
-
   document.querySelector("#cert-progress").textContent = `${certDone}/${(project.certification || []).length}`;
   document.querySelector("#build-progress").textContent = `${openBuilds} offen`;
   document.querySelector("#risk-count").textContent = `${(project.risks || []).length} Risiken`;
@@ -243,11 +240,6 @@ function renderOverview(project) {
       <span>Abschlussstatus</span>
       <strong>${statusLabel(project.closeout?.status || "Open")}</strong>
       <p>${project.closeout?.summary || "Noch kein Abschlussstatus definiert."}</p>
-    </article>
-    <article>
-      <span>Aktueller Build</span>
-      <strong>${currentBuild?.label || "TBD"}</strong>
-      <p>${currentBuild?.samples || "Muster TBD"}</p>
     </article>
     <article>
       <span>Offene Build-Gates</span>
