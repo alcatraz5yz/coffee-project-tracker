@@ -228,7 +228,6 @@ function renderOverview(project) {
   const certDone = (project.certification || []).filter((c) => c.done).length;
   const openBuilds = (project.builds || []).filter((b) => !["Done", "Not needed"].includes(b.state)).length;
   const blockedTasks = (project.tasks || []).filter((t) => t.status === "Blocked").length;
-  const currentReports = (project.reportVersions || []).filter((r) => r.state === "Current").length;
   document.querySelector("#cert-progress").textContent = `${certDone}/${(project.certification || []).length}`;
   document.querySelector("#build-progress").textContent = `${openBuilds} offen`;
   document.querySelector("#risk-count").textContent = `${(project.risks || []).length} Risiken`;
@@ -250,11 +249,6 @@ function renderOverview(project) {
       <span>Blockierte PCS Punkte</span>
       <strong>${blockedTasks}</strong>
       <p>Entscheid oder Input noetig</p>
-    </article>
-    <article>
-      <span>Aktuelle Berichte</span>
-      <strong>${currentReports}</strong>
-      <p>Word-Berichte indexiert</p>
     </article>
     <article class="closeout-gates">
       <span>Abschluss-Gates</span>
