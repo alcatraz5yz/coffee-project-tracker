@@ -450,6 +450,32 @@ body[data-theme="dark"] .theme-toggle span::after {
   font-size: 26px;
 }
 
+.dashboard-search-wrap {
+  margin-bottom: 16px;
+}
+
+.dashboard-search-wrap input {
+  width: 100%;
+  padding: 14px 20px;
+  font-size: 17px;
+  font-family: inherit;
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  outline: none;
+  box-shadow: var(--shadow);
+  transition: border-color 0.15s;
+}
+
+.dashboard-search-wrap input:focus {
+  border-color: var(--accent);
+}
+
+.dashboard-search-wrap input::placeholder {
+  color: var(--muted);
+}
+
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

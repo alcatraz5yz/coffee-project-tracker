@@ -235,8 +235,10 @@ function renderMachines() {
   machineList.innerHTML = filtered.map((p) => renderBtn(p)).join("");
 }
 
+const dashboardSearch = document.querySelector("#dashboard-search");
+
 function renderDashboard() {
-  const q = search.value.trim().toLowerCase();
+  const q = (dashboardSearch?.value || search.value).trim().toLowerCase();
   const projects = projectList.filter((p) =>
     [p.id, p.name, p.owner, p.family, p.market, p.phase, p.variant_group, p.variant_of]
       .join(" ").toLowerCase().includes(q)
@@ -738,6 +740,7 @@ machineList.addEventListener("click", async (event) => {
 });
 
 dashboardLink.addEventListener("click", () => {
+  dashboardSearch.value = "";
   setView("dashboard");
   renderMachines();
   renderDashboard();
@@ -753,6 +756,7 @@ search.addEventListener("input", () => {
   renderMachines();
   if (activeView === "dashboard") renderDashboard();
 });
+dashboardSearch.addEventListener("input", () => renderDashboard());
 taskFilter.addEventListener("change", () => renderTasks(activeProject));
 subtopicFilter.addEventListener("change", () => renderSubtopic(activeProject));
 
