@@ -335,44 +335,52 @@ app.post("/api/scan-archive", async (req, res) => {
 });
 
 app.get("/api/open-archive", (req, res) => {
-  const projectId = req.query.project_id || "";
-  const script = `
-import openpyxl, subprocess, os, sys
-path = os.environ.get("ARCHIVE_EXCEL", "")
-try:
-    wb = openpyxl.load_workbook(path)
-    ws = wb.active
-    row_num = None
-    for i, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
-        if str(row[0]).strip() == "${projectId.replace(/"/g, "")}":
-            row_num = i
-            break
-except Exception:
-    row_num = None
+  const projectId = (req.query.project_id || "").replace(/[^A-Za-z0-9]/g, "");
+  const excelPath = ARCHIVE_EXCEL_PATH;
 
-if row_num:
-    script = f"""
-tell application "Microsoft Excel"
-    activate
-    try
-        set wb to workbook "${ARCHIVE_EXCEL_PATH.replace(/\\/g, "\\\\")}"
-    on error
-        open workbook workbook file name "${ARCHIVE_EXCEL_PATH.replace(/\\/g, "\\\\")}"
-        set wb to active workbook
-    end try
-    tell active sheet of wb
-        set target to cells row {row_num} column 1
-        select target
-        set selection of application "Microsoft Excel" to target
-    end tell
-end tell
-"""
-    subprocess.run(["osascript", "-e", script])
-else:
-    subprocess.run(["open", path])
-`.trim();
-  const proc = spawn("python3", ["-c", script], { env: { ...process.env, ARCHIVE_EXCEL: ARCHIVE_EXCEL_PATH } });
-  proc.on("close", () => res.json({ ok: true }));
+  // Find the row number for this project via the scan_archive.py data
+  let rowNum = null;
+  try {
+    const { execSync } = require("child_process");
+    const pyCode = [
+      "import openpyxl, os",
+      `wb = openpyxl.load_workbook(r'${excelPath}')`,
+      "ws = wb.active",
+      "row_num = 0",
+      "for i, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):",
+      `    if str(row[0]).strip() == '${projectId}':`,
+      "        row_num = i",
+      "        break",
+      "print(row_num)",
+    ].join("\n");
+    rowNum = parseInt(execSync(`python3 -c "${pyCode.replace(/"/g, '\\"')}"`).toString().trim(), 10) || null;
+  } catch (_) {}
+
+  // Open the file with the default app (Numbers)
+  spawn("open", [excelPath], { detached: true }).unref();
+
+  // If found, navigate Numbers to that row after a short delay
+  if (rowNum) {
+    const cellRef = `A${rowNum}`;
+    const appleScript = [
+      'tell application "Numbers"',
+      "    activate",
+      "    delay 2",
+      "    tell front document",
+      "        tell active sheet",
+      "            tell table 1",
+      `                set selection range to cell "${cellRef}"`,
+      "            end tell",
+      "        end tell",
+      "    end tell",
+      "end tell",
+    ].join("\n");
+    setTimeout(() => {
+      spawn("osascript", ["-e", appleScript], { detached: true }).unref();
+    }, 500);
+  }
+
+  res.json({ ok: true });
 });
 app.get("/api/archive", (_req, res) => res.json(getArchiveItems()));
 app.post("/api/archive", (req, res) => res.json({ id: upsertArchiveItem(req.body) }));
