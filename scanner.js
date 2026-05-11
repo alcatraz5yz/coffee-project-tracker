@@ -119,7 +119,7 @@ function inferReportState(relFromIec) {
 }
 
 function inferDocProject(filename) {
-  const match = filename.match(/ef[\s-]?(\d{4})/i) || filename.match(/(\d{4})/);
+  const match = filename.match(/ef[\s_-]?(\d{4})/i);
   if (match) return `${PROJECT_PREFIX}${match[1]}`;
   return null;
 }
@@ -140,27 +140,52 @@ async function findIecFolderAsync(projectDir) {
   return null;
 }
 
-function getWebPrefix(projectNumber) {
+function encodePathSegment(value) {
+  return String(value).split(path.sep).map(encodeURIComponent).join("/");
+}
+
+function isProjectFolderName(name) {
+  return /^\d/.test(name) || new RegExp(`^${PROJECT_PREFIX}[\\s_-]*\\d`, "i").test(name);
+}
+
+// Extract all EF numbers from a folder name.
+// "EF254+698 Nivona"       → ["254", "698"]
+// "EF230+231+232 NNSA"     → ["230", "231", "232"]
+// "1157 EF1157 CoffeeB"    → ["1157"]
+// "EF 1175"                → ["1175"]
+function extractProjectNumbers(folderName) {
+  const efMatch = folderName.match(/^EF[\s_-]*(\d+(?:[+]\d+)*)/i);
+  if (efMatch) return efMatch[1].split("+").map((n) => n.trim()).filter(Boolean);
+  const digitMatch = folderName.match(/^(\d+)/);
+  if (digitMatch) return [digitMatch[1]];
+  return [];
+}
+
+function getWebPrefix(projectNumber, projectFolderName) {
   const symlinkPath = path.join(__dirname, `evidence-${projectNumber}`);
   try {
     fs.statSync(symlinkPath);
     return `evidence-${projectNumber}/`;
   } catch {
-    return `files/${projectNumber}/`;
+    return `files/${encodePathSegment(projectFolderName)}/`;
   }
 }
 
 // ── Per-project scan ─────────────────────────────────────────
-async function scanProject(projectNumber, projectDir, storedMtimes) {
+async function scanProject(projectNumber, projectDir, storedMtimes, allNumbers = []) {
   const projectId = `${PROJECT_PREFIX}${projectNumber}`;
+  const allProjectIds = allNumbers.length > 0
+    ? allNumbers.map((n) => `${PROJECT_PREFIX}${n}`)
+    : [projectId];
   const iecFolder = await findIecFolderAsync(projectDir);
-  const webPrefix = getWebPrefix(projectNumber);
+  const projectFolderName = path.basename(projectDir);
+  const webPrefix = getWebPrefix(projectNumber, projectFolderName);
   const now = new Date().toISOString();
   const errors = [];
 
   if (!iecFolder) {
     errors.push(`Kein IEC-Ordner gefunden in ${projectDir}`);
-    return { projectId, documentGroups: [], reportVersions: [], errors, skipped: 0, scanned: 0 };
+    return { projectId, allProjectIds, documentGroups: [], reportVersions: [], errors, skipped: 0, scanned: 0 };
   }
 
   let iecEntries = [];
@@ -221,8 +246,10 @@ async function scanProject(projectNumber, projectDir, storedMtimes) {
 
   // Report versions from folder 12 Untersuchungen
   const reportVersions = [];
+  let reportsScanned = false;
   const unterEntry = iecEntries.find((e) => e.name.match(/^12/));
   if (unterEntry) {
+    reportsScanned = true;
     const unterFolder = path.join(iecFolder, unterEntry.name);
     const wordDocs = await findWordDocsAsync(unterFolder, iecFolder);
     wordDocs.sort((a, b) => b.stats.mtime - a.stats.mtime);
@@ -256,7 +283,7 @@ async function scanProject(projectNumber, projectDir, storedMtimes) {
     }
   }
 
-  return { projectId, documentGroups, reportVersions, errors, skipped, scanned, skippedAreas };
+  return { projectId, allProjectIds, documentGroups, reportVersions, reportsScanned, errors, skipped, scanned, skippedAreas };
 }
 
 // ── Prepared statements ──────────────────────────────────────
@@ -290,27 +317,33 @@ const stmts = {
 
 // ── DB write for one project (inside a transaction) ──────────
 function writeProjectToDB(res, now) {
-  const { projectId, documentGroups, reportVersions, skippedAreas } = res;
+  const { projectId, allProjectIds, documentGroups, reportVersions, reportsScanned, skippedAreas } = res;
+  const ids = allProjectIds?.length ? allProjectIds : [projectId];
 
-  stmts.upsertProject.run(projectId, `${projectId} (gescannt)`, now);
+  for (const id of ids) {
+    stmts.upsertProject.run(id, `${id} (gescannt)`, now);
+  }
 
-  // Touch last_scanned for unchanged areas
+  // Touch last_scanned for unchanged areas (all IDs share the same folder)
   for (const area of (skippedAreas || [])) {
-    stmts.touchLastScanned.run(now, projectId, area);
+    for (const id of ids) {
+      stmts.touchLastScanned.run(now, id, area);
+    }
   }
 
-  // Replace only re-scanned areas
+  // Replace only re-scanned areas — write same document groups for all IDs
   for (const g of documentGroups) {
-    stmts.deleteDocArea.run(projectId, g.area);
-    stmts.insertDocGroup.run(
-      projectId, g.area, g.status, g.count, g.summary,
-      g.primary_doc, g.href, g.last_scanned, g.folder_mtime || null
-    );
+    for (const id of ids) {
+      stmts.deleteDocArea.run(id, g.area);
+      stmts.insertDocGroup.run(
+        id, g.area, g.status, g.count, g.summary,
+        g.primary_doc, g.href, g.last_scanned, g.folder_mtime || null
+      );
+    }
   }
 
-  // Replace report_versions only if we actually scanned something
-  if (documentGroups.length > 0) {
-    const reportProjectIds = new Set([projectId, ...reportVersions.map((r) => r.project || projectId)]);
+  if (reportsScanned) {
+    const reportProjectIds = new Set([...ids, ...reportVersions.map((r) => r.project || projectId)]);
     for (const rId of reportProjectIds) {
       stmts.upsertProject.run(rId, `${rId} (gescannt)`, now);
       stmts.deleteReports.run(rId);
@@ -333,7 +366,7 @@ async function scan(customRoot, onProgress) {
   let rootEntries = [];
   try {
     rootEntries = (await fsp.readdir(root, { withFileTypes: true }))
-      .filter((e) => e.isDirectory() && !isLockFile(e.name) && /^\d/.test(e.name));
+      .filter((e) => e.isDirectory() && !isLockFile(e.name) && isProjectFolderName(e.name));
   } catch (err) {
     result.errors.push(`Kann PCS-Root nicht lesen (${root}): ${err.message}`);
     return result;
@@ -346,21 +379,22 @@ async function scan(customRoot, onProgress) {
     const batch = rootEntries.slice(i, i + CONCURRENCY);
 
     const batchResults = await Promise.all(batch.map(async (entry) => {
-      const projectNumber = entry.name.replace(/\D/g, "");
-      if (!projectNumber) return null;
+      const numbers = extractProjectNumbers(entry.name);
+      if (!numbers.length) return null;
 
-      const projectId = `${PROJECT_PREFIX}${projectNumber}`;
+      const primaryNumber = numbers[0];
+      const primaryId = `${PROJECT_PREFIX}${primaryNumber}`;
       const projectDir = path.join(root, entry.name);
 
-      // Load stored mtimes from DB
+      // Load stored mtimes using primary project ID
       const storedMtimes = new Map(
-        stmts.getStoredMtimes.all(projectId).map((r) => [r.area, r.folder_mtime])
+        stmts.getStoredMtimes.all(primaryId).map((r) => [r.area, r.folder_mtime])
       );
 
-      const res = await scanProject(projectNumber, projectDir, storedMtimes);
+      const res = await scanProject(primaryNumber, projectDir, storedMtimes, numbers);
 
       done++;
-      if (onProgress) onProgress({ done, total, current: projectId });
+      if (onProgress) onProgress({ done, total, current: primaryId });
       return res;
     }));
 
