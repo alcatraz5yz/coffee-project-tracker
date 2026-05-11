@@ -601,11 +601,36 @@ button.summary-card {
   background: var(--accent);
 }
 
+.summary-card.archive-card {
+  display: flex;
+  flex-direction: column;
+}
+
 .archive-location-text {
+  flex: 1;
   display: block;
   margin-top: 7px;
   font-size: 15px;
   word-break: break-word;
+}
+
+.archive-open-btn {
+  align-self: flex-start;
+  margin-top: 10px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 120ms;
+}
+
+.archive-open-btn:hover {
+  background: var(--accent);
+  color: #fff;
 }
 
 .pcs-strip {

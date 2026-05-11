@@ -300,25 +300,79 @@ app.put("/api/projects/:id/archive-location", (req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/scan-archive", (req, res) => {
-  const scriptPath = path.join(__dirname, "scan_archive.py");
-  const excelPath = req.body?.path || process.env.ARCHIVE_EXCEL || path.join(os.homedir(), "Desktop", "PCS_Archiv_Muster.xlsx");
-  const proc = spawn("python3", [scriptPath], { env: { ...process.env, ARCHIVE_EXCEL: excelPath } });
-  let out = "";
-  let err = "";
-  proc.stdout.on("data", (d) => { out += d; });
-  proc.stderr.on("data", (d) => { err += d; });
-  proc.on("close", (code) => {
-    if (code !== 0) return res.status(500).json({ error: err || "Scanner-Fehler" });
-    try {
-      const entries = JSON.parse(out);
-      if (entries.error) return res.status(500).json(entries);
-      entries.forEach(({ project_id, location }) => updateArchiveLocation(project_id, location));
-      res.json({ ok: true, updated: entries.length });
-    } catch (e) {
-      res.status(500).json({ error: "JSON-Parsefehler: " + e.message });
-    }
+const ARCHIVE_EXCEL_PATH = process.env.ARCHIVE_EXCEL || path.join(os.homedir(), "Desktop", "PCS_Archiv_Muster.xlsx");
+
+function runArchiveScan(excelPath) {
+  return new Promise((resolve, reject) => {
+    const scriptPath = path.join(__dirname, "scan_archive.py");
+    const proc = spawn("python3", [scriptPath], { env: { ...process.env, ARCHIVE_EXCEL: excelPath } });
+    let out = "";
+    let err = "";
+    proc.stdout.on("data", (d) => { out += d; });
+    proc.stderr.on("data", (d) => { err += d; });
+    proc.on("close", (code) => {
+      if (code !== 0) return reject(new Error(err || "Scanner-Fehler"));
+      try {
+        const entries = JSON.parse(out);
+        if (entries.error) return reject(new Error(entries.error));
+        entries.forEach(({ project_id, location }) => updateArchiveLocation(project_id, location));
+        resolve(entries.length);
+      } catch (e) {
+        reject(e);
+      }
+    });
   });
+}
+
+app.post("/api/scan-archive", async (req, res) => {
+  const excelPath = req.body?.path || ARCHIVE_EXCEL_PATH;
+  try {
+    const updated = await runArchiveScan(excelPath);
+    res.json({ ok: true, updated });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/open-archive", (req, res) => {
+  const projectId = req.query.project_id || "";
+  const script = `
+import openpyxl, subprocess, os, sys
+path = os.environ.get("ARCHIVE_EXCEL", "")
+try:
+    wb = openpyxl.load_workbook(path)
+    ws = wb.active
+    row_num = None
+    for i, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+        if str(row[0]).strip() == "${projectId.replace(/"/g, "")}":
+            row_num = i
+            break
+except Exception:
+    row_num = None
+
+if row_num:
+    script = f"""
+tell application "Microsoft Excel"
+    activate
+    try
+        set wb to workbook "${ARCHIVE_EXCEL_PATH.replace(/\\/g, "\\\\")}"
+    on error
+        open workbook workbook file name "${ARCHIVE_EXCEL_PATH.replace(/\\/g, "\\\\")}"
+        set wb to active workbook
+    end try
+    tell active sheet of wb
+        set target to cells row {row_num} column 1
+        select target
+        set selection of application "Microsoft Excel" to target
+    end tell
+end tell
+"""
+    subprocess.run(["osascript", "-e", script])
+else:
+    subprocess.run(["open", path])
+`.trim();
+  const proc = spawn("python3", ["-c", script], { env: { ...process.env, ARCHIVE_EXCEL: ARCHIVE_EXCEL_PATH } });
+  proc.on("close", () => res.json({ ok: true }));
 });
 app.get("/api/archive", (_req, res) => res.json(getArchiveItems()));
 app.post("/api/archive", (req, res) => res.json({ id: upsertArchiveItem(req.body) }));
@@ -396,4 +450,7 @@ app.get("/api/list-path", (req, res) => {
 app.listen(PORT, () => {
   console.log(`PCS Dashboard → http://localhost:${PORT}`);
   console.log(`Datenbank: pcs.db  |  Dokumente: evidence-1157/`);
+  runArchiveScan(ARCHIVE_EXCEL_PATH)
+    .then((n) => console.log(`Archiv-Excel: ${n} Einträge synchronisiert`))
+    .catch((e) => console.warn(`Archiv-Excel nicht geladen: ${e.message}`));
 });

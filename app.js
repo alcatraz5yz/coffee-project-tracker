@@ -318,6 +318,7 @@ function renderSummary(project) {
     <article class="summary-card archive-card">
       <span>Archiv</span>
       <strong class="archive-location-text ${archiveLoc ? "" : "muted"}">${archiveLoc ? escapeHtml(archiveLoc) : "—"}</strong>
+      <button class="archive-open-btn" type="button" data-archive-open="${escapeHtml(project.id)}" title="In Excel öffnen">↗ Excel</button>
     </article>
     ${(project.stats || []).filter(([title]) => title !== "Certification").map(([title, value, note]) => {
       const isSubtopic = Boolean(project.subtopics?.[title]);
@@ -791,6 +792,11 @@ zifferTable.addEventListener("click", async (event) => {
 });
 
 document.querySelector("#summary-grid").addEventListener("click", (event) => {
+  const archiveBtn = event.target.closest("[data-archive-open]");
+  if (archiveBtn) {
+    apiFetch(`/api/open-archive?project_id=${encodeURIComponent(archiveBtn.dataset.archiveOpen)}`).catch(console.error);
+    return;
+  }
   const btn = event.target.closest("[data-subtopic]");
   if (!btn) return;
   activeSubtopic = btn.dataset.subtopic;
@@ -798,7 +804,6 @@ document.querySelector("#summary-grid").addEventListener("click", (event) => {
   renderSubtopic(activeProject);
   setView("subtopic");
 });
-
 
 // Fachfreigabe gate toggle
 document.querySelector("#freigabe-view").addEventListener("click", (event) => {
