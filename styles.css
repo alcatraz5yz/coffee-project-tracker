@@ -1490,6 +1490,111 @@ h2 {
   grid-column: 1 / -1;
 }
 
+/* ── Packaging / Versand ────────────────────────────────── */
+
+.packaging-layout { display: flex; flex-direction: column; gap: 16px; }
+
+.pkg-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+.pkg-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px 20px;
+  box-shadow: var(--shadow);
+}
+.pkg-panel .panel-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line);
+}
+.pkg-panel .panel-header h2 { font-size: 14px; margin: 0; }
+
+/* Ship table */
+.ship-table { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.ship-row {
+  display: grid;
+  grid-template-columns: 70px 110px 130px 90px 90px 110px 1fr 90px;
+  gap: 8px; align-items: center;
+  padding: 5px 0; border-bottom: 1px solid var(--line);
+}
+.ship-head { font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--muted); }
+.ship-row:last-child { border-bottom: none; }
+.ship-project { font-weight: 700; }
+.ship-notes { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ship-actions { display: flex; gap: 6px; }
+
+.dir-tag { font-size: 11px; font-weight: 600; }
+.dir-out { color: var(--accent); }
+.dir-in  { color: var(--watch); }
+
+.ship-status {
+  display: inline-block; border-radius: 4px; padding: 2px 7px;
+  font-size: 10px; font-weight: 700;
+  background: var(--bg); color: var(--muted);
+}
+.ship-status.planned  { background: #edf2fb; color: #3a5fa0; }
+.ship-status.sent     { background: #edf5f8; color: var(--accent); }
+.ship-status.transit  { background: #fdf3e3; color: var(--watch); }
+.ship-status.arrived  { background: #e6f4ee; color: var(--good); }
+.ship-status.returned { background: #f3f6f8; color: var(--muted); }
+
+/* Lab cards */
+.lab-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 4px;
+}
+.lab-card {
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 12px 14px; background: var(--panel-soft);
+}
+.lab-top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+.lab-top strong { font-size: 15px; }
+.lab-country { font-size: 11px; font-weight: 700; color: var(--muted); }
+.lab-name { font-size: 11px; color: var(--muted); margin: 0 0 4px; }
+.lab-addr { font-size: 11px; margin: 0 0 4px; line-height: 1.4; }
+.lab-contact { font-size: 11px; color: var(--muted); margin: 0; }
+.lab-link { font-size: 11px; color: var(--accent); display: block; }
+.lab-notes { font-size: 10px; color: var(--muted); margin: 4px 0 0; font-style: italic; }
+
+/* Checklist */
+.checklist-section { margin-bottom: 16px; }
+.checklist-section h3 {
+  font-size: 10px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--muted); margin: 0 0 8px;
+}
+.pkg-checklist { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+.pkg-checklist li label {
+  display: flex; align-items: flex-start; gap: 8px;
+  font-size: 12px; cursor: pointer; line-height: 1.4;
+}
+.pkg-checklist input[type="checkbox"] { margin-top: 2px; flex-shrink: 0; accent-color: var(--accent); }
+
+/* Inline form */
+.pkg-form {
+  background: var(--panel-soft); border: 1px solid var(--line);
+  border-radius: 8px; padding: 14px 16px; margin-bottom: 14px;
+}
+.pkg-form-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;
+}
+.pkg-form-grid label {
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: 11px; font-weight: 600; color: var(--muted);
+}
+.pkg-form-grid label.full-width { grid-column: 1 / -1; }
+.pkg-form-grid input,
+.pkg-form-grid select {
+  padding: 6px 9px; font-size: 12px; font-family: inherit;
+  border: 1px solid var(--line); border-radius: 5px;
+  background: var(--panel); color: var(--ink); outline: none;
+}
+.pkg-form-grid input:focus,
+.pkg-form-grid select:focus { border-color: var(--accent); }
+.pkg-form-actions { display: flex; gap: 8px; }
+.pkg-panel-wide { /* full width handled by flex column layout */ }
+
 /* ── Polish ─────────────────────────────────────────────── */
 
 .abgeschlossen {

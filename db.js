@@ -122,7 +122,53 @@ db.exec(`
     files_found INTEGER,
     notes TEXT
   );
+
+  CREATE TABLE IF NOT EXISTS shipments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id TEXT REFERENCES projects(id) ON DELETE CASCADE,
+    build TEXT,
+    direction TEXT DEFAULT 'out',
+    destination TEXT,
+    sent_date TEXT,
+    expected_date TEXT,
+    received_date TEXT,
+    status TEXT DEFAULT 'Geplant',
+    tracking TEXT,
+    notes TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS labs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    short_name TEXT,
+    name TEXT,
+    country TEXT,
+    address TEXT,
+    contact TEXT,
+    email TEXT,
+    phone TEXT,
+    notes TEXT
+  );
 `);
+
+// ── Seed labs (once) ──────────────────────────────────────────────────────
+{
+  const hasLabs = db.prepare("SELECT COUNT(*) as n FROM labs").get().n;
+  if (!hasLabs) {
+    const ins = db.prepare(`INSERT INTO labs (short_name, name, country, address, contact, email, phone, notes)
+      VALUES (@short_name, @name, @country, @address, @contact, @email, @phone, @notes)`);
+    const seedLabs = db.transaction(() => {
+      [
+        { short_name: "VDE",      name: "VDE Institut GmbH",           country: "DE", address: "Merianstrasse 28, 63069 Offenbach am Main", contact: "Stefan Debes", email: "", phone: "", notes: "IEC / EN Prüfungen, CB-Scheme" },
+        { short_name: "UL-IT",    name: "UL LLC – Labor Italien",      country: "IT", address: "Via Carducci 125/A, 20099 Sesto San Giovanni (MI)", contact: "A. Rownicki", email: "", phone: "", notes: "cULus Household, Prüfmuster hierhin" },
+        { short_name: "UL-PL",    name: "UL LLC – Labor Polen",        country: "PL", address: "ul. Gładka 1, 31-421 Kraków", contact: "A. Rownicki", email: "", phone: "", notes: "cULus Household, Prüfmuster hierhin" },
+        { short_name: "TÜV-TW",   name: "TÜV SÜD Taiwan Ltd.",         country: "TW", address: "5F., No.31, Sec. 1, Dunhua S. Rd., Taipei", contact: "", email: "", phone: "", notes: "BSMI Taiwan – Erneuerungen und Updates" },
+        { short_name: "Eurofins", name: "Eurofins E&E Germany GmbH",   country: "DE", address: "Handwerkstrasse 29, 70565 Stuttgart", contact: "", email: "", phone: "", notes: "EMC / ErP Prüfungen" },
+        { short_name: "EFE",      name: "Eugster/Frismag AG – intern", country: "CH", address: "Fabrikstrasse 30, 9200 Gossau SG", contact: "", email: "", phone: "", notes: "Internes Labor (LSVA), Safety-Vorprüfungen" },
+      ].forEach((l) => ins.run(l));
+    });
+    seedLabs();
+  }
+}
 
 // ── Migrations ────────────────────────────────────────────────────────────
 try { db.exec("ALTER TABLE ziffern ADD COLUMN builds TEXT DEFAULT ''"); } catch { /* exists */ }
@@ -286,6 +332,55 @@ function updateTaskStatus(projectId, taskId, status, blockReason) {
     .run(status, taskId, projectId);
 }
 
+function getShipments(projectId) {
+  return db.prepare("SELECT * FROM shipments WHERE project_id = ? ORDER BY sent_date DESC, id DESC").all(projectId);
+}
+
+function getAllOpenShipments() {
+  return db.prepare(`
+    SELECT s.*, p.name AS project_name
+    FROM shipments s
+    LEFT JOIN projects p ON p.id = s.project_id
+    WHERE s.status NOT IN ('Angekommen', 'Zurückgesendet')
+    ORDER BY s.expected_date ASC, s.id DESC
+  `).all();
+}
+
+function upsertShipment(projectId, data) {
+  if (data.id) {
+    db.prepare(`UPDATE shipments SET build=@build, direction=@direction, destination=@destination,
+      sent_date=@sent_date, expected_date=@expected_date, received_date=@received_date,
+      status=@status, tracking=@tracking, notes=@notes WHERE id=@id AND project_id=@project_id`)
+      .run({ ...data, project_id: projectId });
+    return data.id;
+  }
+  const r = db.prepare(`INSERT INTO shipments
+    (project_id,build,direction,destination,sent_date,expected_date,received_date,status,tracking,notes)
+    VALUES (@project_id,@build,@direction,@destination,@sent_date,@expected_date,@received_date,@status,@tracking,@notes)`)
+    .run({ ...data, project_id: projectId });
+  return r.lastInsertRowid;
+}
+
+function deleteShipment(projectId, shipmentId) {
+  db.prepare("DELETE FROM shipments WHERE id = ? AND project_id = ?").run(shipmentId, projectId);
+}
+
+function getLabs() {
+  return db.prepare("SELECT * FROM labs ORDER BY id").all();
+}
+
+function upsertLab(data) {
+  if (data.id) {
+    db.prepare(`UPDATE labs SET short_name=@short_name, name=@name, country=@country,
+      address=@address, contact=@contact, email=@email, phone=@phone, notes=@notes WHERE id=@id`)
+      .run(data);
+    return data.id;
+  }
+  return db.prepare(`INSERT INTO labs (short_name,name,country,address,contact,email,phone,notes)
+    VALUES (@short_name,@name,@country,@address,@contact,@email,@phone,@notes)`)
+    .run(data).lastInsertRowid;
+}
+
 module.exports = {
   getProjects,
   getProject,
@@ -293,5 +388,11 @@ module.exports = {
   updateFachfreigabeGate,
   updateFachfreigabeMeta,
   updateTaskStatus,
+  getShipments,
+  getAllOpenShipments,
+  upsertShipment,
+  deleteShipment,
+  getLabs,
+  upsertLab,
   db
 };

@@ -10,6 +10,12 @@ const {
   updateFachfreigabeGate,
   updateFachfreigabeMeta,
   updateTaskStatus,
+  getShipments,
+  getAllOpenShipments,
+  upsertShipment,
+  deleteShipment,
+  getLabs,
+  upsertLab,
   db
 } = require("./db");
 const { scan, PCS_ROOT } = require("./scanner");
@@ -253,6 +259,34 @@ app.put("/api/projects/:id/fachfreigabe/meta", (req, res) => {
   const { id } = req.params;
   const { confirmed_by, datum, notiz } = req.body;
   updateFachfreigabeMeta(id, confirmed_by, datum, notiz);
+  res.json({ ok: true });
+});
+
+// ── Packaging / Shipments ──────────────────────────────────
+app.get("/api/projects/:id/shipments", (req, res) => {
+  res.json(getShipments(req.params.id));
+});
+app.post("/api/projects/:id/shipments", (req, res) => {
+  const newId = upsertShipment(req.params.id, req.body);
+  res.json({ id: newId });
+});
+app.put("/api/projects/:id/shipments/:sid", (req, res) => {
+  upsertShipment(req.params.id, { ...req.body, id: Number(req.params.sid) });
+  res.json({ ok: true });
+});
+app.delete("/api/projects/:id/shipments/:sid", (req, res) => {
+  deleteShipment(req.params.id, Number(req.params.sid));
+  res.json({ ok: true });
+});
+app.get("/api/shipments/open", (_req, res) => {
+  res.json(getAllOpenShipments());
+});
+
+// ── Labs ──────────────────────────────────────────────────
+app.get("/api/labs", (_req, res) => res.json(getLabs()));
+app.post("/api/labs", (req, res) => res.json({ id: upsertLab(req.body) }));
+app.put("/api/labs/:id", (req, res) => {
+  upsertLab({ ...req.body, id: Number(req.params.id) });
   res.json({ ok: true });
 });
 

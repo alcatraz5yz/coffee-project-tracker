@@ -7,14 +7,16 @@ const views = {
   subtopic: document.querySelector("#subtopic-view"),
   tasks: document.querySelector("#tasks-view"),
   docs: document.querySelector("#docs-view"),
-  freigabe: document.querySelector("#freigabe-view")
+  freigabe: document.querySelector("#freigabe-view"),
+  packaging: document.querySelector("#packaging-view")
 };
 const buttons = {
   overview: document.querySelector("#view-overview"),
   subtopic: document.querySelector("#view-subtopic"),
   tasks: document.querySelector("#view-tasks"),
   docs: document.querySelector("#view-docs"),
-  freigabe: document.querySelector("#view-freigabe")
+  freigabe: document.querySelector("#view-freigabe"),
+  packaging: document.querySelector("#view-packaging")
 };
 const taskFilter = document.querySelector("#task-filter");
 const subtopicFilter = document.querySelector("#subtopic-filter");
@@ -943,11 +945,297 @@ document.body.addEventListener("click", async (event) => {
 });
 
 // Tab buttons
+// ── Packaging / Versand ───────────────────────────────────────────────────
+let packagingShipments = [];
+let packagingLabs = [];
+let openShipments = [];
+
+const SHIP_STATUSES = ["Geplant", "Versendet", "Unterwegs", "Angekommen", "Zurückgesendet"];
+const SHIP_STATUS_CLASS = {
+  Geplant: "planned", Versendet: "sent", Unterwegs: "transit",
+  Angekommen: "arrived", Zurückgesendet: "returned"
+};
+
+const CHECKLIST_OUT = [
+  "Proforma-Rechnung / Commercial Invoice",
+  "Packing List (Inhalt, Gewicht, Abmessungen)",
+  "Technische Dokumentation (Safety, EMC, BOM)",
+  "Versandanweisung an Vertrieb / PM",
+  "Muster korrekt beschriftet (EF-Nr., Build, Datum)",
+  "Gerät funktionsfähig und vollständig",
+  "Rücksendeinformationen beilegen (Adresse, Kontakt)",
+  "Zollwert deklariert (Muster = kein Handelswert)",
+];
+const CHECKLIST_IN = [
+  "Tracking-Nummer erfasst",
+  "Empfang bestätigt (Labor kontaktieren falls nötig)",
+  "Muster auf Transportschäden geprüft",
+  "Prüfmuster-Status im Projekt aktualisieren",
+  "Eingangsbestätigung an PM / Projektleitung",
+];
+
+async function loadPackagingData() {
+  [packagingShipments, packagingLabs, openShipments] = await Promise.all([
+    apiFetch(`/api/projects/${activeProject.id}/shipments`),
+    apiFetch("/api/labs"),
+    apiFetch("/api/shipments/open")
+  ]);
+}
+
+function renderPackaging() {
+  const el = document.querySelector("#packaging-container");
+
+  const statusBadge = (s) =>
+    `<span class="ship-status ${SHIP_STATUS_CLASS[s] || ""}">${s}</span>`;
+
+  const dirIcon = (d) => d === "in" ? "← Eingehend" : "→ Ausgehend";
+
+  // ── Open shipments across all projects ──────────────────
+  const openRows = openShipments.length
+    ? openShipments.map((s) => `
+        <div class="ship-row">
+          <span class="ship-project">${escapeHtml(s.project_id)}</span>
+          <span>${escapeHtml(s.build || "—")}</span>
+          <span class="dir-tag ${s.direction === "in" ? "dir-in" : "dir-out"}">${dirIcon(s.direction)}</span>
+          <span>${escapeHtml(s.destination || "—")}</span>
+          <span class="muted">${escapeHtml(s.sent_date || "—")}</span>
+          <span class="muted">${escapeHtml(s.expected_date || "—")}</span>
+          ${statusBadge(s.status)}
+          <span class="muted ship-notes">${escapeHtml(s.notes || "")}</span>
+        </div>`).join("")
+    : `<p class="empty-state">Keine offenen Versände.</p>`;
+
+  // ── Shipments for current project ────────────────────────
+  const projRows = packagingShipments.length
+    ? packagingShipments.map((s) => `
+        <div class="ship-row" data-ship-id="${s.id}">
+          <span>${escapeHtml(s.build || "—")}</span>
+          <span class="dir-tag ${s.direction === "in" ? "dir-in" : "dir-out"}">${dirIcon(s.direction)}</span>
+          <span>${escapeHtml(s.destination || "—")}</span>
+          <span class="muted">${escapeHtml(s.sent_date || "—")}</span>
+          <span class="muted">${escapeHtml(s.expected_date || "—")}</span>
+          ${statusBadge(s.status)}
+          <span class="muted ship-notes">${escapeHtml(s.notes || "")}</span>
+          <span class="ship-actions">
+            <button class="finder-action" type="button" data-ship-edit="${s.id}">Bearbeiten</button>
+            <button class="finder-action" type="button" data-ship-delete="${s.id}">Löschen</button>
+          </span>
+        </div>`).join("")
+    : `<p class="empty-state">Noch keine Versände für dieses Projekt.</p>`;
+
+  // ── Lab cards ─────────────────────────────────────────────
+  const labCards = packagingLabs.map((lab) => `
+    <div class="lab-card">
+      <div class="lab-top">
+        <strong>${escapeHtml(lab.short_name)}</strong>
+        <span class="lab-country">${escapeHtml(lab.country)}</span>
+      </div>
+      <p class="lab-name">${escapeHtml(lab.name)}</p>
+      ${lab.address ? `<p class="lab-addr">${escapeHtml(lab.address)}</p>` : ""}
+      ${lab.contact ? `<p class="lab-contact">Kontakt: ${escapeHtml(lab.contact)}</p>` : ""}
+      ${lab.email   ? `<a class="lab-link" href="mailto:${escapeHtml(lab.email)}">${escapeHtml(lab.email)}</a>` : ""}
+      ${lab.phone   ? `<p class="lab-contact">${escapeHtml(lab.phone)}</p>` : ""}
+      ${lab.notes   ? `<p class="lab-notes">${escapeHtml(lab.notes)}</p>` : ""}
+      <button class="finder-action" type="button" data-lab-edit="${lab.id}" style="margin-top:8px">Bearbeiten</button>
+    </div>`).join("");
+
+  el.innerHTML = `
+    <div class="packaging-layout">
+
+      <div class="pkg-panel pkg-panel-wide">
+        <div class="panel-header"><h2>Offene Versände — Alle Projekte</h2><span class="muted">${openShipments.length} offen</span></div>
+        <div class="ship-table">
+          ${openShipments.length ? `
+          <div class="ship-row ship-head">
+            <span>Projekt</span><span>Muster</span><span>Richtung</span><span>Labor</span>
+            <span>Versendet</span><span>Erwartet</span><span>Status</span><span>Notiz</span>
+          </div>` : ""}
+          ${openRows}
+        </div>
+      </div>
+
+      <div class="pkg-two-col">
+        <div class="pkg-panel">
+          <div class="panel-header">
+            <h2>Musterversand — ${escapeHtml(activeProject.id)}</h2>
+            <button class="finder-action" type="button" id="add-shipment-btn">+ Versand erfassen</button>
+          </div>
+          <div id="shipment-form-wrap"></div>
+          <div class="ship-table">
+            ${packagingShipments.length ? `
+            <div class="ship-row ship-head">
+              <span>Muster</span><span>Richtung</span><span>Labor</span>
+              <span>Versendet</span><span>Erwartet</span><span>Status</span><span>Notiz</span><span></span>
+            </div>` : ""}
+            ${projRows}
+          </div>
+        </div>
+
+        <div class="pkg-panel">
+          <div class="panel-header"><h2>Versand-Checkliste</h2></div>
+          <div class="checklist-section">
+            <h3>Ausgehend → Labor</h3>
+            <ul class="pkg-checklist">
+              ${CHECKLIST_OUT.map((item) => `<li><label><input type="checkbox"> ${escapeHtml(item)}</label></li>`).join("")}
+            </ul>
+          </div>
+          <div class="checklist-section">
+            <h3>Eingehend ← Rücksendung</h3>
+            <ul class="pkg-checklist">
+              ${CHECKLIST_IN.map((item) => `<li><label><input type="checkbox"> ${escapeHtml(item)}</label></li>`).join("")}
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="pkg-panel">
+        <div class="panel-header">
+          <h2>Laborkontakte & Adressen</h2>
+          <button class="finder-action" type="button" id="add-lab-btn">+ Labor hinzufügen</button>
+        </div>
+        <div id="lab-form-wrap"></div>
+        <div class="lab-grid">${labCards}</div>
+      </div>
+
+    </div>`;
+}
+
+function buildShipmentForm(existing = null) {
+  const s = existing || {};
+  return `
+    <form class="pkg-form" id="shipment-form">
+      <div class="pkg-form-grid">
+        <label>Muster / Build<input name="build" value="${escapeHtml(s.build || "")}" placeholder="z.B. PT1, TS1"></label>
+        <label>Richtung
+          <select name="direction">
+            <option value="out" ${s.direction !== "in" ? "selected" : ""}>→ Ausgehend</option>
+            <option value="in"  ${s.direction === "in"  ? "selected" : ""}>← Eingehend</option>
+          </select>
+        </label>
+        <label>Labor / Ziel<input name="destination" value="${escapeHtml(s.destination || "")}" placeholder="z.B. VDE, UL-IT"></label>
+        <label>Status
+          <select name="status">
+            ${SHIP_STATUSES.map((st) => `<option ${s.status === st ? "selected" : ""}>${st}</option>`).join("")}
+          </select>
+        </label>
+        <label>Versanddatum<input name="sent_date" type="date" value="${s.sent_date || ""}"></label>
+        <label>Erwartet am<input name="expected_date" type="date" value="${s.expected_date || ""}"></label>
+        <label>Erhalten am<input name="received_date" type="date" value="${s.received_date || ""}"></label>
+        <label>Tracking<input name="tracking" value="${escapeHtml(s.tracking || "")}" placeholder="Sendungsnummer"></label>
+        <label class="full-width">Notiz<input name="notes" value="${escapeHtml(s.notes || "")}" placeholder="Weitere Infos"></label>
+      </div>
+      <div class="pkg-form-actions">
+        <button type="submit" class="status-toggle done">${existing ? "Speichern" : "Erfassen"}</button>
+        <button type="button" id="cancel-shipment-btn" class="finder-action">Abbrechen</button>
+      </div>
+      ${existing ? `<input type="hidden" name="id" value="${existing.id}">` : ""}
+    </form>`;
+}
+
+function buildLabForm(existing = null) {
+  const l = existing || {};
+  return `
+    <form class="pkg-form" id="lab-form">
+      <div class="pkg-form-grid">
+        <label>Kürzel<input name="short_name" value="${escapeHtml(l.short_name || "")}" placeholder="z.B. VDE"></label>
+        <label>Land<input name="country" value="${escapeHtml(l.country || "")}" placeholder="DE, IT, TW …"></label>
+        <label class="full-width">Name<input name="name" value="${escapeHtml(l.name || "")}" placeholder="Offizieller Name des Labors"></label>
+        <label class="full-width">Adresse<input name="address" value="${escapeHtml(l.address || "")}" placeholder="Strasse, PLZ, Ort"></label>
+        <label>Kontaktperson<input name="contact" value="${escapeHtml(l.contact || "")}"></label>
+        <label>E-Mail<input name="email" type="email" value="${escapeHtml(l.email || "")}"></label>
+        <label>Telefon<input name="phone" value="${escapeHtml(l.phone || "")}"></label>
+        <label class="full-width">Notiz<input name="notes" value="${escapeHtml(l.notes || "")}" placeholder="Welche Prüfungen, Besonderheiten …"></label>
+      </div>
+      <div class="pkg-form-actions">
+        <button type="submit" class="status-toggle done">${existing ? "Speichern" : "Hinzufügen"}</button>
+        <button type="button" id="cancel-lab-btn" class="finder-action">Abbrechen</button>
+      </div>
+      ${existing ? `<input type="hidden" name="id" value="${existing.id}">` : ""}
+    </form>`;
+}
+
+function formData(form) {
+  return Object.fromEntries(new FormData(form).entries());
+}
+
+document.querySelector("#packaging-view").addEventListener("click", async (e) => {
+  // Add shipment
+  if (e.target.id === "add-shipment-btn") {
+    document.querySelector("#shipment-form-wrap").innerHTML = buildShipmentForm();
+    return;
+  }
+  if (e.target.id === "cancel-shipment-btn") {
+    document.querySelector("#shipment-form-wrap").innerHTML = "";
+    return;
+  }
+  // Edit shipment
+  const editId = e.target.dataset.shipEdit;
+  if (editId) {
+    const s = packagingShipments.find((x) => String(x.id) === editId);
+    if (s) document.querySelector("#shipment-form-wrap").innerHTML = buildShipmentForm(s);
+    return;
+  }
+  // Delete shipment
+  const delId = e.target.dataset.shipDelete;
+  if (delId) {
+    await apiFetch(`/api/projects/${activeProject.id}/shipments/${delId}`, { method: "DELETE" });
+    await loadPackagingData();
+    renderPackaging();
+    return;
+  }
+  // Add lab
+  if (e.target.id === "add-lab-btn") {
+    document.querySelector("#lab-form-wrap").innerHTML = buildLabForm();
+    return;
+  }
+  if (e.target.id === "cancel-lab-btn") {
+    document.querySelector("#lab-form-wrap").innerHTML = "";
+    return;
+  }
+  // Edit lab
+  const labEditId = e.target.dataset.labEdit;
+  if (labEditId) {
+    const lab = packagingLabs.find((x) => String(x.id) === labEditId);
+    if (lab) document.querySelector("#lab-form-wrap").innerHTML = buildLabForm(lab);
+    return;
+  }
+});
+
+document.querySelector("#packaging-view").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (e.target.id === "shipment-form") {
+    const data = formData(e.target);
+    if (data.id) {
+      await apiFetch(`/api/projects/${activeProject.id}/shipments/${data.id}`, { method: "PUT", body: JSON.stringify(data) });
+    } else {
+      await apiFetch(`/api/projects/${activeProject.id}/shipments`, { method: "POST", body: JSON.stringify(data) });
+    }
+    await loadPackagingData();
+    renderPackaging();
+    return;
+  }
+  if (e.target.id === "lab-form") {
+    const data = formData(e.target);
+    if (data.id) {
+      await apiFetch(`/api/labs/${data.id}`, { method: "PUT", body: JSON.stringify(data) });
+    } else {
+      await apiFetch("/api/labs", { method: "POST", body: JSON.stringify(data) });
+    }
+    await loadPackagingData();
+    renderPackaging();
+  }
+});
+
 buttons.overview.addEventListener("click", () => setView("overview"));
 buttons.subtopic.addEventListener("click", () => setView("subtopic"));
 buttons.tasks.addEventListener("click", () => setView("tasks"));
 buttons.docs.addEventListener("click", () => setView("docs"));
 buttons.freigabe.addEventListener("click", () => setView("freigabe"));
+buttons.packaging.addEventListener("click", async () => {
+  setView("packaging");
+  await loadPackagingData();
+  renderPackaging();
+});
 themeToggle.addEventListener("click", () => {
   applyTheme(document.body.dataset.theme === "dark" ? "light" : "dark");
 });
