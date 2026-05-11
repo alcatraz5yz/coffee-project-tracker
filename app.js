@@ -221,16 +221,27 @@ function renderMachines() {
       .join(" ").toLowerCase().includes(q);
   });
 
-  const renderBtn = (p) => `
+  const IEC_STAGES = new Set(["PT1", "OOT", "TS1", "TS2", "TS3"]);
+  const renderStages = (stages, p) =>
+    stages.map((b) => `<span data-build-select="${b}" class="${b === activeBuild && p.id === activeProject?.id ? "active" : ""}">${b}</span>`).join("");
+
+  const renderBtn = (p) => {
+    const iec = (p.buildStages || []).filter((b) => IEC_STAGES.has(b));
+    const ul  = (p.buildStages || []).filter((b) => !IEC_STAGES.has(b));
+    const buildsHTML = (iec.length || ul.length) ? `
+      <div class="sidebar-builds">
+        ${iec.length ? `<span class="build-type-label">IEC</span>${renderStages(iec, p)}` : ""}
+        ${iec.length && ul.length ? `<hr class="build-type-divider">` : ""}
+        ${ul.length  ? `<span class="build-type-label">UL</span>${renderStages(ul, p)}` : ""}
+      </div>` : "";
+    return `
     <button class="${p.id === activeProject?.id ? "active" : ""}" data-id="${p.id}" type="button">
       <strong>${p.id}</strong>
       <em class="${statusClass(p.health)}">${statusLabel(p.health)}</em>
       <span>${p.market ? `${termLabel(p.market)} / ` : ""}${p.phase}</span>
-      ${p.buildStages?.length ? `
-        <div class="sidebar-builds">
-          ${p.buildStages.map((b) => `<span data-build-select="${b}" class="${b === activeBuild && p.id === activeProject?.id ? "active" : ""}">${b}</span>`).join("")}
-        </div>` : ""}
+      ${buildsHTML}
     </button>`;
+  };
 
   machineList.innerHTML = filtered.map((p) => renderBtn(p)).join("");
 }
