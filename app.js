@@ -801,15 +801,23 @@ document.querySelector("#summary-grid").addEventListener("click", (event) => {
   setView("subtopic");
 });
 
-let archiveLocationTimer = null;
 document.querySelector("#summary-grid").addEventListener("input", (event) => {
   if (event.target.id !== "archive-location-input") return;
+  if (activeProject) activeProject.archive_location = event.target.value;
+});
+
+document.querySelector("#summary-grid").addEventListener("change", (event) => {
+  if (event.target.id !== "archive-location-input") return;
   const val = event.target.value;
+  const projectId = activeProject?.id;
+  if (!projectId) return;
   activeProject.archive_location = val;
-  clearTimeout(archiveLocationTimer);
-  archiveLocationTimer = setTimeout(() => {
-    apiPut(`/api/projects/${activeProject.id}/archive-location`, { location: val }).catch(console.error);
-  }, 500);
+  apiPut(`/api/projects/${projectId}/archive-location`, { location: val })
+    .then(() => {
+      event.target.classList.add("saved");
+      setTimeout(() => event.target.classList.remove("saved"), 1200);
+    })
+    .catch(console.error);
 });
 
 // Fachfreigabe gate toggle
