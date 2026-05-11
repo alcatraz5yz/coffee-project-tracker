@@ -312,6 +312,12 @@ const stmts = {
   ),
   insertScanLog: db.prepare(
     `INSERT INTO scan_log (scanned_at, projects_found, files_found, notes) VALUES (?, ?, ?, ?)`
+  ),
+  setVariantGroup: db.prepare(
+    "UPDATE projects SET variant_group = ? WHERE id = ? AND (variant_group IS NULL OR variant_group = '')"
+  ),
+  setVariantOf: db.prepare(
+    "UPDATE projects SET variant_of = ? WHERE id = ? AND (variant_of IS NULL OR variant_of = '')"
   )
 };
 
@@ -322,6 +328,14 @@ function writeProjectToDB(res, now) {
 
   for (const id of ids) {
     stmts.upsertProject.run(id, `${id} (gescannt)`, now);
+  }
+
+  // Store relationships for multi-EF folders (only if not already set manually)
+  if (ids.length > 1) {
+    const primaryId = ids[0];
+    const group = ids.join("+");
+    for (const id of ids) stmts.setVariantGroup.run(group, id);
+    for (const id of ids.slice(1)) stmts.setVariantOf.run(primaryId, id);
   }
 
   // Touch last_scanned for unchanged areas (all IDs share the same folder)

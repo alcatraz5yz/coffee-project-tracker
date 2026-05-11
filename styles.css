@@ -186,6 +186,20 @@ select {
   background: var(--sidebar-panel-active);
 }
 
+.machine-list button.sibling {
+  margin-left: 12px;
+  border-style: dashed;
+  opacity: 0.85;
+}
+
+.machine-list button.sibling::before {
+  content: "↳";
+  grid-column: 1 / -1;
+  font-size: 11px;
+  color: #8cc8df;
+  margin-bottom: -4px;
+}
+
 .machine-list > button > span {
   grid-column: 1 / -1;
   color: #b9c4cb;

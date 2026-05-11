@@ -205,29 +205,48 @@ function setView(name) {
 // ── Machine list ─────────────────────────────────────────────
 function relatedProjects() {
   if (!activeProject || activeView === "dashboard") return projectList;
-  return projectList.filter((p) => p.family === activeProject.family);
+  return projectList.filter((p) => {
+    if (p.family && p.family === activeProject.family) return true;
+    if (p.variant_group && p.variant_group === activeProject.variant_group) return true;
+    return p.id === activeProject.id;
+  });
 }
 
 function renderMachines() {
   const q = search.value.trim().toLowerCase();
   const source = activeView === "dashboard" ? projectList : relatedProjects();
-  machineList.innerHTML = source
-    .filter((p) => {
-      if (activeView === "dashboard" && !q) return true;
-      return [p.id, p.name, p.owner, p.phase, p.market, p.variant_group, p.variant_of]
-        .join(" ").toLowerCase().includes(q);
-    })
-    .map((p) => `
-      <button class="${p.id === activeProject?.id ? "active" : ""}" data-id="${p.id}" type="button">
-        <strong>${p.id}</strong>
-        <em class="${statusClass(p.health)}">${statusLabel(p.health)}</em>
-        <span>${p.market ? `${termLabel(p.market)} / ` : ""}${p.phase}</span>
-        ${p.buildStages?.length ? `
-          <div class="sidebar-builds">
-            ${p.buildStages.map((b) => `<span data-build-select="${b}" class="${b === activeBuild && p.id === activeProject?.id ? "active" : ""}">${b}</span>`).join("")}
-          </div>` : ""}
-      </button>
-    `).join("");
+  const filtered = source.filter((p) => {
+    if (activeView === "dashboard" && !q) return true;
+    return [p.id, p.name, p.owner, p.phase, p.market, p.variant_group, p.variant_of]
+      .join(" ").toLowerCase().includes(q);
+  });
+
+  // In project view, pull siblings (same variant_group) out and render them grouped
+  const siblings = activeProject?.variant_group
+    ? filtered.filter((p) => p.variant_group === activeProject.variant_group && p.id !== activeProject.id)
+    : [];
+  const siblingIds = new Set(siblings.map((p) => p.id));
+
+  const renderBtn = (p, isSibling = false) => `
+    <button class="${p.id === activeProject?.id ? "active" : ""} ${isSibling ? "sibling" : ""}" data-id="${p.id}" type="button">
+      <strong>${p.id}</strong>
+      <em class="${statusClass(p.health)}">${statusLabel(p.health)}</em>
+      <span>${p.market ? `${termLabel(p.market)} / ` : ""}${p.phase}</span>
+      ${p.buildStages?.length ? `
+        <div class="sidebar-builds">
+          ${p.buildStages.map((b) => `<span data-build-select="${b}" class="${b === activeBuild && p.id === activeProject?.id ? "active" : ""}">${b}</span>`).join("")}
+        </div>` : ""}
+    </button>`;
+
+  machineList.innerHTML = filtered.map((p) => {
+    if (siblingIds.has(p.id)) return ""; // rendered inline after the active project
+    const btn = renderBtn(p);
+    // After the active project, inject siblings
+    if (p.id === activeProject?.id && siblings.length) {
+      return btn + siblings.map((s) => renderBtn(s, true)).join("");
+    }
+    return btn;
+  }).join("");
 }
 
 function renderDashboard() {
@@ -429,6 +448,7 @@ function evidenceRelativePath(link) {
 function evidenceHref(link) {
   const rel = evidenceRelativePath(link);
   if (!rel) return "";
+  if (/^(evidence-\d+|files)\//.test(rel)) return encodeURI(rel);
   if (trackerConfig.documentMode === "sharepoint") {
     return trackerConfig.sharePointRoot + rel.split("/").map(encodeURIComponent).join("/");
   }
