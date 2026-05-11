@@ -16,6 +16,9 @@ const {
   deleteShipment,
   getLabs,
   upsertLab,
+  getArchiveItems,
+  upsertArchiveItem,
+  deleteArchiveItem,
   db
 } = require("./db");
 const { scan, PCS_ROOT } = require("./scanner");
@@ -287,6 +290,18 @@ app.get("/api/labs", (_req, res) => res.json(getLabs()));
 app.post("/api/labs", (req, res) => res.json({ id: upsertLab(req.body) }));
 app.put("/api/labs/:id", (req, res) => {
   upsertLab({ ...req.body, id: Number(req.params.id) });
+  res.json({ ok: true });
+});
+
+// ── Archiv ────────────────────────────────────────────────
+app.get("/api/archive", (_req, res) => res.json(getArchiveItems()));
+app.post("/api/archive", (req, res) => res.json({ id: upsertArchiveItem(req.body) }));
+app.put("/api/archive/:id", (req, res) => {
+  upsertArchiveItem({ ...req.body, id: Number(req.params.id) });
+  res.json({ ok: true });
+});
+app.delete("/api/archive/:id", (req, res) => {
+  deleteArchiveItem(Number(req.params.id));
   res.json({ ok: true });
 });
 

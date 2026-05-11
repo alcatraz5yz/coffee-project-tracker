@@ -8,7 +8,8 @@ const views = {
   tasks: document.querySelector("#tasks-view"),
   docs: document.querySelector("#docs-view"),
   freigabe: document.querySelector("#freigabe-view"),
-  packaging: document.querySelector("#packaging-view")
+  packaging: document.querySelector("#packaging-view"),
+  archive: document.querySelector("#archive-view")
 };
 const buttons = {
   overview: document.querySelector("#view-overview"),
@@ -1580,6 +1581,196 @@ function buildExportHTML(projects) {
 </body>
 </html>`;
 }
+
+// ── Archiv ────────────────────────────────────────────────────
+const archiveBtn = document.querySelector("#archive-btn");
+let archiveItems = [];
+let archiveSearch = "";
+let archiveEditId = null;
+
+const ARCHIVE_STATUSES = ["Vorhanden", "Ausgeliehen", "Defekt", "Entsorgt", "Eingeschickt"];
+const ARCHIVE_STATUS_CLASS = {
+  Vorhanden: "good", Ausgeliehen: "watch", Defekt: "bad",
+  Entsorgt: "muted-tag", Eingeschickt: "sent"
+};
+
+async function loadArchive() {
+  archiveItems = await apiFetch("/api/archive");
+}
+
+function renderArchive() {
+  const el = document.querySelector("#archive-container");
+  const q = archiveSearch.toLowerCase();
+
+  const filtered = archiveItems.filter((item) =>
+    [item.project_id, item.device_name, item.build, item.location, item.status, item.notes]
+      .join(" ").toLowerCase().includes(q)
+  );
+
+  // Group by location (Regalplatz)
+  const byLocation = {};
+  filtered.forEach((item) => {
+    const loc = item.location || "— Kein Lagerort —";
+    if (!byLocation[loc]) byLocation[loc] = [];
+    byLocation[loc].push(item);
+  });
+
+  const statusBadge = (s) =>
+    `<span class="arch-status ${ARCHIVE_STATUS_CLASS[s] || "muted-tag"}">${s}</span>`;
+
+  const itemRow = (item) => `
+    <div class="arch-row ${archiveEditId === item.id ? "arch-editing" : ""}" data-arch-id="${item.id}">
+      <span class="arch-ef">${escapeHtml(item.project_id || "—")}</span>
+      <span class="arch-name">${escapeHtml(item.device_name || "—")}</span>
+      <span class="arch-build">${escapeHtml(item.build || "—")}</span>
+      <span class="arch-qty">${item.quantity || 1} Stk.</span>
+      ${statusBadge(item.status)}
+      <span class="arch-date muted">${escapeHtml(item.date_stored || "—")}</span>
+      <span class="arch-notes muted">${escapeHtml(item.notes || "")}</span>
+      <span class="arch-actions">
+        <button class="finder-action" type="button" data-arch-edit="${item.id}">Bearbeiten</button>
+        <button class="finder-action" type="button" data-arch-delete="${item.id}">Löschen</button>
+      </span>
+    </div>
+    ${archiveEditId === item.id ? buildArchiveItemForm(item) : ""}`;
+
+  const locationSections = Object.entries(byLocation).sort(([a], [b]) => a.localeCompare(b, "de")).map(([loc, items]) => `
+    <div class="arch-location-group">
+      <div class="arch-location-header">
+        <strong>${escapeHtml(loc)}</strong>
+        <span class="muted">${items.length} Gerät${items.length !== 1 ? "e" : ""}</span>
+      </div>
+      <div class="arch-table">
+        <div class="arch-row arch-head">
+          <span>EF-Nr.</span><span>Gerät</span><span>Build</span>
+          <span>Anzahl</span><span>Status</span><span>Eingelagert</span><span>Notiz</span><span></span>
+        </div>
+        ${items.map(itemRow).join("")}
+      </div>
+    </div>`).join("");
+
+  // Stats
+  const total = archiveItems.length;
+  const vorhanden = archiveItems.filter((i) => i.status === "Vorhanden").length;
+  const ausgeliehen = archiveItems.filter((i) => i.status === "Ausgeliehen").length;
+  const defekt = archiveItems.filter((i) => i.status === "Defekt").length;
+
+  el.innerHTML = `
+    <div class="arch-layout">
+      <div class="arch-topbar">
+        <div class="arch-hero">
+          <div>
+            <p>PCS Archivraum</p>
+            <h2>Musterarchiv</h2>
+          </div>
+          <div class="arch-stats">
+            <div><strong>${total}</strong><span>Einträge</span></div>
+            <div><strong>${vorhanden}</strong><span>Vorhanden</span></div>
+            <div><strong>${ausgeliehen}</strong><span>Ausgeliehen</span></div>
+            <div><strong>${defekt}</strong><span>Defekt</span></div>
+          </div>
+        </div>
+        <div class="arch-controls">
+          <input id="arch-search-input" type="search" placeholder="EF-Nr., Gerät, Lagerort …" value="${escapeHtml(archiveSearch)}">
+          <button class="finder-action" type="button" id="arch-add-btn">+ Gerät erfassen</button>
+        </div>
+        <div id="arch-add-form-wrap"></div>
+      </div>
+      ${filtered.length
+        ? locationSections
+        : `<p class="empty-state">${q ? "Keine Treffer." : "Noch keine Geräte im Archiv erfasst."}</p>`}
+    </div>`;
+}
+
+function buildArchiveItemForm(existing = null) {
+  const item = existing || {};
+  const isEdit = Boolean(existing);
+  return `
+    <form class="pkg-form arch-item-form" id="arch-item-form" data-edit-id="${item.id || ""}">
+      <div class="pkg-form-grid">
+        <label>EF-Nummer<input name="project_id" value="${escapeHtml(item.project_id || "")}" placeholder="z.B. EF1157"></label>
+        <label>Gerätename / Modell<input name="device_name" value="${escapeHtml(item.device_name || "")}" placeholder="z.B. Delica DC265"></label>
+        <label>Build / Version<input name="build" value="${escapeHtml(item.build || "")}" placeholder="z.B. PT1, TS1, Serie"></label>
+        <label>Anzahl Stück<input name="quantity" type="number" min="1" value="${item.quantity || 1}"></label>
+        <label>Lagerort / Regalplatz<input name="location" value="${escapeHtml(item.location || "")}" placeholder="z.B. Regal A, Platz 3"></label>
+        <label>Status
+          <select name="status">
+            ${ARCHIVE_STATUSES.map((s) => `<option ${item.status === s ? "selected" : ""}>${s}</option>`).join("")}
+          </select>
+        </label>
+        <label>Datum eingelagert<input name="date_stored" type="date" value="${item.date_stored || ""}"></label>
+        <label class="full-width">Notiz<input name="notes" value="${escapeHtml(item.notes || "")}" placeholder="Besonderheiten, Kabelstand, Zubehör …"></label>
+      </div>
+      <div class="pkg-form-actions">
+        <button type="submit" class="status-toggle done">${isEdit ? "Speichern" : "Erfassen"}</button>
+        <button type="button" class="finder-action" id="arch-cancel-form">Abbrechen</button>
+      </div>
+    </form>`;
+}
+
+document.querySelector("#archive-view").addEventListener("click", async (e) => {
+  if (e.target.id === "arch-add-btn") {
+    archiveEditId = null;
+    document.querySelector("#arch-add-form-wrap").innerHTML = buildArchiveItemForm();
+    document.querySelector("#arch-add-form-wrap").scrollIntoView({ behavior: "smooth" });
+    return;
+  }
+  if (e.target.id === "arch-cancel-form") {
+    archiveEditId = null;
+    document.querySelector("#arch-add-form-wrap").innerHTML = "";
+    renderArchive();
+    return;
+  }
+  const editId = e.target.dataset.archEdit;
+  if (editId) {
+    archiveEditId = archiveEditId === Number(editId) ? null : Number(editId);
+    renderArchive();
+    return;
+  }
+  const delId = e.target.dataset.archDelete;
+  if (delId) {
+    await apiFetch(`/api/archive/${delId}`, { method: "DELETE" });
+    archiveEditId = null;
+    await loadArchive();
+    renderArchive();
+  }
+});
+
+document.querySelector("#archive-view").addEventListener("input", (e) => {
+  if (e.target.id === "arch-search-input") {
+    archiveSearch = e.target.value;
+    renderArchive();
+  }
+});
+
+document.querySelector("#archive-view").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (e.target.id !== "arch-item-form") return;
+  const data = Object.fromEntries(new FormData(e.target).entries());
+  const editId = e.target.dataset.editId;
+  if (editId) {
+    await apiFetch(`/api/archive/${editId}`, { method: "PUT", body: JSON.stringify(data) });
+  } else {
+    await apiFetch("/api/archive", { method: "POST", body: JSON.stringify(data) });
+  }
+  archiveEditId = null;
+  document.querySelector("#arch-add-form-wrap").innerHTML = "";
+  await loadArchive();
+  renderArchive();
+});
+
+archiveBtn.addEventListener("click", async () => {
+  activeProject = null;
+  archiveEditId = null;
+  setView("archive");
+  document.querySelector(".top-actions").classList.add("hidden");
+  document.querySelector("#product-image").style.display = "none";
+  document.querySelector("#project-family").textContent = "PCS Archiv";
+  document.querySelector("#project-title").textContent = "Musterarchiv";
+  renderMachines();
+  await loadArchive();
+  renderArchive();
+});
 
 // ── Init ──────────────────────────────────────────────────────
 (async () => {

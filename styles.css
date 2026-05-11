@@ -1595,6 +1595,86 @@ h2 {
 .pkg-form-actions { display: flex; gap: 8px; }
 .pkg-panel-wide { /* full width handled by flex column layout */ }
 
+/* ── Archiv ─────────────────────────────────────────────── */
+
+.arch-layout { display: flex; flex-direction: column; gap: 16px; }
+
+.arch-topbar {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 18px 20px;
+  box-shadow: var(--shadow);
+}
+
+.arch-hero {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  margin-bottom: 14px;
+}
+.arch-hero p { margin: 0; font-size: 12px; font-weight: 800;
+  text-transform: uppercase; color: var(--muted); }
+.arch-hero h2 { margin: 4px 0 0; font-size: 24px; }
+
+.arch-stats {
+  display: flex; gap: 20px;
+}
+.arch-stats div { text-align: center; }
+.arch-stats strong { display: block; font-size: 22px; font-weight: 800; }
+.arch-stats span { font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--muted); }
+
+.arch-controls {
+  display: flex; gap: 10px; align-items: center;
+}
+.arch-controls input {
+  flex: 1; padding: 9px 14px; font-size: 14px; font-family: inherit;
+  border: 1.5px solid var(--line); border-radius: 7px;
+  background: var(--panel-soft); color: var(--ink); outline: none;
+}
+.arch-controls input:focus { border-color: var(--accent); }
+
+.arch-location-group {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; overflow: hidden; box-shadow: var(--shadow);
+}
+.arch-location-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 16px; background: var(--panel-soft);
+  border-bottom: 1px solid var(--line);
+}
+.arch-location-header strong { font-size: 14px; }
+
+.arch-table { display: flex; flex-direction: column; }
+.arch-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 80px 70px 110px 100px 1fr 130px;
+  gap: 8px; align-items: center;
+  padding: 7px 16px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.arch-row:last-child { border-bottom: none; }
+.arch-head {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  color: var(--muted); background: var(--panel-soft);
+}
+.arch-editing { background: var(--accent-soft); }
+.arch-ef { font-weight: 700; font-size: 12px; }
+.arch-build { font-size: 11px; color: var(--muted); }
+.arch-qty { font-size: 12px; text-align: center; }
+.arch-date { font-size: 11px; }
+.arch-notes { font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.arch-actions { display: flex; gap: 6px; }
+.arch-item-form { margin: 0 16px 12px; }
+
+.arch-status {
+  display: inline-block; border-radius: 4px; padding: 2px 8px;
+  font-size: 10px; font-weight: 700;
+}
+.arch-status.good     { background: #e6f4ee; color: var(--good); }
+.arch-status.watch    { background: #fdf3e3; color: var(--watch); }
+.arch-status.bad      { background: #fce8e7; color: var(--bad); }
+.arch-status.sent     { background: #edf5f8; color: var(--accent); }
+.arch-status.muted-tag { background: var(--bg); color: var(--muted); }
+
 /* ── Polish ─────────────────────────────────────────────── */
 
 .abgeschlossen {

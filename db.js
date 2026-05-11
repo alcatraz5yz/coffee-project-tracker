@@ -148,6 +148,20 @@ db.exec(`
     phone TEXT,
     notes TEXT
   );
+
+  CREATE TABLE IF NOT EXISTS archive_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id TEXT,
+    device_name TEXT,
+    build TEXT,
+    quantity INTEGER DEFAULT 1,
+    location TEXT,
+    status TEXT DEFAULT 'Vorhanden',
+    date_stored TEXT,
+    notes TEXT,
+    source TEXT DEFAULT 'manual',
+    last_scanned TEXT
+  );
 `);
 
 // ── Seed labs (once) ──────────────────────────────────────────────────────
@@ -381,6 +395,30 @@ function upsertLab(data) {
     .run(data).lastInsertRowid;
 }
 
+function getArchiveItems(projectId) {
+  if (projectId) {
+    return db.prepare("SELECT * FROM archive_items WHERE project_id = ? ORDER BY location, id").all(projectId);
+  }
+  return db.prepare("SELECT * FROM archive_items ORDER BY project_id, location, id").all();
+}
+
+function upsertArchiveItem(data) {
+  if (data.id) {
+    db.prepare(`UPDATE archive_items SET project_id=@project_id, device_name=@device_name,
+      build=@build, quantity=@quantity, location=@location, status=@status,
+      date_stored=@date_stored, notes=@notes WHERE id=@id`).run(data);
+    return data.id;
+  }
+  return db.prepare(`INSERT INTO archive_items
+    (project_id,device_name,build,quantity,location,status,date_stored,notes,source)
+    VALUES (@project_id,@device_name,@build,@quantity,@location,@status,@date_stored,@notes,@source)`)
+    .run({ source: "manual", ...data }).lastInsertRowid;
+}
+
+function deleteArchiveItem(id) {
+  db.prepare("DELETE FROM archive_items WHERE id = ?").run(id);
+}
+
 module.exports = {
   getProjects,
   getProject,
@@ -394,5 +432,8 @@ module.exports = {
   deleteShipment,
   getLabs,
   upsertLab,
+  getArchiveItems,
+  upsertArchiveItem,
+  deleteArchiveItem,
   db
 };
