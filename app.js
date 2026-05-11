@@ -1007,79 +1007,92 @@ exportBtn.addEventListener("click", async () => {
 function buildExportHTML(projects) {
   const now = new Date();
   const dateStr = now.toLocaleDateString("de-CH", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const isoDate = now.toISOString().slice(0, 10);
   const active = projects.filter((p) => !["Abgeschlossen", "Archiviert"].includes(p.phase));
 
   const healthColor = { "Good": "#22754b", "Watch": "#9a6615", "Risk": "#a33d37" };
+  const statusDE = { "Open": "Offen", "Done": "Erledigt", "Blocked": "Blockiert" };
 
-  const projectHTML = active.map((p) => {
-    const openTasks = (p.tasks || []).filter((t) => t.status !== "Done").slice(0, 12);
+  // Editable inline field
+  const field = (id, placeholder, multiline = false, value = "") => {
+    if (multiline) return `<div class="editable" contenteditable="true" data-field="${id}" data-placeholder="${placeholder}">${escapeHtml(value)}</div>`;
+    return `<span class="editable inline" contenteditable="true" data-field="${id}" data-placeholder="${placeholder}">${escapeHtml(value)}</span>`;
+  };
+
+  const projectHTML = active.map((p, idx) => {
+    const allTasks = (p.tasks || []);
+    const openTasks = allTasks.filter((t) => t.status !== "Done");
     const risks = p.risks || [];
-    const openCerts = (p.certification || []).filter((c) => !c.done);
+    const openCerts = (p.certification || []).filter((c) => !c.done && !["Done", "Not needed", "Abgeschlossen"].includes(c.state));
     const builds = p.builds || [];
+    const hColor = healthColor[p.health] || "#9a6615";
+    const traktandumNr = idx + 1;
 
-    const tasksHTML = openTasks.length ? `
-      <div class="section">
-        <h3>Offene Massnahmen (${openTasks.length})</h3>
-        <table>
+    const buildsText = builds.map((b) => `${b.label} (${b.date || "TBD"}) — ${b.state}`).join(", ");
+
+    const tasksTable = openTasks.length ? `
+      <table class="tasks-table">
+        <thead>
+          <tr><th>Massnahme</th><th>Verantwortlich</th><th>Termin</th><th>Status</th></tr>
+        </thead>
+        <tbody>
           ${openTasks.map((t) => `
-            <tr>
-              <td class="tag ${t.status === "Blocked" ? "bad" : "watch"}">${t.status}</td>
-              <td>${t.task}</td>
-              <td class="muted">${t.owner || "—"}</td>
-              <td class="muted">${t.due || "—"}</td>
+            <tr class="${t.status === "Blocked" ? "row-bad" : t.status === "Done" ? "row-done" : ""}">
+              <td>${escapeHtml(t.task)}${t.block_reason ? `<div class="block-reason">Blocker: ${escapeHtml(t.block_reason)}</div>` : ""}</td>
+              <td class="cell-owner">${escapeHtml(t.owner || "—")}</td>
+              <td class="cell-due">${escapeHtml(t.due || "—")}</td>
+              <td class="cell-status"><span class="stag ${t.status === "Blocked" ? "bad" : t.status === "Done" ? "good" : "watch"}">${statusDE[t.status] || t.status}</span></td>
             </tr>`).join("")}
-        </table>
-      </div>` : "";
+        </tbody>
+      </table>` : `<p class="none">Keine offenen Massnahmen.</p>`;
 
     const risksHTML = risks.length ? `
-      <div class="section">
-        <h3>Risiken / Blocker</h3>
-        <table>
-          ${risks.map((r) => `
-            <tr>
-              <td class="tag bad">${r.level}</td>
-              <td>${r.text}</td>
-            </tr>`).join("")}
-        </table>
+      <div class="sub-section">
+        <h4>PCS Blocker / Risiken</h4>
+        ${risks.map((r) => `<div class="risk-row"><span class="stag bad">${r.level}</span> ${escapeHtml(r.text)}</div>`).join("")}
       </div>` : "";
 
     const certsHTML = openCerts.length ? `
-      <div class="section">
-        <h3>Zulassung offen (${openCerts.length})</h3>
-        <ul>${openCerts.map((c) => `<li>${c.name}</li>`).join("")}</ul>
+      <div class="sub-section">
+        <h4>Zulassung offen (${openCerts.length})</h4>
+        <ul>${openCerts.map((c) => `<li>${escapeHtml(c.name)}</li>`).join("")}</ul>
       </div>` : "";
 
-    const buildsHTML = builds.length ? `
-      <div class="section">
-        <h3>Builds</h3>
-        <table>
-          ${builds.map((b) => `
-            <tr>
-              <td class="muted">${b.date || "—"}</td>
-              <td>${b.label}</td>
-              <td class="tag">${b.state}</td>
-              <td class="muted">${b.samples || ""}</td>
-            </tr>`).join("")}
-        </table>
-      </div>` : "";
-
-    const hColor = healthColor[p.health] || "#9a6615";
     return `
-      <div class="project">
+      <div class="project" id="proj-${p.id}">
         <div class="proj-header" style="border-left-color:${hColor}">
-          <div>
-            <span class="proj-id">${p.id}</span>
-            <span class="proj-name">${p.name || ""}</span>
+          <div class="proj-title">
+            <span class="trak-nr">${traktandumNr}.</span>
+            <span class="proj-id">${escapeHtml(p.id)}</span>
+            <span class="proj-name">${escapeHtml(p.name || "")}</span>
           </div>
           <div class="proj-meta">
             <span class="badge" style="background:${hColor}22;color:${hColor}">${p.health || "Watch"}</span>
-            <span class="muted">${p.phase || ""}</span>
-            ${p.target ? `<span class="muted">Ziel: ${p.target}</span>` : ""}
+            <span class="muted">${escapeHtml(p.phase || "")}</span>
+            ${p.target ? `<span class="muted">Ziel: ${escapeHtml(p.target)}</span>` : ""}
+            ${buildsText ? `<span class="muted">${escapeHtml(buildsText)}</span>` : ""}
           </div>
         </div>
-        ${tasksHTML}${risksHTML}${certsHTML}${buildsHTML}
+        <div class="proj-body">
+          <div class="verlauf-section">
+            <h3>Verlauf / Status</h3>
+            ${field(`verlauf-${p.id}`, "Statusbericht, Verlauf, Rückfragen, Entscheidungen …", true)}
+          </div>
+          <div class="massnahmen-section">
+            <h3>PCS Massnahmen (${openTasks.length} offen)</h3>
+            ${tasksTable}
+          </div>
+          ${risksHTML}${certsHTML}
+        </div>
       </div>`;
   }).join("");
+
+  const teamMembers = ["A. Kaufmann", "B. Meier", "C. Müller", "D. Schneider"];
+  const ferienRows = teamMembers.map((name) => `
+    <tr>
+      <td class="cell-owner">${name}</td>
+      <td>${field(`ferien-${name.replace(/[^a-z]/gi, "")}`, "z.B. 25.–29. Aug.", false)}</td>
+    </tr>`).join("");
 
   return `<!doctype html>
 <html lang="de">
@@ -1088,45 +1101,193 @@ function buildExportHTML(projects) {
   <title>PCS Aktivitätensitzung ${dateStr}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: "Segoe UI", Arial, sans-serif; font-size: 11px; color: #172027; background: white; padding: 20mm; }
-    h1 { font-size: 20px; margin-bottom: 4px; }
-    .subtitle { color: #63707a; font-size: 13px; margin-bottom: 24px; }
-    .project { margin-bottom: 28px; page-break-inside: avoid; border: 1px solid #d6dde2; border-radius: 6px; overflow: hidden; }
-    .proj-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 10px 14px; background: #f3f6f8; border-left: 4px solid #9a6615; gap: 12px; }
-    .proj-id { font-size: 15px; font-weight: 800; margin-right: 10px; }
-    .proj-name { font-size: 13px; color: #52606b; }
-    .proj-meta { display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
-    .badge { border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
-    .section { padding: 8px 14px; border-top: 1px solid #eef2f4; }
-    .section h3 { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #63707a; margin-bottom: 6px; }
-    table { width: 100%; border-collapse: collapse; }
-    td { padding: 3px 6px 3px 0; vertical-align: top; }
-    .tag { border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 700; background: #eef2f4; white-space: nowrap; }
-    .bad { background: #fce8e7; color: #a33d37; }
-    .watch { background: #fdf3e3; color: #9a6615; }
-    .muted { color: #63707a; white-space: nowrap; }
+    body { font-family: "Segoe UI", Arial, sans-serif; font-size: 11px; color: #172027; background: white; padding: 18mm 20mm; max-width: 260mm; margin: 0 auto; }
+    h1 { font-size: 20px; font-weight: 800; margin-bottom: 2px; }
+    h2 { font-size: 13px; font-weight: 800; margin: 0 0 10px; }
+    h3 { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #63707a; margin-bottom: 6px; }
+    h4 { font-size: 10px; font-weight: 700; color: #63707a; margin-bottom: 4px; }
+    .doc-meta { color: #63707a; font-size: 12px; margin-bottom: 4px; }
+    .doc-date { color: #172027; font-size: 13px; font-weight: 600; margin-bottom: 20px; }
+
+    /* Editable fields */
+    .editable { border-bottom: 1px dashed #b0bec5; min-height: 18px; outline: none; padding: 2px 2px; border-radius: 2px; width: 100%; display: block; }
+    .editable:empty::before { content: attr(data-placeholder); color: #aab2ba; font-style: italic; }
+    .editable:focus { background: #f0f8ff; border-bottom-color: #4a90d9; }
+    .editable.inline { display: inline-block; width: auto; min-width: 80px; }
+
+    /* Participants block */
+    .participants-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px; padding: 12px 16px; border: 1px solid #d6dde2; border-radius: 6px; background: #f9fafb; }
+    .participants-grid h3 { margin-bottom: 4px; }
+
+    /* Summary bar */
+    .summary { display: flex; gap: 16px; margin-bottom: 24px; padding: 10px 16px; background: #f3f6f8; border-radius: 6px; }
+    .summary div { text-align: center; flex: 1; }
+    .summary strong { display: block; font-size: 20px; font-weight: 800; }
+    .summary span { font-size: 9px; color: #63707a; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* Projects */
+    .project { margin-bottom: 24px; border: 1px solid #d6dde2; border-radius: 6px; overflow: hidden; page-break-inside: avoid; }
+    .proj-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 8px 14px; background: #f3f6f8; border-left: 5px solid #9a6615; gap: 12px; }
+    .proj-title { display: flex; align-items: baseline; gap: 8px; }
+    .trak-nr { font-size: 13px; font-weight: 800; color: #8a96a0; }
+    .proj-id { font-size: 14px; font-weight: 800; }
+    .proj-name { font-size: 12px; color: #52606b; }
+    .proj-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; flex-shrink: 0; font-size: 10px; }
+    .badge { border-radius: 999px; padding: 2px 8px; font-size: 10px; font-weight: 700; }
+    .muted { color: #63707a; }
+    .proj-body { padding: 0; }
+    .verlauf-section { padding: 8px 14px; border-top: 1px solid #eef2f4; }
+    .verlauf-section .editable { min-height: 36px; font-size: 11px; line-height: 1.5; }
+    .massnahmen-section { padding: 8px 14px; border-top: 1px solid #eef2f4; }
+    .sub-section { padding: 8px 14px; border-top: 1px solid #eef2f4; }
+
+    /* Tasks table */
+    .tasks-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+    .tasks-table thead tr { background: #eef2f4; }
+    .tasks-table th { text-align: left; padding: 3px 6px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #63707a; border-bottom: 1px solid #d6dde2; }
+    .tasks-table td { padding: 3px 6px 3px 0; vertical-align: top; border-bottom: 1px solid #f0f3f5; }
+    .tasks-table tr:last-child td { border-bottom: none; }
+    .tasks-table .cell-owner { white-space: nowrap; color: #52606b; width: 100px; }
+    .tasks-table .cell-due { white-space: nowrap; color: #52606b; width: 80px; }
+    .tasks-table .cell-status { width: 70px; }
+    .tasks-table .row-bad td { background: #fff8f8; }
+    .tasks-table .row-done td { opacity: 0.5; }
+    .block-reason { font-size: 10px; color: #a33d37; margin-top: 2px; font-style: italic; }
+    .stag { display: inline-block; border-radius: 4px; padding: 1px 5px; font-size: 9.5px; font-weight: 700; white-space: nowrap; }
+    .stag.bad { background: #fce8e7; color: #a33d37; }
+    .stag.good { background: #e6f4ee; color: #22754b; }
+    .stag.watch { background: #fdf3e3; color: #9a6615; }
+    .none { font-size: 10px; color: #9aa5ae; font-style: italic; }
+    .risk-row { margin-bottom: 4px; }
     ul { padding-left: 16px; }
     li { margin-bottom: 2px; }
-    .summary { display: flex; gap: 20px; margin-bottom: 20px; padding: 12px 16px; background: #f3f6f8; border-radius: 6px; }
-    .summary div { text-align: center; }
-    .summary strong { display: block; font-size: 22px; }
-    .summary span { font-size: 10px; color: #63707a; text-transform: uppercase; }
+
+    /* Freetext sections */
+    .free-section { margin-bottom: 24px; border: 1px solid #d6dde2; border-radius: 6px; overflow: hidden; page-break-inside: avoid; }
+    .free-section-header { padding: 8px 14px; background: #f3f6f8; border-left: 5px solid #c5ced5; }
+    .free-section-body { padding: 10px 14px; }
+    .free-row { display: grid; grid-template-columns: 160px 1fr; gap: 8px; margin-bottom: 8px; align-items: start; }
+    .free-row label { font-weight: 600; font-size: 10.5px; padding-top: 2px; }
+
+    /* Ferien table */
+    .ferien-table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+    .ferien-table th { text-align: left; padding: 3px 6px; font-size: 9.5px; font-weight: 700; text-transform: uppercase; color: #63707a; border-bottom: 1px solid #d6dde2; background: #eef2f4; }
+    .ferien-table td { padding: 4px 6px 4px 0; border-bottom: 1px solid #f0f3f5; vertical-align: middle; }
+    .ferien-table tr:last-child td { border-bottom: none; }
+
+    /* Divider */
+    .section-divider { margin: 28px 0 18px; border: none; border-top: 2px solid #d6dde2; }
+
     @media print {
-      body { padding: 0; }
-      .project { page-break-inside: avoid; }
+      body { padding: 10mm 14mm; }
+      .editable { border-bottom: 1px solid #d0d8de; }
+      .editable:empty::before { content: ""; }
+      .no-print { display: none !important; }
     }
   </style>
 </head>
 <body>
+  <p class="doc-meta">PCS Kaffee Dashboard — Aktivitätensitzung</p>
   <h1>PCS Aktivitätensitzung</h1>
-  <p class="subtitle">${dateStr} &nbsp;·&nbsp; ${active.length} aktive Projekte</p>
+  <p class="doc-date">${dateStr}</p>
+
+  <!-- Teilnehmer -->
+  <div class="participants-grid">
+    <div>
+      <h3>Gesprächsteilnehmer</h3>
+      ${field("teilnehmer", "Namen eingeben, z.B. A. Kaufmann, B. Meier …", true)}
+    </div>
+    <div>
+      <h3>Entschuldigt</h3>
+      ${field("entschuldigt", "Entschuldigte Personen …", true)}
+    </div>
+  </div>
+
+  <!-- Statistik -->
   <div class="summary">
     <div><strong>${active.length}</strong><span>Projekte</span></div>
     <div><strong>${active.reduce((n, p) => n + (p.tasks || []).filter((t) => t.status !== "Done").length, 0)}</strong><span>Offene Massnahmen</span></div>
-    <div><strong>${active.reduce((n, p) => n + (p.risks || []).length, 0)}</strong><span>Risiken</span></div>
+    <div><strong>${active.reduce((n, p) => n + (p.risks || []).length, 0)}</strong><span>Risiken / Blocker</span></div>
     <div><strong>${active.filter((p) => p.health === "Risk").length}</strong><span>Projekte im Risiko</span></div>
+    <div><strong>${active.filter((p) => p.health === "Good").length}</strong><span>Projekte OK</span></div>
   </div>
+
+  <!-- Traktanden (EF-Projekte) -->
   ${projectHTML}
+
+  <!-- UL Allgemein -->
+  <div class="free-section">
+    <div class="free-section-header">
+      <h2>${active.length + 1}. UL / Allgemein</h2>
+    </div>
+    <div class="free-section-body">
+      ${field("ul-allgemein", "UL-Rückfragen, Laborkontakte, allgemeine Zulassungsthemen …", true)}
+    </div>
+  </div>
+
+  <!-- Administratives -->
+  <div class="free-section">
+    <div class="free-section-header">
+      <h2>${active.length + 2}. Administratives</h2>
+    </div>
+    <div class="free-section-body">
+      <div class="free-row">
+        <label>Schulungen</label>
+        ${field("admin-schulungen", "Geplante oder durchgeführte Schulungen …", true)}
+      </div>
+      <div class="free-row">
+        <label>Neue Normen / IDM</label>
+        ${field("admin-normen", "Neue Normen, IDM-Einträge, Normänderungen …", true)}
+      </div>
+      <div class="free-row">
+        <label>Diverses</label>
+        ${field("admin-diverses", "Sonstige administrative Punkte …", true)}
+      </div>
+    </div>
+  </div>
+
+  <hr class="section-divider">
+
+  <!-- Ferien -->
+  <div class="free-section">
+    <div class="free-section-header">
+      <h2>Ferien / Abwesenheiten</h2>
+    </div>
+    <div class="free-section-body">
+      <table class="ferien-table">
+        <thead><tr><th>Person</th><th>Abwesenheit</th></tr></thead>
+        <tbody>
+          ${["Person 1", "Person 2", "Person 3", "Person 4", "Person 5"].map((name, i) => `
+            <tr>
+              <td>${field(`ferien-name-${i}`, name, false)}</td>
+              <td>${field(`ferien-dates-${i}`, "z.B. 25.–29. Aug.", false)}</td>
+            </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Nächste Sitzung -->
+  <div class="free-section">
+    <div class="free-section-header">
+      <h2>Sitzungstermine</h2>
+    </div>
+    <div class="free-section-body">
+      <div class="free-row">
+        <label>Nächste Sitzung</label>
+        ${field("naechste-sitzung", "z.B. Montag, 09. Juni 2026, 14:00 Uhr", false)}
+      </div>
+      <div class="free-row">
+        <label>Weitere Termine</label>
+        ${field("weitere-termine", "z.B. Quartalssitzung, Review-Termin …", true)}
+      </div>
+    </div>
+  </div>
+
+  <p class="muted no-print" style="margin-top:24px;font-size:10px">
+    Drucken: Cmd+P / Ctrl+P → Als PDF speichern &nbsp;·&nbsp;
+    Felder sind direkt bearbeitbar vor dem Drucken.
+  </p>
 </body>
 </html>`;
 }
