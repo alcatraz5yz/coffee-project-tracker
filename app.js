@@ -987,6 +987,150 @@ async function startScanStream() {
 
 scanBtn.addEventListener("click", startScanStream);
 
+// ── Sitzungsexport ────────────────────────────────────────────
+const exportBtn = document.querySelector("#export-btn");
+
+exportBtn.addEventListener("click", async () => {
+  exportBtn.disabled = true;
+  exportBtn.textContent = "Wird erstellt…";
+  try {
+    const projects = await Promise.all(projectList.map((p) => apiFetch(`/api/projects/${p.id}`)));
+    const win = window.open("", "_blank");
+    win.document.write(buildExportHTML(projects));
+    win.document.close();
+  } finally {
+    exportBtn.disabled = false;
+    exportBtn.textContent = "Sitzungsexport";
+  }
+});
+
+function buildExportHTML(projects) {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("de-CH", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const active = projects.filter((p) => !["Abgeschlossen", "Archiviert"].includes(p.phase));
+
+  const healthColor = { "Good": "#22754b", "Watch": "#9a6615", "Risk": "#a33d37" };
+
+  const projectHTML = active.map((p) => {
+    const openTasks = (p.tasks || []).filter((t) => t.status !== "Done").slice(0, 12);
+    const risks = p.risks || [];
+    const openCerts = (p.certification || []).filter((c) => !c.done);
+    const builds = p.builds || [];
+
+    const tasksHTML = openTasks.length ? `
+      <div class="section">
+        <h3>Offene Massnahmen (${openTasks.length})</h3>
+        <table>
+          ${openTasks.map((t) => `
+            <tr>
+              <td class="tag ${t.status === "Blocked" ? "bad" : "watch"}">${t.status}</td>
+              <td>${t.task}</td>
+              <td class="muted">${t.owner || "—"}</td>
+              <td class="muted">${t.due || "—"}</td>
+            </tr>`).join("")}
+        </table>
+      </div>` : "";
+
+    const risksHTML = risks.length ? `
+      <div class="section">
+        <h3>Risiken / Blocker</h3>
+        <table>
+          ${risks.map((r) => `
+            <tr>
+              <td class="tag bad">${r.level}</td>
+              <td>${r.text}</td>
+            </tr>`).join("")}
+        </table>
+      </div>` : "";
+
+    const certsHTML = openCerts.length ? `
+      <div class="section">
+        <h3>Zulassung offen (${openCerts.length})</h3>
+        <ul>${openCerts.map((c) => `<li>${c.name}</li>`).join("")}</ul>
+      </div>` : "";
+
+    const buildsHTML = builds.length ? `
+      <div class="section">
+        <h3>Builds</h3>
+        <table>
+          ${builds.map((b) => `
+            <tr>
+              <td class="muted">${b.date || "—"}</td>
+              <td>${b.label}</td>
+              <td class="tag">${b.state}</td>
+              <td class="muted">${b.samples || ""}</td>
+            </tr>`).join("")}
+        </table>
+      </div>` : "";
+
+    const hColor = healthColor[p.health] || "#9a6615";
+    return `
+      <div class="project">
+        <div class="proj-header" style="border-left-color:${hColor}">
+          <div>
+            <span class="proj-id">${p.id}</span>
+            <span class="proj-name">${p.name || ""}</span>
+          </div>
+          <div class="proj-meta">
+            <span class="badge" style="background:${hColor}22;color:${hColor}">${p.health || "Watch"}</span>
+            <span class="muted">${p.phase || ""}</span>
+            ${p.target ? `<span class="muted">Ziel: ${p.target}</span>` : ""}
+          </div>
+        </div>
+        ${tasksHTML}${risksHTML}${certsHTML}${buildsHTML}
+      </div>`;
+  }).join("");
+
+  return `<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>PCS Aktivitätensitzung ${dateStr}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "Segoe UI", Arial, sans-serif; font-size: 11px; color: #172027; background: white; padding: 20mm; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { color: #63707a; font-size: 13px; margin-bottom: 24px; }
+    .project { margin-bottom: 28px; page-break-inside: avoid; border: 1px solid #d6dde2; border-radius: 6px; overflow: hidden; }
+    .proj-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 10px 14px; background: #f3f6f8; border-left: 4px solid #9a6615; gap: 12px; }
+    .proj-id { font-size: 15px; font-weight: 800; margin-right: 10px; }
+    .proj-name { font-size: 13px; color: #52606b; }
+    .proj-meta { display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
+    .badge { border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 700; }
+    .section { padding: 8px 14px; border-top: 1px solid #eef2f4; }
+    .section h3 { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #63707a; margin-bottom: 6px; }
+    table { width: 100%; border-collapse: collapse; }
+    td { padding: 3px 6px 3px 0; vertical-align: top; }
+    .tag { border-radius: 4px; padding: 1px 6px; font-size: 10px; font-weight: 700; background: #eef2f4; white-space: nowrap; }
+    .bad { background: #fce8e7; color: #a33d37; }
+    .watch { background: #fdf3e3; color: #9a6615; }
+    .muted { color: #63707a; white-space: nowrap; }
+    ul { padding-left: 16px; }
+    li { margin-bottom: 2px; }
+    .summary { display: flex; gap: 20px; margin-bottom: 20px; padding: 12px 16px; background: #f3f6f8; border-radius: 6px; }
+    .summary div { text-align: center; }
+    .summary strong { display: block; font-size: 22px; }
+    .summary span { font-size: 10px; color: #63707a; text-transform: uppercase; }
+    @media print {
+      body { padding: 0; }
+      .project { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <h1>PCS Aktivitätensitzung</h1>
+  <p class="subtitle">${dateStr} &nbsp;·&nbsp; ${active.length} aktive Projekte</p>
+  <div class="summary">
+    <div><strong>${active.length}</strong><span>Projekte</span></div>
+    <div><strong>${active.reduce((n, p) => n + (p.tasks || []).filter((t) => t.status !== "Done").length, 0)}</strong><span>Offene Massnahmen</span></div>
+    <div><strong>${active.reduce((n, p) => n + (p.risks || []).length, 0)}</strong><span>Risiken</span></div>
+    <div><strong>${active.filter((p) => p.health === "Risk").length}</strong><span>Projekte im Risiko</span></div>
+  </div>
+  ${projectHTML}
+</body>
+</html>`;
+}
+
 // ── Init ──────────────────────────────────────────────────────
 (async () => {
   projectList = await apiFetch("/api/projects");
