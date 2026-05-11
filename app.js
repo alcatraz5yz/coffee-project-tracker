@@ -317,9 +317,7 @@ function renderSummary(project) {
     </article>
     <article class="summary-card archive-card">
       <span>Archiv</span>
-      <input id="archive-location-input" class="archive-location-input"
-        type="text" value="${escapeHtml(archiveLoc)}"
-        placeholder="Kein Eintrag">
+      <strong class="archive-location-text ${archiveLoc ? "" : "muted"}">${archiveLoc ? escapeHtml(archiveLoc) : "—"}</strong>
     </article>
     ${(project.stats || []).filter(([title]) => title !== "Certification").map(([title, value, note]) => {
       const isSubtopic = Boolean(project.subtopics?.[title]);
@@ -801,24 +799,6 @@ document.querySelector("#summary-grid").addEventListener("click", (event) => {
   setView("subtopic");
 });
 
-document.querySelector("#summary-grid").addEventListener("input", (event) => {
-  if (event.target.id !== "archive-location-input") return;
-  if (activeProject) activeProject.archive_location = event.target.value;
-});
-
-document.querySelector("#summary-grid").addEventListener("change", (event) => {
-  if (event.target.id !== "archive-location-input") return;
-  const val = event.target.value;
-  const projectId = activeProject?.id;
-  if (!projectId) return;
-  activeProject.archive_location = val;
-  apiPut(`/api/projects/${projectId}/archive-location`, { location: val })
-    .then(() => {
-      event.target.classList.add("saved");
-      setTimeout(() => event.target.classList.remove("saved"), 1200);
-    })
-    .catch(console.error);
-});
 
 // Fachfreigabe gate toggle
 document.querySelector("#freigabe-view").addEventListener("click", (event) => {
