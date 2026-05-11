@@ -1282,6 +1282,30 @@ async function startScanStream() {
 
 scanBtn.addEventListener("click", startScanStream);
 
+// ── Archiv-Excel sync ─────────────────────────────────────────
+const archiveSyncBtn = document.querySelector("#archive-sync-btn");
+
+async function runArchiveSync() {
+  archiveSyncBtn.disabled = true;
+  archiveSyncBtn.textContent = "Sync…";
+  try {
+    const result = await apiFetch("/api/scan-archive", { method: "POST" });
+    archiveSyncBtn.textContent = `✓ ${result.updated} Einträge`;
+    // Reload current project to pick up new archive_location
+    if (activeProject) {
+      activeProject = await apiFetch(`/api/projects/${activeProject.id}`);
+      renderSummary(activeProject);
+    }
+    setTimeout(() => { archiveSyncBtn.textContent = "Archiv sync"; archiveSyncBtn.disabled = false; }, 3000);
+  } catch (e) {
+    archiveSyncBtn.textContent = "Fehler";
+    archiveSyncBtn.disabled = false;
+    console.error(e);
+  }
+}
+
+archiveSyncBtn.addEventListener("click", runArchiveSync);
+
 // ── Sitzungsexport ────────────────────────────────────────────
 const exportBtn = document.querySelector("#export-btn");
 

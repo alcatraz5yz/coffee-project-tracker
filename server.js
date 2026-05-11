@@ -10,6 +10,7 @@ const {
   updateFachfreigabeGate,
   updateFachfreigabeMeta,
   updateTaskStatus,
+  updateArchiveLocation,
   getShipments,
   getAllOpenShipments,
   upsertShipment,
@@ -294,6 +295,31 @@ app.put("/api/labs/:id", (req, res) => {
 });
 
 // ── Archiv ────────────────────────────────────────────────
+app.put("/api/projects/:id/archive-location", (req, res) => {
+  updateArchiveLocation(req.params.id, req.body?.location);
+  res.json({ ok: true });
+});
+
+app.post("/api/scan-archive", (req, res) => {
+  const scriptPath = path.join(__dirname, "scan_archive.py");
+  const excelPath = req.body?.path || process.env.ARCHIVE_EXCEL || path.join(os.homedir(), "Desktop", "PCS_Archiv_Muster.xlsx");
+  const proc = spawn("python3", [scriptPath], { env: { ...process.env, ARCHIVE_EXCEL: excelPath } });
+  let out = "";
+  let err = "";
+  proc.stdout.on("data", (d) => { out += d; });
+  proc.stderr.on("data", (d) => { err += d; });
+  proc.on("close", (code) => {
+    if (code !== 0) return res.status(500).json({ error: err || "Scanner-Fehler" });
+    try {
+      const entries = JSON.parse(out);
+      if (entries.error) return res.status(500).json(entries);
+      entries.forEach(({ project_id, location }) => updateArchiveLocation(project_id, location));
+      res.json({ ok: true, updated: entries.length });
+    } catch (e) {
+      res.status(500).json({ error: "JSON-Parsefehler: " + e.message });
+    }
+  });
+});
 app.get("/api/archive", (_req, res) => res.json(getArchiveItems()));
 app.post("/api/archive", (req, res) => res.json({ id: upsertArchiveItem(req.body) }));
 app.put("/api/archive/:id", (req, res) => {
