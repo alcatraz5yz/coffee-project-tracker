@@ -221,14 +221,8 @@ function renderMachines() {
       .join(" ").toLowerCase().includes(q);
   });
 
-  // In project view, pull siblings (same variant_group) out and render them grouped
-  const siblings = activeProject?.variant_group
-    ? filtered.filter((p) => p.variant_group === activeProject.variant_group && p.id !== activeProject.id)
-    : [];
-  const siblingIds = new Set(siblings.map((p) => p.id));
-
-  const renderBtn = (p, isSibling = false) => `
-    <button class="${p.id === activeProject?.id ? "active" : ""} ${isSibling ? "sibling" : ""}" data-id="${p.id}" type="button">
+  const renderBtn = (p) => `
+    <button class="${p.id === activeProject?.id ? "active" : ""}" data-id="${p.id}" type="button">
       <strong>${p.id}</strong>
       <em class="${statusClass(p.health)}">${statusLabel(p.health)}</em>
       <span>${p.market ? `${termLabel(p.market)} / ` : ""}${p.phase}</span>
@@ -238,15 +232,7 @@ function renderMachines() {
         </div>` : ""}
     </button>`;
 
-  machineList.innerHTML = filtered.map((p) => {
-    if (siblingIds.has(p.id)) return ""; // rendered inline after the active project
-    const btn = renderBtn(p);
-    // After the active project, inject siblings
-    if (p.id === activeProject?.id && siblings.length) {
-      return btn + siblings.map((s) => renderBtn(s, true)).join("");
-    }
-    return btn;
-  }).join("");
+  machineList.innerHTML = filtered.map((p) => renderBtn(p)).join("");
 }
 
 function renderDashboard() {
