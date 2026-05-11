@@ -179,7 +179,7 @@ db.prepare("UPDATE fachfreigabe_gates SET status = 'Offen' WHERE status = 'Teilw
 const BUILD_ORDER = ["PT1", "OOT", "TS1", "TS2", "TS3"];
 
 function getProjects() {
-  const projects = db.prepare("SELECT * FROM projects ORDER BY id").all();
+  const projects = db.prepare("SELECT * FROM projects ORDER BY CAST(SUBSTR(id, 3) AS INTEGER)").all();
   const getZifferBuilds = db.prepare(
     "SELECT builds FROM ziffern WHERE project_id = ? AND builds != '' AND builds != 'Alle'"
   );
