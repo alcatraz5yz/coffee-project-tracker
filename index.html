@@ -45,13 +45,35 @@
           <button id="view-freigabe" type="button">Freigabe</button>
           <button id="view-packaging" type="button">Versand</button>
         </div>
-        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Darstellung wechseln">
-          <span></span>
-          <strong>Dark</strong>
-        </button>
+        <div class="topbar-end">
+          <button id="shortcut-btn-0" class="hero-shortcut-btn" type="button">📁 Protokolle</button>
+          <button id="shortcut-btn-1" class="hero-shortcut-btn" type="button">📁 Ordner 2</button>
+          <button id="shortcut-btn-2" class="hero-shortcut-btn" type="button">📁 Ordner 3</button>
+          <span class="topbar-divider"></span>
+          <button id="link-btn-0" class="hero-shortcut-btn hero-link-btn" type="button">🔗 Intranetlink</button>
+          <button id="link-btn-1" class="hero-shortcut-btn hero-link-btn" type="button">🔗 Link 2</button>
+          <button id="link-btn-2" class="hero-shortcut-btn hero-link-btn" type="button">🔗 Link 3</button>
+          <button id="link-btn-3" class="hero-shortcut-btn hero-link-btn" type="button">🔗 Link 4</button>
+          <button id="link-btn-4" class="hero-shortcut-btn hero-link-btn" type="button">🔗 Link 5</button>
+          <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Darstellung wechseln">
+            <span></span>
+            <strong>Dark</strong>
+          </button>
+        </div>
       </header>
 
       <section id="dashboard-view">
+        <div class="phone-strip">
+          <a class="phone-entry" href="tel:+41714662000"><span>Jürg Schüpbach (EF)</span><strong>+41 71 466 20 00</strong></a>
+          <a class="phone-entry" href="tel:+41714662525"><span>Patrick Egger (EF)</span><strong>+41 71 466 25 25</strong></a>
+          <a class="phone-entry" href="tel:+41714662239"><span>N. Bischof (EF)</span><strong>+41 71 466 22 39</strong></a>
+          <a class="phone-entry" href="tel:+41714662659"><span>R. Sieber (EF)</span><strong>+41 71 466 26 59</strong></a>
+          <a class="phone-entry" href="tel:+41585646972"><span>Erkam Gökatli (Delica)</span><strong>+41 58 564 69 72</strong></a>
+          <a class="phone-entry" href="tel:+41585804437"><span>Maximilien Klein (Nespresso)</span><strong>+41 58 580 44 37</strong></a>
+          <a class="phone-entry" href="tel:+41217969339"><span>Matthew Dofoo (Nespresso)</span><strong>+41 21 796 93 39</strong></a>
+          <a class="phone-entry" href="tel:+496983066544"><span>VDE Frankfurt</span><strong>+49 69 83 06 654</strong></a>
+          <a class="phone-entry" href="tel:2777"><span>Interne Notfallnummer</span><strong>2777</strong></a>
+        </div>
         <div class="dashboard-hero">
           <div>
             <p>PCS Projektübersicht</p>
@@ -62,6 +84,7 @@
         <div class="dashboard-search-wrap">
           <input id="dashboard-search" type="search" placeholder="Projekt, Kunde, Phase, Markt …" autocomplete="off">
         </div>
+        <div id="recently-opened"></div>
         <div id="dashboard-grid" class="dashboard-grid"></div>
       </section>
 

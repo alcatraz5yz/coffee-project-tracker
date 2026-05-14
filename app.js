@@ -24,6 +24,21 @@ const zifferTable = document.querySelector("#ziffer-table");
 const themeToggle = document.querySelector("#theme-toggle");
 const dashboardLink = document.querySelector("#dashboard-link");
 
+// ── Recent projects (localStorage) ──────────────────────────
+const RECENT_KEY = "pcs-recent";
+const RECENT_MAX = 5;
+
+function getRecentProjects() {
+  try { return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]"); } catch { return []; }
+}
+
+function recordRecent(projectId) {
+  const recent = getRecentProjects().filter((r) => r.id !== projectId);
+  recent.unshift({ id: projectId });
+  if (recent.length > RECENT_MAX) recent.length = RECENT_MAX;
+  localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
+}
+
 // ── State ────────────────────────────────────────────────────
 let projectList = [];
 let activeProject = null;
@@ -148,6 +163,21 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
+const KNOWN_COLORS = [
+  // EF1157 (aus Dispatch-Listen)
+  "Black", "White", "Green",
+  // EF1175 (aus BOM/Parts List)
+  "Standard Black", "Warm Black", "Red",
+  // bekannte Farbvarianten Vollautomaten
+  "Dark Inox",
+];
+
+function renderColorSwatches(colorsStr) {
+  if (!colorsStr) return `<em class="color-add">+ Farbe</em>`;
+  const list = colorsStr.split(",").map(c => c.trim()).filter(Boolean);
+  return list.map(c => `<span class="color-tag">${escapeHtml(c)}</span>`).join("");
+}
+
 function applyTheme(theme) {
   document.body.dataset.theme = theme;
   localStorage.setItem("pcs-theme", theme);
@@ -249,11 +279,30 @@ function renderMachines() {
 }
 
 const dashboardSearch = document.querySelector("#dashboard-search");
+const recentlyOpenedEl = document.querySelector("#recently-opened");
+
+function renderRecentlyOpened() {
+  const recentIds = getRecentProjects().map((r) => r.id);
+  const recent = recentIds.map((id) => projectList.find((p) => p.id === id)).filter(Boolean);
+  recentlyOpenedEl.innerHTML = recent.length ? `
+    <div class="recently-opened-row">
+      <span class="recently-opened-label">Zuletzt geöffnet</span>
+      ${recent.map((p) => `
+        <button class="recent-card" type="button" data-dashboard-project="${p.id}">
+          <strong>${p.id}</strong>
+          <em class="${statusClass(p.health)}">${statusLabel(p.health)}</em>
+          <span>${escapeHtml(p.family || p.name || "")}</span>
+        </button>
+      `).join("")}
+    </div>
+  ` : "";
+}
 
 function renderDashboard() {
+  renderRecentlyOpened();
   const q = (dashboardSearch?.value || search.value).trim().toLowerCase();
   const projects = projectList.filter((p) =>
-    [p.id, p.name, p.owner, p.family, p.market, p.phase, p.variant_group, p.variant_of, p.project_no]
+    [p.id, p.name, p.owner, p.family, p.market, p.phase, p.variant_group, p.variant_of, p.project_no, p.sw_version, p.hw_version, p.machine_type, p.machine_use]
       .join(" ").toLowerCase().includes(q)
   );
   document.querySelector("#project-family").textContent = "PCS Projektübersicht";
@@ -261,14 +310,35 @@ function renderDashboard() {
   document.querySelector("#dashboard-count").textContent = `${projects.length} Projekte`;
   document.querySelector("#dashboard-grid").innerHTML = projects.length ? projects.map((p) => `
     <button class="dashboard-card" type="button" data-dashboard-project="${p.id}">
-      <span class="dashboard-card-brand">
-        ${escapeHtml(p.family || "PCS Maschine")}
-        ${p.project_no ? `<em class="project-no-badge">${escapeHtml(p.project_no)}</em>` : `<em class="project-no-badge project-no-empty" title="Project No. eingeben">+ Nr.</em>`}
-      </span>
+      <div class="dashboard-card-top">
+        <span class="dashboard-card-brand">
+          ${escapeHtml(p.family || "PCS Maschine")}
+          ${p.project_no ? `<em class="project-no-badge">${escapeHtml(p.project_no)}</em>` : `<em class="project-no-badge project-no-empty" title="Project No. eingeben">+ Nr.</em>`}
+        </span>
+        <span class="color-swatches" data-color-project="${p.id}" title="Farben bearbeiten">
+          ${renderColorSwatches(p.colors)}
+        </span>
+      </div>
       <strong>${p.id}</strong>
       <p>${escapeHtml(p.name)}</p>
       <em class="${statusClass(p.health)}">${statusLabel(p.health)}</em>
       <small>${p.market ? `${termLabel(p.market)} / ` : ""}${p.phase || ""}</small>
+      <div class="dashboard-card-versions">
+        <span class="version-badge" data-version-field="sw" data-version-project="${p.id}" title="SW Version bearbeiten">
+          <i>SW</i>${p.sw_version ? escapeHtml(p.sw_version) : `<em class="version-empty">—</em>`}
+        </span>
+        <span class="version-badge" data-version-field="hw" data-version-project="${p.id}" title="HW Version bearbeiten">
+          <i>HW</i>${p.hw_version ? escapeHtml(p.hw_version) : `<em class="version-empty">—</em>`}
+        </span>
+      </div>
+      <div class="dashboard-card-meta">
+        <span class="meta-badge ${p.machine_type ? "meta-badge--type" : "meta-badge--empty"}" data-meta-field="machine_type" data-meta-project="${p.id}" title="Maschinentyp bearbeiten">
+          ${p.machine_type ? escapeHtml(p.machine_type) : `<em class="version-empty">Typ?</em>`}
+        </span>
+        <span class="meta-badge ${p.machine_use === "Commercial" ? "meta-badge--commercial" : p.machine_use === "Privat" ? "meta-badge--privat" : "meta-badge--empty"}" data-meta-field="machine_use" data-meta-project="${p.id}" title="Verwendung bearbeiten">
+          ${p.machine_use ? escapeHtml(p.machine_use) : `<em class="version-empty">Verw.?</em>`}
+        </span>
+      </div>
     </button>
   `).join("") : `<p class="empty-state">Keine Projekte gefunden.</p>`;
 }
@@ -714,7 +784,8 @@ function renderAll() {
   renderFachfreigabe(activeProject);
 }
 
-async function openProject(projectId, view = "overview") {
+async function openProject(projectId, view = "overview", pushHistory = true) {
+  recordRecent(projectId);
   activeProject = await apiFetch(`/api/projects/${projectId}`);
   activeSubtopic = "Approbation";
   activeBuild = "Alle";
@@ -722,7 +793,25 @@ async function openProject(projectId, view = "overview") {
   subtopicFilter.value = "all";
   setView(view);
   renderAll();
+  if (pushHistory) history.pushState({ projectId, view }, "", `#${projectId}`);
 }
+
+function goToDashboard(pushHistory = true) {
+  activeProject = null;
+  setView("dashboard");
+  renderDashboard();
+  if (pushHistory) history.pushState({ dashboard: true }, "", location.pathname);
+}
+
+window.addEventListener("popstate", (e) => {
+  if (e.state?.projectId) {
+    openProject(e.state.projectId, e.state.view || "overview", false);
+  } else {
+    activeProject = null;
+    setView("dashboard");
+    renderDashboard();
+  }
+});
 
 function renderBuildChange() {
   updateSidebarBuildSelection();
@@ -741,6 +830,7 @@ machineList.addEventListener("click", async (event) => {
   if (pill) {
     event.stopPropagation();
     if (btn.dataset.id !== activeProject?.id) {
+      recordRecent(btn.dataset.id);
       activeProject = await apiFetch(`/api/projects/${btn.dataset.id}`);
       activeBuild = pill.dataset.buildSelect;
       activeSubtopic = "Approbation";
@@ -763,9 +853,8 @@ machineList.addEventListener("click", async (event) => {
 
 dashboardLink.addEventListener("click", () => {
   dashboardSearch.value = "";
-  setView("dashboard");
+  goToDashboard();
   renderMachines();
-  renderDashboard();
 });
 
 document.querySelector("#dashboard-grid").addEventListener("click", (event) => {
@@ -798,6 +887,117 @@ document.querySelector("#dashboard-grid").addEventListener("click", (event) => {
     });
     return;
   }
+
+  // Click on color swatches → inline text edit
+  const colorSwatch = event.target.closest("[data-color-project]");
+  if (colorSwatch) {
+    event.stopPropagation();
+    const projectId = colorSwatch.dataset.colorProject;
+    const project = projectList.find((p) => p.id === projectId);
+    if (!project) return;
+    const listId = "color-suggestions";
+    let dl = document.getElementById(listId);
+    if (!dl) {
+      dl = document.createElement("datalist");
+      dl.id = listId;
+      KNOWN_COLORS.forEach(c => { const o = document.createElement("option"); o.value = c; dl.appendChild(o); });
+      document.body.appendChild(dl);
+    }
+    const input = document.createElement("input");
+    input.className = "color-input";
+    input.value = project.colors || "";
+    input.placeholder = "z.B. Black, White, Red";
+    input.setAttribute("list", listId);
+    colorSwatch.replaceWith(input);
+    input.focus();
+    input.select();
+    const save = async () => {
+      const val = input.value.trim();
+      project.colors = val;
+      await apiPut(`/api/projects/${projectId}/colors`, { colors: val }).catch(console.error);
+      renderDashboard();
+    };
+    input.addEventListener("blur", save);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+      if (e.key === "Escape") { input.removeEventListener("blur", save); renderDashboard(); }
+    });
+    return;
+  }
+
+  // Click on machine type/use badge → dropdown select
+  const metaBadge = event.target.closest("[data-meta-field]");
+  if (metaBadge) {
+    event.stopPropagation();
+    const field = metaBadge.dataset.metaField;       // "machine_type" or "machine_use"
+    const projectId = metaBadge.dataset.metaProject;
+    const project = projectList.find((p) => p.id === projectId);
+    if (!project) return;
+    const options = field === "machine_type"
+      ? ["", "Kapselmaschine / Nespresso Original", "Kapselmaschine / Nespresso Vertuo", "Kapselmaschine / CoffeeB", "Kapselmaschine / Cafissimo", "Kapselmaschine / Carogusto", "Kapselmaschine", "Vollautomatisch"]
+      : ["", "Commercial", "Privat"];
+    const sel = document.createElement("select");
+    sel.className = "meta-select";
+    options.forEach((opt) => {
+      const o = document.createElement("option");
+      o.value = opt;
+      o.textContent = opt || "— wählen —";
+      if ((project[field] || "") === opt) o.selected = true;
+      sel.appendChild(o);
+    });
+    metaBadge.replaceWith(sel);
+    sel.focus();
+    const save = async () => {
+      const val = sel.value;
+      project[field] = val;
+      const endpoint = field === "machine_type" ? "machine-type" : "machine-use";
+      const body = field === "machine_type" ? { machine_type: val } : { machine_use: val };
+      await apiPut(`/api/projects/${projectId}/${endpoint}`, body).catch(console.error);
+      renderDashboard();
+    };
+    sel.addEventListener("change", save);
+    sel.addEventListener("blur", () => { if (document.activeElement !== sel) save(); });
+    sel.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { sel.removeEventListener("change", save); renderDashboard(); }
+    });
+    return;
+  }
+
+  // Click on SW/HW version badge → inline edit
+  const versionBadge = event.target.closest("[data-version-field]");
+  if (versionBadge) {
+    event.stopPropagation();
+    const field = versionBadge.dataset.versionField;   // "sw" or "hw"
+    const projectId = versionBadge.dataset.versionProject;
+    const project = projectList.find((p) => p.id === projectId);
+    if (!project) return;
+    const current = (field === "sw" ? project.sw_version : project.hw_version) || "";
+    const input = document.createElement("input");
+    input.className = "version-input";
+    input.value = current;
+    input.placeholder = field === "sw" ? "z.B. V1.2.3" : "z.B. Rev B";
+    versionBadge.replaceWith(input);
+    input.focus();
+    input.select();
+    const save = async () => {
+      const val = input.value.trim();
+      if (field === "sw") { project.sw_version = val; await apiPut(`/api/projects/${projectId}/sw-version`, { sw_version: val }).catch(console.error); }
+      else                { project.hw_version = val; await apiPut(`/api/projects/${projectId}/hw-version`, { hw_version: val }).catch(console.error); }
+      renderDashboard();
+    };
+    input.addEventListener("blur", save);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+      if (e.key === "Escape") { input.removeEventListener("blur", save); renderDashboard(); }
+    });
+    return;
+  }
+  const card = event.target.closest("[data-dashboard-project]");
+  if (!card) return;
+  openProject(card.dataset.dashboardProject, "overview");
+});
+
+recentlyOpenedEl.addEventListener("click", (event) => {
   const card = event.target.closest("[data-dashboard-project]");
   if (!card) return;
   openProject(card.dataset.dashboardProject, "overview");
@@ -1344,6 +1544,101 @@ async function runArchiveSync() {
 archiveSyncBtn.addEventListener("click", runArchiveSync);
 
 // ── Sitzungsexport ────────────────────────────────────────────
+document.querySelectorAll("[id^='shortcut-btn-']").forEach((btn) => {
+  const idx = btn.id.split("-").pop();
+  const pathKey = `pcs-shortcut-path-${idx}`;
+  const labelKey = `pcs-shortcut-label-${idx}`;
+  const savedLabel = localStorage.getItem(labelKey);
+  if (savedLabel) btn.textContent = `📁 ${savedLabel}`;
+
+  btn.addEventListener("click", () => {
+    const storedPath = localStorage.getItem(pathKey);
+    if (storedPath) {
+      fetch("/api/open-folder", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: storedPath }) })
+        .catch(console.error);
+      return;
+    }
+    // First use — ask for label then path
+    const labelInput = document.createElement("input");
+    labelInput.style.cssText = "font-size:12px;padding:4px 8px;border-radius:6px;border:1.5px solid var(--accent);background:var(--panel);color:var(--ink);width:120px;outline:none;";
+    labelInput.placeholder = "Name…";
+    labelInput.value = localStorage.getItem(labelKey) || "";
+    const pathInput = document.createElement("input");
+    pathInput.style.cssText = "font-size:12px;padding:4px 8px;border-radius:6px;border:1.5px solid var(--accent);background:var(--panel);color:var(--ink);width:260px;outline:none;";
+    pathInput.placeholder = "Pfad…";
+    const wrap = document.createElement("span");
+    wrap.style.cssText = "display:inline-flex;gap:4px;align-items:center;";
+    wrap.appendChild(labelInput);
+    wrap.appendChild(pathInput);
+    btn.replaceWith(wrap);
+    labelInput.focus();
+    const confirm = () => {
+      const label = labelInput.value.trim();
+      const path = pathInput.value.trim();
+      if (label) localStorage.setItem(labelKey, label);
+      if (path) {
+        localStorage.setItem(pathKey, path);
+        fetch("/api/open-folder", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path }) })
+          .catch(console.error);
+      }
+      if (label) btn.textContent = `📁 ${label}`;
+      wrap.replaceWith(btn);
+    };
+    pathInput.addEventListener("blur", confirm);
+    pathInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); pathInput.blur(); }
+      if (e.key === "Escape") { wrap.replaceWith(btn); }
+    });
+    labelInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); pathInput.focus(); }
+      if (e.key === "Escape") { wrap.replaceWith(btn); }
+    });
+  });
+});
+
+document.querySelectorAll("[id^='link-btn-']").forEach((btn) => {
+  const idx = btn.id.split("-").pop();
+  const urlKey = `pcs-link-url-${idx}`;
+  const labelKey = `pcs-link-label-${idx}`;
+  const savedLabel = localStorage.getItem(labelKey);
+  if (savedLabel) btn.textContent = `🔗 ${savedLabel}`;
+
+  btn.addEventListener("click", () => {
+    const storedUrl = localStorage.getItem(urlKey);
+    if (storedUrl) { window.open(storedUrl, "_blank"); return; }
+    // First use — ask for label then URL
+    const labelInput = document.createElement("input");
+    labelInput.style.cssText = "font-size:12px;padding:4px 8px;border-radius:6px;border:1.5px solid var(--accent);background:var(--panel);color:var(--ink);width:120px;outline:none;";
+    labelInput.placeholder = "Name…";
+    labelInput.value = localStorage.getItem(labelKey) || "";
+    const urlInput = document.createElement("input");
+    urlInput.style.cssText = "font-size:12px;padding:4px 8px;border-radius:6px;border:1.5px solid var(--accent);background:var(--panel);color:var(--ink);width:260px;outline:none;";
+    urlInput.placeholder = "https://…";
+    const wrap = document.createElement("span");
+    wrap.style.cssText = "display:inline-flex;gap:4px;align-items:center;";
+    wrap.appendChild(labelInput);
+    wrap.appendChild(urlInput);
+    btn.replaceWith(wrap);
+    labelInput.focus();
+    const confirm = () => {
+      const label = labelInput.value.trim();
+      const url = urlInput.value.trim();
+      if (label) { localStorage.setItem(labelKey, label); btn.textContent = `🔗 ${label}`; }
+      if (url) { localStorage.setItem(urlKey, url); window.open(url, "_blank"); }
+      wrap.replaceWith(btn);
+    };
+    urlInput.addEventListener("blur", confirm);
+    urlInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); urlInput.blur(); }
+      if (e.key === "Escape") { wrap.replaceWith(btn); }
+    });
+    labelInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); urlInput.focus(); }
+      if (e.key === "Escape") { wrap.replaceWith(btn); }
+    });
+  });
+});
+
 const exportBtn = document.querySelector("#export-btn");
 
 exportBtn.addEventListener("click", async () => {
@@ -1659,5 +1954,6 @@ function buildExportHTML(projects) {
   renderMachines();
   renderDashboard();
   document.body.classList.remove("app-loading");
+  history.replaceState({ dashboard: true }, "", location.pathname);
   startScanStream();
 })();

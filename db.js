@@ -191,6 +191,11 @@ try { db.exec("ALTER TABLE tasks ADD COLUMN block_reason TEXT DEFAULT ''"); } ca
 try { db.exec("ALTER TABLE document_groups ADD COLUMN folder_mtime TEXT"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE projects ADD COLUMN archive_location TEXT DEFAULT ''"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE projects ADD COLUMN project_no TEXT DEFAULT ''"); } catch { /* exists */ }
+try { db.exec("ALTER TABLE projects ADD COLUMN sw_version TEXT DEFAULT ''"); } catch { /* exists */ }
+try { db.exec("ALTER TABLE projects ADD COLUMN hw_version TEXT DEFAULT ''"); } catch { /* exists */ }
+try { db.exec("ALTER TABLE projects ADD COLUMN machine_type TEXT DEFAULT ''"); } catch { /* exists */ }
+try { db.exec("ALTER TABLE projects ADD COLUMN machine_use TEXT DEFAULT ''"); } catch { /* exists */ }
+try { db.exec("ALTER TABLE projects ADD COLUMN colors TEXT DEFAULT ''"); } catch { /* exists */ }
 db.prepare("UPDATE fachfreigabe_gates SET status = 'Offen' WHERE status = 'Teilweise'").run();
 
 {
@@ -346,6 +351,26 @@ function updateProjectNo(projectId, projectNo) {
   db.prepare("UPDATE projects SET project_no = ? WHERE id = ?").run(projectNo || "", projectId);
 }
 
+function updateSwVersion(projectId, version) {
+  db.prepare("UPDATE projects SET sw_version = ? WHERE id = ?").run(version || "", projectId);
+}
+
+function updateHwVersion(projectId, version) {
+  db.prepare("UPDATE projects SET hw_version = ? WHERE id = ?").run(version || "", projectId);
+}
+
+function updateMachineType(projectId, value) {
+  db.prepare("UPDATE projects SET machine_type = ? WHERE id = ?").run(value || "", projectId);
+}
+
+function updateMachineUse(projectId, value) {
+  db.prepare("UPDATE projects SET machine_use = ? WHERE id = ?").run(value || "", projectId);
+}
+
+function updateColors(projectId, value) {
+  db.prepare("UPDATE projects SET colors = ? WHERE id = ?").run(value || "", projectId);
+}
+
 function updateTaskStatus(projectId, taskId, status, blockReason) {
   if (typeof blockReason === "string") {
     db.prepare("UPDATE tasks SET status = ?, block_reason = ? WHERE id = ? AND project_id = ?")
@@ -434,6 +459,11 @@ module.exports = {
   getProject,
   updateArchiveLocation,
   updateProjectNo,
+  updateSwVersion,
+  updateHwVersion,
+  updateMachineType,
+  updateMachineUse,
+  updateColors,
   updateZifferStatus,
   updateFachfreigabeGate,
   updateFachfreigabeMeta,

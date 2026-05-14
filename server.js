@@ -12,6 +12,11 @@ const {
   updateTaskStatus,
   updateArchiveLocation,
   updateProjectNo,
+  updateSwVersion,
+  updateHwVersion,
+  updateMachineType,
+  updateMachineUse,
+  updateColors,
   getShipments,
   getAllOpenShipments,
   upsertShipment,
@@ -306,7 +311,64 @@ app.put("/api/projects/:id/project-no", (req, res) => {
   res.json({ ok: true });
 });
 
+app.put("/api/projects/:id/sw-version", (req, res) => {
+  updateSwVersion(req.params.id, req.body?.sw_version);
+  res.json({ ok: true });
+});
+
+app.put("/api/projects/:id/hw-version", (req, res) => {
+  updateHwVersion(req.params.id, req.body?.hw_version);
+  res.json({ ok: true });
+});
+
+app.put("/api/projects/:id/machine-type", (req, res) => {
+  updateMachineType(req.params.id, req.body?.machine_type);
+  res.json({ ok: true });
+});
+
+app.put("/api/projects/:id/machine-use", (req, res) => {
+  updateMachineUse(req.params.id, req.body?.machine_use);
+  res.json({ ok: true });
+});
+
+app.put("/api/projects/:id/colors", (req, res) => {
+  updateColors(req.params.id, req.body?.colors);
+  res.json({ ok: true });
+});
+
+app.post("/api/open-folder", (req, res) => {
+  const folderPath = req.body?.path;
+  if (!folderPath) return res.status(400).json({ error: "no path" });
+  const { exec } = require("child_process");
+  exec(`open "${folderPath.replace(/"/g, '\\"')}"`, (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json({ ok: true });
+  });
+});
+
 const ARCHIVE_EXCEL_PATH = process.env.ARCHIVE_EXCEL || path.join(os.homedir(), "Desktop", "PCS_Archiv_Muster.xlsx");
+
+function runProjectNoScan(root) {
+  return new Promise((resolve, reject) => {
+    const scriptPath = path.join(__dirname, "scan_project_no.py");
+    const proc = spawn("python3", [scriptPath], { env: { ...process.env, PCS_ROOT: root } });
+    let out = "";
+    let err = "";
+    proc.stdout.on("data", (d) => { out += d; });
+    proc.stderr.on("data", (d) => { err += d; });
+    proc.on("close", (code) => {
+      if (code !== 0) return reject(new Error(err || "Projektnr-Scanner-Fehler"));
+      try {
+        const entries = JSON.parse(out);
+        if (entries.error) return reject(new Error(entries.error));
+        entries.forEach(({ project_id, project_no }) => updateProjectNo(project_id, project_no));
+        resolve(entries.length);
+      } catch (e) {
+        reject(e);
+      }
+    });
+  });
+}
 
 function runArchiveScan(excelPath) {
   return new Promise((resolve, reject) => {
@@ -334,6 +396,15 @@ app.post("/api/scan-archive", async (req, res) => {
   const excelPath = req.body?.path || ARCHIVE_EXCEL_PATH;
   try {
     const updated = await runArchiveScan(excelPath);
+    res.json({ ok: true, updated });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/scan-project-no", async (_req, res) => {
+  try {
+    const updated = await runProjectNoScan(PCS_ROOT);
     res.json({ ok: true, updated });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -409,7 +480,15 @@ app.post("/api/scan/start", (_req, res) => {
   scanInProgress = true;
   scanProgress = { done: 0, total: 0, current: "" };
   scan(null, (p) => { scanProgress = p; })
-    .then((r) => console.log(`Scan fertig: ${r.projects.length} Projekt(e)`))
+    .then(async (r) => {
+      console.log(`Scan fertig: ${r.projects.length} Projekt(e)`);
+      try {
+        const n = await runProjectNoScan(PCS_ROOT);
+        console.log(`Projektnummern: ${n} gescannt`);
+      } catch (e) {
+        console.warn(`Projektnr-Scan fehlgeschlagen: ${e.message}`);
+      }
+    })
     .catch((err) => console.error("Scan-Fehler:", err.message))
     .finally(() => { scanInProgress = false; });
   res.json({ started: true });
