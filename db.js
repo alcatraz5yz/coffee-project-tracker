@@ -189,6 +189,8 @@ try { db.exec("ALTER TABLE ziffern ADD COLUMN builds TEXT DEFAULT ''"); } catch 
 try { db.exec("ALTER TABLE tasks ADD COLUMN builds TEXT DEFAULT 'Alle'"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE tasks ADD COLUMN block_reason TEXT DEFAULT ''"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE document_groups ADD COLUMN folder_mtime TEXT"); } catch { /* exists */ }
+try { db.exec("ALTER TABLE projects ADD COLUMN archive_location TEXT DEFAULT ''"); } catch { /* exists */ }
+try { db.exec("ALTER TABLE projects ADD COLUMN project_no TEXT DEFAULT ''"); } catch { /* exists */ }
 db.prepare("UPDATE fachfreigabe_gates SET status = 'Offen' WHERE status = 'Teilweise'").run();
 
 {
@@ -336,6 +338,14 @@ function updateFachfreigabeMeta(projectId, confirmed_by, datum, notiz) {
   `).run(projectId, confirmed_by || "", datum || "", notiz || "");
 }
 
+function updateArchiveLocation(projectId, location) {
+  db.prepare("UPDATE projects SET archive_location = ? WHERE id = ?").run(location || "", projectId);
+}
+
+function updateProjectNo(projectId, projectNo) {
+  db.prepare("UPDATE projects SET project_no = ? WHERE id = ?").run(projectNo || "", projectId);
+}
+
 function updateTaskStatus(projectId, taskId, status, blockReason) {
   if (typeof blockReason === "string") {
     db.prepare("UPDATE tasks SET status = ?, block_reason = ? WHERE id = ? AND project_id = ?")
@@ -422,6 +432,8 @@ function deleteArchiveItem(id) {
 module.exports = {
   getProjects,
   getProject,
+  updateArchiveLocation,
+  updateProjectNo,
   updateZifferStatus,
   updateFachfreigabeGate,
   updateFachfreigabeMeta,

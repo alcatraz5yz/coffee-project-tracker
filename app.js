@@ -253,7 +253,7 @@ const dashboardSearch = document.querySelector("#dashboard-search");
 function renderDashboard() {
   const q = (dashboardSearch?.value || search.value).trim().toLowerCase();
   const projects = projectList.filter((p) =>
-    [p.id, p.name, p.owner, p.family, p.market, p.phase, p.variant_group, p.variant_of]
+    [p.id, p.name, p.owner, p.family, p.market, p.phase, p.variant_group, p.variant_of, p.project_no]
       .join(" ").toLowerCase().includes(q)
   );
   document.querySelector("#project-family").textContent = "PCS Projektübersicht";
@@ -261,9 +261,12 @@ function renderDashboard() {
   document.querySelector("#dashboard-count").textContent = `${projects.length} Projekte`;
   document.querySelector("#dashboard-grid").innerHTML = projects.length ? projects.map((p) => `
     <button class="dashboard-card" type="button" data-dashboard-project="${p.id}">
-      <span>${p.family || "PCS Maschine"}</span>
+      <span class="dashboard-card-brand">
+        ${escapeHtml(p.family || "PCS Maschine")}
+        ${p.project_no ? `<em class="project-no-badge">${escapeHtml(p.project_no)}</em>` : `<em class="project-no-badge project-no-empty" title="Project No. eingeben">+ Nr.</em>`}
+      </span>
       <strong>${p.id}</strong>
-      <p>${p.name}</p>
+      <p>${escapeHtml(p.name)}</p>
       <em class="${statusClass(p.health)}">${statusLabel(p.health)}</em>
       <small>${p.market ? `${termLabel(p.market)} / ` : ""}${p.phase || ""}</small>
     </button>
@@ -766,6 +769,35 @@ dashboardLink.addEventListener("click", () => {
 });
 
 document.querySelector("#dashboard-grid").addEventListener("click", (event) => {
+  // Click on project-no badge → inline edit, don't navigate
+  const badge = event.target.closest(".project-no-badge");
+  if (badge) {
+    event.stopPropagation();
+    const card = badge.closest("[data-dashboard-project]");
+    const projectId = card.dataset.dashboardProject;
+    const project = projectList.find((p) => p.id === projectId);
+    if (!project) return;
+    const current = project.project_no || "";
+    const input = document.createElement("input");
+    input.className = "project-no-input";
+    input.value = current;
+    input.placeholder = "z.B. 1234567";
+    badge.replaceWith(input);
+    input.focus();
+    input.select();
+    const save = async () => {
+      const val = input.value.trim();
+      project.project_no = val;
+      await apiPut(`/api/projects/${projectId}/project-no`, { project_no: val }).catch(console.error);
+      renderDashboard();
+    };
+    input.addEventListener("blur", save);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+      if (e.key === "Escape") { input.removeEventListener("blur", save); renderDashboard(); }
+    });
+    return;
+  }
   const card = event.target.closest("[data-dashboard-project]");
   if (!card) return;
   openProject(card.dataset.dashboardProject, "overview");

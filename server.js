@@ -11,6 +11,7 @@ const {
   updateFachfreigabeMeta,
   updateTaskStatus,
   updateArchiveLocation,
+  updateProjectNo,
   getShipments,
   getAllOpenShipments,
   upsertShipment,
@@ -297,6 +298,11 @@ app.put("/api/labs/:id", (req, res) => {
 // ── Archiv ────────────────────────────────────────────────
 app.put("/api/projects/:id/archive-location", (req, res) => {
   updateArchiveLocation(req.params.id, req.body?.location);
+  res.json({ ok: true });
+});
+
+app.put("/api/projects/:id/project-no", (req, res) => {
+  updateProjectNo(req.params.id, req.body?.project_no);
   res.json({ ok: true });
 });
 
