@@ -163,20 +163,6 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
-const KNOWN_COLORS = [
-  // EF1157 (aus Dispatch-Listen)
-  "Black", "White", "Green",
-  // EF1175 (aus BOM/Parts List)
-  "Standard Black", "Warm Black", "Red",
-  // bekannte Farbvarianten Vollautomaten
-  "Dark Inox",
-];
-
-function renderColorSwatches(colorsStr) {
-  if (!colorsStr) return `<em class="color-add">+ Farbe</em>`;
-  const list = colorsStr.split(",").map(c => c.trim()).filter(Boolean);
-  return list.map(c => `<span class="color-tag">${escapeHtml(c)}</span>`).join("");
-}
 
 function applyTheme(theme) {
   document.body.dataset.theme = theme;
@@ -232,7 +218,6 @@ function setView(name) {
   Object.entries(views).forEach(([k, el]) => el.classList.toggle("hidden", k !== name));
   Object.entries(buttons).forEach(([k, btn]) => btn.classList.toggle("active", k === name));
   document.querySelector(".top-actions").classList.toggle("hidden", name === "dashboard");
-  document.querySelector("#product-image").style.display = name === "dashboard" ? "none" : document.querySelector("#product-image").style.display;
   document.querySelector("#excel-sidebar").classList.toggle("hidden", name !== "docs");
   if (name !== "docs") document.querySelector("#excel-sidebar-list").classList.add("hidden");
 }
@@ -318,9 +303,6 @@ function renderDashboard() {
         <span class="dashboard-card-brand">
           ${escapeHtml(p.family || "PCS Maschine")}
           ${p.project_no ? `<em class="project-no-badge">${escapeHtml(p.project_no)}</em>` : `<em class="project-no-badge project-no-empty" title="Project No. eingeben">+ Nr.</em>`}
-        </span>
-        <span class="color-swatches" data-color-project="${p.id}" title="Farben bearbeiten">
-          ${renderColorSwatches(p.colors)}
         </span>
       </div>
       <strong>${p.id}</strong>
@@ -904,43 +886,6 @@ document.querySelector("#dashboard-grid").addEventListener("click", (event) => {
     return;
   }
 
-  // Click on color swatches → inline text edit
-  const colorSwatch = event.target.closest("[data-color-project]");
-  if (colorSwatch) {
-    event.stopPropagation();
-    const projectId = colorSwatch.dataset.colorProject;
-    const project = projectList.find((p) => p.id === projectId);
-    if (!project) return;
-    const listId = "color-suggestions";
-    let dl = document.getElementById(listId);
-    if (!dl) {
-      dl = document.createElement("datalist");
-      dl.id = listId;
-      KNOWN_COLORS.forEach(c => { const o = document.createElement("option"); o.value = c; dl.appendChild(o); });
-      document.body.appendChild(dl);
-    }
-    const input = document.createElement("input");
-    input.className = "color-input";
-    input.value = project.colors || "";
-    input.placeholder = "z.B. Black, White, Red";
-    input.setAttribute("list", listId);
-    colorSwatch.replaceWith(input);
-    input.focus();
-    input.select();
-    const save = async () => {
-      const val = input.value.trim();
-      project.colors = val;
-      await apiPut(`/api/projects/${projectId}/colors`, { colors: val }).catch(console.error);
-      renderDashboard();
-    };
-    input.addEventListener("blur", save);
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
-      if (e.key === "Escape") { input.removeEventListener("blur", save); renderDashboard(); }
-    });
-    return;
-  }
-
   // Click on machine type/use badge → dropdown select
   const metaBadge = event.target.closest("[data-meta-field]");
   if (metaBadge) {
@@ -950,7 +895,7 @@ document.querySelector("#dashboard-grid").addEventListener("click", (event) => {
     const project = projectList.find((p) => p.id === projectId);
     if (!project) return;
     const options = field === "machine_type"
-      ? ["", "Kapselmaschine / Nespresso Original", "Kapselmaschine / Nespresso Vertuo", "Kapselmaschine / CoffeeB", "Kapselmaschine / Cafissimo", "Kapselmaschine / Carogusto", "Kapselmaschine", "Vollautomatisch"]
+      ? ["", "Nespresso", "Kapselmaschine / Nespresso Vertuo", "Kapselmaschine / CoffeeB", "Cafissimo", "Carogusto", "Kapselmaschine", "Vollautomatisch"]
       : ["", "Commercial Use", "Private Use"];
     const sel = document.createElement("select");
     sel.className = "meta-select";
