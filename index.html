@@ -20,6 +20,12 @@
         <input id="search" type="search" placeholder="Maschine, Build, Nachweis">
       </label>
       <nav id="machine-list" class="machine-list" aria-label="Maschinen"></nav>
+      <div id="excel-sidebar" class="excel-sidebar hidden">
+        <button id="excel-sidebar-btn" type="button" class="excel-sidebar-toggle">
+          📊 Excel Dateien
+        </button>
+        <div id="excel-sidebar-list" class="excel-sidebar-list hidden"></div>
+      </div>
       <div class="scan-bar">
         <button id="scan-btn" type="button">Neu scannen</button>
         <button id="export-btn" type="button">Sitzungsexport</button>
@@ -161,12 +167,6 @@
 
       <section id="docs-view" class="hidden">
         <div class="table-panel report-panel">
-          <div class="table-header">
-            <div>
-              <h2>PCS Dateien</h2>
-              <p>Kritische Nachweisgruppen aus dem EF1157 PCS-Paket, gruppiert für schnelle Durchsicht.</p>
-            </div>
-          </div>
           <div id="document-group-grid" class="document-group-grid"></div>
         </div>
         <div id="reports-panel" class="table-panel report-panel hidden">

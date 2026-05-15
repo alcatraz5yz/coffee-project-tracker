@@ -516,6 +516,40 @@ app.get("/api/scan/status", (_req, res) => {
   });
 });
 
+// ── Excel file scan across all document groups ──────────────
+app.get("/api/projects/:id/excel-files", (req, res) => {
+  const project = getProject(req.params.id);
+  if (!project) return res.status(404).json({ error: "Projekt nicht gefunden" });
+
+  const EXCEL_RE = /\.(xls|xlsx|xlsm|xlsb|xlam)$/i;
+  const SKIP_RE = /^[.~]|\.tmp$/i;
+  const results = [];
+
+  function scan(dir, urlBase) {
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (SKIP_RE.test(e.name)) continue;
+      const fullPath = path.join(dir, e.name);
+      const href = `${urlBase}${encodeURIComponent(e.name)}`;
+      if (e.isDirectory()) {
+        scan(fullPath, `${href}/`);
+      } else if (EXCEL_RE.test(e.name)) {
+        results.push({ name: e.name, href });
+      }
+    }
+  }
+
+  for (const group of project.documentGroups || []) {
+    const resolved = resolveAllowedHref(group.href);
+    if (!resolved) continue;
+    const urlBase = group.href.endsWith("/") ? group.href : `${group.href}/`;
+    scan(resolved, urlBase);
+  }
+
+  res.json(results);
+});
+
 // ── Local file manager opener ───────────────────────────────
 app.post("/api/open-path", (req, res) => {
   const target = resolveAllowedHref(req.body?.href);

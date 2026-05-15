@@ -233,6 +233,8 @@ function setView(name) {
   Object.entries(buttons).forEach(([k, btn]) => btn.classList.toggle("active", k === name));
   document.querySelector(".top-actions").classList.toggle("hidden", name === "dashboard");
   document.querySelector("#product-image").style.display = name === "dashboard" ? "none" : document.querySelector("#product-image").style.display;
+  document.querySelector("#excel-sidebar").classList.toggle("hidden", name !== "docs");
+  if (name !== "docs") document.querySelector("#excel-sidebar-list").classList.add("hidden");
 }
 
 // ── Machine list ─────────────────────────────────────────────
@@ -799,6 +801,7 @@ async function openProject(projectId, view = "overview", pushHistory = true) {
   activeSubtopic = "Approbation";
   activeBuild = "Alle";
   activeEvidenceGroup = null;
+  excelFilesCache = null;
   subtopicFilter.value = "all";
   setView(view);
   renderAll();
@@ -1529,6 +1532,48 @@ themeToggle.addEventListener("click", () => {
 });
 
 // ── Scanner UI ────────────────────────────────────────────────
+// ── Excel sidebar ─────────────────────────────────────────────
+const excelSidebarBtn = document.querySelector("#excel-sidebar-btn");
+const excelSidebarList = document.querySelector("#excel-sidebar-list");
+let excelFilesCache = null;
+
+excelSidebarBtn.addEventListener("click", async () => {
+  const isOpen = !excelSidebarList.classList.contains("hidden");
+  if (isOpen) { excelSidebarList.classList.add("hidden"); return; }
+  excelSidebarList.classList.remove("hidden");
+  if (excelFilesCache !== null) return;
+  excelSidebarList.innerHTML = `<span class="excel-loading">Wird geladen…</span>`;
+  try {
+    const files = await apiFetch(`/api/projects/${activeProject.id}/excel-files`);
+    excelFilesCache = files;
+    excelSidebarList.innerHTML = files.length
+      ? files.map((f) => `<button class="excel-file-btn" type="button" title="${escapeHtml(f.href)}">${escapeHtml(f.name)}</button>`).join("")
+      : `<span class="excel-loading">Keine Excel-Dateien gefunden.</span>`;
+    // Store hrefs on the buttons directly
+    excelSidebarList.querySelectorAll(".excel-file-btn").forEach((btn, i) => {
+      btn._excelHref = files[i].href;
+    });
+  } catch {
+    excelSidebarList.innerHTML = `<span class="excel-loading">Fehler beim Laden.</span>`;
+  }
+});
+
+excelSidebarList.addEventListener("click", async (e) => {
+  const btn = e.target.closest(".excel-file-btn");
+  if (!btn || !btn._excelHref) return;
+  btn.style.opacity = "0.5";
+  try {
+    await apiFetch("/api/open-path", {
+      method: "POST",
+      body: JSON.stringify({ href: btn._excelHref, app: "excel" })
+    });
+  } catch (err) {
+    console.error("Excel open error:", err);
+  } finally {
+    btn.style.opacity = "";
+  }
+});
+
 const scanBtn = document.querySelector("#scan-btn");
 const scanStatus = document.querySelector("#scan-status");
 
