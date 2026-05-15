@@ -205,16 +205,17 @@ async function reloadProject() {
   activeProject = await apiFetch(`/api/projects/${activeProject.id}`);
 }
 
-async function loadEvidenceEntries(group) {
+async function loadEvidenceEntries(group, browseHref) {
   const key = evidenceCacheKey(activeProject.id, group.primary);
-  if (evidenceEntries.has(key)) return;
-  evidenceEntries.set(key, { loading: true, entries: [] });
+  const href = browseHref || evidenceHref(group);
+  const rootHref = evidenceHref(group);
+  evidenceEntries.set(key, { loading: true, entries: [], browseHref: href, rootHref });
   renderDocs(activeProject);
   try {
-    const data = await apiFetch(`/api/list-path?href=${encodeURIComponent(evidenceHref(group))}`);
-    evidenceEntries.set(key, { loading: false, entries: data.entries || [] });
+    const data = await apiFetch(`/api/list-path?href=${encodeURIComponent(href)}`);
+    evidenceEntries.set(key, { loading: false, entries: data.entries || [], browseHref: href, rootHref });
   } catch (err) {
-    evidenceEntries.set(key, { loading: false, error: true, entries: [] });
+    evidenceEntries.set(key, { loading: false, error: true, entries: [], browseHref: href, rootHref });
     console.error("Evidence list error:", err);
   }
   renderDocs(activeProject);
@@ -536,14 +537,17 @@ function evidenceHref(link) {
   return encodeURI(trackerConfig.localDocumentRoot + rel);
 }
 function isWordFile(p) { return /\.(doc|docx|docm)$/i.test(p || ""); }
+function isExcelFile(p) { return /\.(xls|xlsx|xlsm|xlsb|xlam)$/i.test(p || ""); }
+function isOfficeFile(p) { return isWordFile(p) || isExcelFile(p); }
+function officeApp(p) { return isExcelFile(p) ? "excel" : "word"; }
 function officeEditHref(link) {
   const href = evidenceHref(link);
-  if (!href || !isWordFile(href)) return "";
+  if (!href || !isOfficeFile(href)) return "";
   const abs = href.startsWith("http") ? href : new URL(href, window.location.href).href;
-  return `ms-word:ofe|u|${abs}`;
+  return isExcelFile(href) ? `ms-excel:ofe|u|${abs}` : `ms-word:ofe|u|${abs}`;
 }
-function shouldOpenWordLocally(link) {
-  return trackerConfig.documentMode === "local" && isWordFile(evidenceHref(link));
+function shouldOpenOfficeLocally(link) {
+  return trackerConfig.documentMode === "local" && isOfficeFile(evidenceHref(link));
 }
 function renderEvidenceCell(item) {
   if (!item.evidenceLinks?.length) return item.evidence || "";
@@ -551,8 +555,8 @@ function renderEvidenceCell(item) {
     <div class="evidence-stack">
       <span>${item.evidence || ""}</span>
       ${item.evidenceLinks.map((link) => {
-        if (shouldOpenWordLocally(link)) {
-          return `<button class="inline-open-action" type="button" data-open-word-href="${evidenceHref(link)}">${link.label}</button>`;
+        if (shouldOpenOfficeLocally(link)) {
+          return `<button class="inline-open-action" type="button" data-open-office-href="${evidenceHref(link)}">${link.label}</button>`;
         }
         const href = officeEditHref(link) || evidenceHref(link);
         return `<a href="${href}" target="_blank" rel="noreferrer">${link.label}</a>`;
@@ -599,6 +603,7 @@ function renderSubtopic(project) {
         <span class="ziffer-topic">
           <strong>${approbationLabel(item.title)}</strong>
           ${item.note ? `<small>${approbationLabel(item.note)}</small>` : ""}
+          ${item.status === "Not needed" ? `<textarea class="ziffer-reason" data-reason-nr="${item.nr}" placeholder="Warum nicht nötig?" rows="1">${escapeHtml(item.not_needed_reason || "")}</textarea>` : ""}
         </span>
         <button class="status-toggle ${statusClass(item.status)}" type="button"
           data-nr="${item.nr}" aria-label="Status ändern">
@@ -638,8 +643,9 @@ function renderDocs(project) {
         <span>${r.modified}<br>${r.size}</span>
         <em class="${statusClass(r.state)}">${statusLabel(r.state)}</em>
         <span class="report-file">
-          <a href="${evidenceHref(r)}" target="_blank" rel="noreferrer">${r.file}</a>
-          ${isWordFile(r.file) ? `<button class="word-action" type="button" data-open-word-href="${evidenceHref(r)}">In Word öffnen</button>` : ""}
+          ${isOfficeFile(r.file)
+            ? `<button class="word-action" type="button" data-open-office-href="${evidenceHref(r)}">${r.file}</button>`
+            : `<a href="${evidenceHref(r)}" target="_blank" rel="noreferrer">${r.file}</a>`}
         </span>
       </div>
     `).join("")}
@@ -649,22 +655,29 @@ function renderDocs(project) {
     const key = evidenceCacheKey(project.id, group.primary);
     const cached = evidenceEntries.get(key);
     const entries = cached?.entries || [];
+    const isSubfolder = cached?.browseHref && cached.browseHref !== cached?.rootHref;
+    const backBtn = isSubfolder
+      ? `<button class="evidence-back-btn" type="button" data-evidence-back="${group.primary}">← Zurück</button>` : "";
     const fileListMarkup = cached?.loading
       ? `<p class="empty-state">Ordnerinhalt wird geladen...</p>`
       : cached?.error
         ? `<p class="empty-state">Ordnerinhalt konnte nicht gelesen werden.</p>`
         : entries.length ? `
+          ${backBtn}
           <div class="evidence-file-row head">
             <span>Name</span><span>Typ</span><span>Geändert</span><span>Aktion</span>
           </div>
           ${entries.map((entry) => `
             <div class="evidence-file-row">
-              <a href="${entry.href}" target="_blank" rel="noreferrer">${entry.name}</a>
+              ${entry.type === "Ordner"
+                ? `<button class="evidence-folder-btn" type="button" data-browse-subfolder="${entry.href}" data-browse-group="${group.primary}">📂 ${entry.name}</button>`
+                : entry.type === "Datei" && isOfficeFile(entry.name)
+                  ? `<button class="word-action word-action--name" type="button" data-open-office-href="${entry.href}">${entry.name}</button>`
+                  : `<a href="${entry.href}" target="_blank" rel="noreferrer">${entry.name}</a>`}
               <span>${entry.size || entry.type}</span>
               <span>${entry.modified}</span>
               <span class="evidence-file-actions">
-                ${entry.type === "Datei" && isWordFile(entry.name) ? `<button class="word-action" type="button" data-open-word-href="${entry.href}">In Word öffnen</button>` : ""}
-                <button class="finder-action" type="button" data-open-href="${entry.href}">${entry.type === "Ordner" ? "Finder" : "Öffnen"}</button>
+                ${entry.type !== "Ordner" ? `<button class="finder-action" type="button" data-open-href="${entry.href}">Öffnen</button>` : `<button class="finder-action" type="button" data-open-href="${entry.href}">Finder</button>`}
               </span>
             </div>
           `).join("")}
@@ -1014,13 +1027,30 @@ subtopicFilter.addEventListener("change", () => renderSubtopic(activeProject));
 
 zifferTable.addEventListener("click", async (event) => {
   const btn = event.target.closest("[data-nr]");
-  if (!btn) return;
+  if (!btn || btn.dataset.reasonNr) return;
   const ziffer = activeProject.subtopics?.[activeSubtopic]?.ziffern.find((z) => z.nr === btn.dataset.nr);
   if (!ziffer) return;
   const next = statusFlow[(statusFlow.indexOf(ziffer.status) + 1) % statusFlow.length];
   ziffer.status = next; // optimistic update
   renderSubtopic(activeProject);
   apiPut(`/api/projects/${activeProject.id}/ziffern/${activeSubtopic}/${btn.dataset.nr}`, { status: next })
+    .catch(console.error);
+});
+
+zifferTable.addEventListener("input", (event) => {
+  const ta = event.target.closest("[data-reason-nr]");
+  if (!ta) return;
+  ta.style.height = "auto";
+  ta.style.height = ta.scrollHeight + "px";
+});
+
+zifferTable.addEventListener("focusout", (event) => {
+  const ta = event.target.closest("[data-reason-nr]");
+  if (!ta) return;
+  const nr = ta.dataset.reasonNr;
+  const ziffer = activeProject.subtopics?.[activeSubtopic]?.ziffern.find((z) => z.nr === nr);
+  if (ziffer) ziffer.not_needed_reason = ta.value;
+  apiPut(`/api/projects/${activeProject.id}/ziffern/${activeSubtopic}/${nr}/reason`, { reason: ta.value })
     .catch(console.error);
 });
 
@@ -1124,6 +1154,27 @@ document.querySelector("#task-table").addEventListener("focusout", (event) => {
 
 // Open local folder in Finder/Explorer via local backend
 document.querySelector("#docs-view").addEventListener("click", async (event) => {
+  // Subfolder navigation
+  const subfolderBtn = event.target.closest("[data-browse-subfolder]");
+  if (subfolderBtn) {
+    const group = activeProject.documentGroups?.find((g) => g.primary === subfolderBtn.dataset.browseGroup);
+    if (group) loadEvidenceEntries(group, subfolderBtn.dataset.browseSubfolder);
+    return;
+  }
+  // Back button
+  const backBtn = event.target.closest("[data-evidence-back]");
+  if (backBtn) {
+    const group = activeProject.documentGroups?.find((g) => g.primary === backBtn.dataset.evidenceBack);
+    if (group) {
+      const key = evidenceCacheKey(activeProject.id, group.primary);
+      const cached = evidenceEntries.get(key);
+      // Go up one level: strip last path segment from browseHref
+      const parentHref = cached?.browseHref?.replace(/[^/]+\/?$/, "") || evidenceHref(group);
+      loadEvidenceEntries(group, parentHref === cached?.rootHref || parentHref < cached?.rootHref ? cached.rootHref : parentHref);
+    }
+    return;
+  }
+
   const groupBtn = event.target.closest("[data-evidence-group]");
   if (groupBtn) {
     const group = activeProject.documentGroups?.find((item) => item.primary === groupBtn.dataset.evidenceGroup);
@@ -1169,20 +1220,18 @@ document.querySelector("#docs-view").addEventListener("keydown", (event) => {
 });
 
 document.body.addEventListener("click", async (event) => {
-  const btn = event.target.closest("[data-open-word-href]");
+  const btn = event.target.closest("[data-open-office-href]");
   if (!btn) return;
   event.preventDefault();
   btn.disabled = true;
   try {
+    const href = new URL(btn.dataset.openOfficeHref, window.location.href).pathname;
     await apiFetch("/api/open-path", {
       method: "POST",
-      body: JSON.stringify({
-        href: new URL(btn.dataset.openWordHref, window.location.href).pathname,
-        app: "word"
-      })
+      body: JSON.stringify({ href, app: officeApp(href) })
     });
   } catch (err) {
-    console.error("Open Word error:", err);
+    console.error("Open Office error:", err);
   } finally {
     btn.disabled = false;
   }

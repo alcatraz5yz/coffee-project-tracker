@@ -7,6 +7,7 @@ const {
   getProjects,
   getProject,
   updateZifferStatus,
+  updateZifferReason,
   updateFachfreigabeGate,
   updateFachfreigabeMeta,
   updateTaskStatus,
@@ -64,7 +65,7 @@ function sendDirectoryListing(req, res, root, mountPath) {
   if (!stat.isDirectory()) return false;
 
   const entries = fs.readdirSync(target, { withFileTypes: true })
-    .filter((entry) => !entry.name.startsWith(".") && !entry.name.startsWith("~$"))
+    .filter((entry) => !entry.name.startsWith(".") && !entry.name.startsWith("~$") && !/^thumbs\.db$/i.test(entry.name) && !/\.tmp$/i.test(entry.name))
     .sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name, "de"));
 
   const parentHref = relPath
@@ -174,11 +175,17 @@ function openInSystemFileManager(target, appName) {
 
   if (appName === "word") {
     if (process.platform === "darwin") {
-      opener = "open";
       args = ["-a", "Microsoft Word", target];
     } else if (process.platform === "win32") {
       opener = "cmd";
       args = ["/c", "start", "", "winword", target];
+    }
+  } else if (appName === "excel") {
+    if (process.platform === "darwin") {
+      args = ["-a", "Microsoft Excel", target];
+    } else if (process.platform === "win32") {
+      opener = "cmd";
+      args = ["/c", "start", "", "excel", target];
     }
   }
 
@@ -244,6 +251,12 @@ app.put("/api/projects/:id/ziffern/:subtopic/:nr", (req, res) => {
   const { status } = req.body;
   if (!status) return res.status(400).json({ error: "status fehlt" });
   updateZifferStatus(id, subtopic, nr, status);
+  res.json({ ok: true });
+});
+
+app.put("/api/projects/:id/ziffern/:subtopic/:nr/reason", (req, res) => {
+  const { id, subtopic, nr } = req.params;
+  updateZifferReason(id, subtopic, nr, req.body?.reason);
   res.json({ ok: true });
 });
 
@@ -521,7 +534,7 @@ app.get("/api/list-path", (req, res) => {
 
   const urlPath = decodeURIComponent(String(href).split("?")[0]);
   const entries = fs.readdirSync(target, { withFileTypes: true })
-    .filter((entry) => !entry.name.startsWith(".") && !entry.name.startsWith("~$"))
+    .filter((entry) => !entry.name.startsWith(".") && !entry.name.startsWith("~$") && !/^thumbs\.db$/i.test(entry.name) && !/\.tmp$/i.test(entry.name))
     .sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name, "de"))
     .map((entry) => {
       const full = path.join(target, entry.name);

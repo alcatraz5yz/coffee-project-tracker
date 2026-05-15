@@ -1388,6 +1388,27 @@ h2 {
   line-height: 1.35;
 }
 
+.ziffer-reason {
+  margin-top: 4px;
+  width: 100%;
+  min-height: 28px;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1.5px solid var(--line);
+  border-radius: 6px;
+  resize: none;
+  overflow: hidden;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.ziffer-reason:focus {
+  border-color: var(--accent);
+  background: var(--panel);
+}
+
 .ziffer-links {
   display: flex;
   flex-wrap: wrap;
@@ -1564,6 +1585,39 @@ h2 {
   text-decoration: underline;
 }
 
+.evidence-folder-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+  text-align: left;
+}
+.evidence-folder-btn:hover {
+  text-decoration: underline;
+}
+
+.evidence-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-soft);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.evidence-back-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .evidence-file-row span {
   color: var(--muted);
   font-size: 13px;
@@ -1694,16 +1748,23 @@ h2 {
   text-decoration: none;
 }
 
-.report-file .word-action {
-  width: fit-content;
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
-  border-radius: 6px;
-  padding: 5px 8px;
-  background: var(--accent-soft);
+.report-file .word-action,
+.word-action--name {
+  background: none;
+  border: none;
+  padding: 0;
   color: var(--accent);
-  font-size: 12px;
-  font-weight: 800;
+  font-size: inherit;
+  font-family: inherit;
+  font-weight: 500;
   cursor: pointer;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.report-file .word-action:hover,
+.word-action--name:hover {
+  opacity: 0.75;
 }
 
 .report-file a:hover {

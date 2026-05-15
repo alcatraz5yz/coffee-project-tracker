@@ -196,6 +196,7 @@ try { db.exec("ALTER TABLE projects ADD COLUMN hw_version TEXT DEFAULT ''"); } c
 try { db.exec("ALTER TABLE projects ADD COLUMN machine_type TEXT DEFAULT ''"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE projects ADD COLUMN machine_use TEXT DEFAULT ''"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE projects ADD COLUMN colors TEXT DEFAULT ''"); } catch { /* exists */ }
+try { db.exec("ALTER TABLE ziffern ADD COLUMN not_needed_reason TEXT DEFAULT ''"); } catch { /* exists */ }
 db.prepare("UPDATE fachfreigabe_gates SET status = 'Offen' WHERE status = 'Teilweise'").run();
 
 {
@@ -323,6 +324,12 @@ function updateZifferStatus(projectId, subtopic, nr, status) {
   db.prepare(
     "UPDATE ziffern SET status = ? WHERE project_id = ? AND subtopic = ? AND nr = ?"
   ).run(status, projectId, subtopic, nr);
+}
+
+function updateZifferReason(projectId, subtopic, nr, reason) {
+  db.prepare(
+    "UPDATE ziffern SET not_needed_reason = ? WHERE project_id = ? AND subtopic = ? AND nr = ?"
+  ).run(reason || "", projectId, subtopic, nr);
 }
 
 function updateFachfreigabeGate(projectId, label, status) {
@@ -465,6 +472,7 @@ module.exports = {
   updateMachineUse,
   updateColors,
   updateZifferStatus,
+  updateZifferReason,
   updateFachfreigabeGate,
   updateFachfreigabeMeta,
   updateTaskStatus,
