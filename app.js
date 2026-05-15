@@ -593,6 +593,45 @@ function renderSubtopic(project) {
   const statusF = subtopicFilter.value;
   if (statusF !== "all") ziffern = ziffern.filter((z) => z.status === statusF);
 
+  // Reports below ziffer table
+  const reportsPanel = document.querySelector("#subtopic-reports-panel");
+  if (reportsPanel) {
+    const reportBuildMatches = (report) => {
+      if (activeBuild === "Alle") return true;
+      const build = String(report.build || "").toLowerCase();
+      const file = String(report.file || "").toLowerCase();
+      const selected = activeBuild.toLowerCase();
+      if (build.includes(selected) || file.includes(selected)) return true;
+      if (activeBuild === "PT1" && (build.includes("pt /") || build.includes("pre-approval") || build.includes("prototype"))) return true;
+      return false;
+    };
+    const reports = (project.reportVersions || []).filter(reportBuildMatches);
+    reportsPanel.innerHTML = reports.length ? `
+      <div class="table-header">
+        <h2>PCS Approbationsberichte${activeBuild !== "Alle" ? ` — ${activeBuild}` : ""}</h2>
+      </div>
+      <div class="report-table">
+        <div class="report-row head">
+          <span>Projekt</span><span>Build</span><span>Version</span>
+          <span>Geändert</span><span>Status</span><span>Datei</span>
+        </div>
+        ${reports.map((r) => `
+          <div class="report-row">
+            <strong>${r.project || r.project_id || ""}</strong>
+            <span>${r.build}</span><span>${r.version}</span>
+            <span>${r.modified}<br>${r.size}</span>
+            <em class="${statusClass(r.state)}">${statusLabel(r.state)}</em>
+            <span class="report-file">
+              ${isOfficeFile(r.file)
+                ? `<button class="word-action" type="button" data-open-office-href="${evidenceHref(r)}">${r.file}</button>`
+                : `<a href="${evidenceHref(r)}" target="_blank" rel="noreferrer">${r.file}</a>`}
+            </span>
+          </div>
+        `).join("")}
+      </div>
+    ` : "";
+  }
+
   table.innerHTML = `
     <div class="ziffer-row head">
       <span>Z.</span><span>Thema</span><span>Status</span>
@@ -619,39 +658,7 @@ function renderDocs(project) {
   const groups = (project.documentGroups || [])
     .slice()
     .sort((a, b) => String(a.primary || "").localeCompare(String(b.primary || "")));
-  const reportBuildMatches = (report) => {
-    if (activeBuild === "Alle") return true;
-    const build = String(report.build || "").toLowerCase();
-    const file = String(report.file || "").toLowerCase();
-    const selected = activeBuild.toLowerCase();
-    if (build.includes(selected) || file.includes(selected)) return true;
-    if (activeBuild === "PT1" && (build.includes("pt /") || build.includes("pre-approval") || build.includes("prototype"))) return true;
-    return false;
-  };
-  const reports = (project.reportVersions || []).filter(reportBuildMatches);
-  const reportLabel = activeBuild !== "Alle" ? ` — ${activeBuild}` : "";
-  const reportMarkup = reports.length ? `
-    <div class="report-row head">
-      <span>Projekt</span><span>Build</span><span>Version</span>
-      <span>Geändert</span><span>Status</span><span>Datei</span>
-    </div>
-    ${reports.map((r) => `
-      <div class="report-row">
-        <strong>${r.project || r.project_id || ""}</strong>
-        <span>${r.build}</span>
-        <span>${r.version}</span>
-        <span>${r.modified}<br>${r.size}</span>
-        <em class="${statusClass(r.state)}">${statusLabel(r.state)}</em>
-        <span class="report-file">
-          ${isOfficeFile(r.file)
-            ? `<button class="word-action" type="button" data-open-office-href="${evidenceHref(r)}">${r.file}</button>`
-            : `<a href="${evidenceHref(r)}" target="_blank" rel="noreferrer">${r.file}</a>`}
-        </span>
-      </div>
-    `).join("")}
-  ` : `<p class="empty-state">Für ${activeBuild} sind keine PCS Approbationsberichte indexiert.</p>`;
-
-  const groupDetailMarkup = (group, isReportsGroup) => {
+  const groupDetailMarkup = (group) => {
     const key = evidenceCacheKey(project.id, group.primary);
     const cached = evidenceEntries.get(key);
     const entries = cached?.entries || [];
@@ -659,9 +666,9 @@ function renderDocs(project) {
     const backBtn = isSubfolder
       ? `<button class="evidence-back-btn" type="button" data-evidence-back="${group.primary}">← Zurück</button>` : "";
     const fileListMarkup = cached?.loading
-      ? `<p class="empty-state">Ordnerinhalt wird geladen...</p>`
+      ? `${backBtn}<p class="empty-state">Ordnerinhalt wird geladen...</p>`
       : cached?.error
-        ? `<p class="empty-state">Ordnerinhalt konnte nicht gelesen werden.</p>`
+        ? `${backBtn}<p class="empty-state">Ordnerinhalt konnte nicht gelesen werden.</p>`
         : entries.length ? `
           ${backBtn}
           <div class="evidence-file-row head">
@@ -681,22 +688,10 @@ function renderDocs(project) {
               </span>
             </div>
           `).join("")}
-        ` : `<p class="empty-state">Dieser Ordner enthält keine sichtbaren Dateien.</p>`;
+        ` : `${backBtn}<p class="empty-state">Dieser Ordner enthält keine sichtbaren Dateien.</p>`;
 
     return `
       <section class="document-group-detail">
-        <div class="table-header compact">
-          <div>
-            <h2>${group.primary}</h2>
-            <p>${isReportsGroup ? "Approbationsberichte und kompletter Ordnerinhalt." : "Direkter Zugriff auf Dateien und Unterordner dieser Nachweisgruppe."}</p>
-          </div>
-        </div>
-        ${isReportsGroup ? `
-          <div class="report-subsection">
-            <h3>PCS Approbationsberichte${reportLabel}</h3>
-            <div class="report-table">${reportMarkup}</div>
-          </div>
-        ` : ""}
         <div class="evidence-file-table">${fileListMarkup}</div>
       </section>
     `;
@@ -706,7 +701,7 @@ function renderDocs(project) {
     ? groups.map((group) => {
         const num = parseInt(group.count) || 0;
         const folderLabel = group.primary || termLabel(group.area);
-        const isReportsGroup = String(group.primary || "").startsWith("12 ");
+
         const isSelected = activeEvidenceGroup === group.primary;
         return `
           <article class="document-group-card ${statusClass(group.status)} ${isSelected ? "selected" : ""}"
@@ -723,7 +718,7 @@ function renderDocs(project) {
               <button class="finder-action" type="button" data-open-href="${evidenceHref(group)}">Im Finder öffnen</button>
             </div>
           </article>
-          ${isSelected ? groupDetailMarkup(group, isReportsGroup) : ""}`;
+          ${isSelected ? groupDetailMarkup(group) : ""}`;
       }).join("")
     : `<p class="empty-state">Für dieses Projekt ist noch kein PCS Nachweisindex angelegt.</p>`;
 
