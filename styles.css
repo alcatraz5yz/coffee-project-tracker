@@ -624,6 +624,8 @@ body:not(.dashboard-mode) .topbar-divider {
   white-space: nowrap;
   box-shadow: var(--shadow);
   transition: border-color 120ms;
+  flex: 1;
+  justify-content: center;
 }
 
 .recent-card:hover {

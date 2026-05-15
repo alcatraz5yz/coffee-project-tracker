@@ -26,7 +26,7 @@ const dashboardLink = document.querySelector("#dashboard-link");
 
 // ── Recent projects (localStorage) ──────────────────────────
 const RECENT_KEY = "pcs-recent";
-const RECENT_MAX = 5;
+const RECENT_MAX = 6;
 
 function getRecentProjects() {
   try { return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]"); } catch { return []; }
@@ -237,11 +237,12 @@ function setView(name) {
 // ── Machine list ─────────────────────────────────────────────
 function relatedProjects() {
   if (!activeProject || activeView === "dashboard") return projectList;
-  return projectList.filter((p) => {
-    if (p.family && p.family === activeProject.family) return true;
-    if (p.variant_group && p.variant_group === activeProject.variant_group) return true;
-    return p.id === activeProject.id;
-  });
+  if (activeProject.variant_group) {
+    return projectList.filter((p) => p.variant_group === activeProject.variant_group);
+  }
+  // Group via variant_of: find the root, then show root + all its derivatives
+  const rootId = activeProject.variant_of || activeProject.id;
+  return projectList.filter((p) => p.id === rootId || p.variant_of === rootId);
 }
 
 function renderMachines() {
@@ -335,7 +336,7 @@ function renderDashboard() {
         <span class="meta-badge ${p.machine_type ? "meta-badge--type" : "meta-badge--empty"}" data-meta-field="machine_type" data-meta-project="${p.id}" title="Maschinentyp bearbeiten">
           ${p.machine_type ? escapeHtml(p.machine_type) : `<em class="version-empty">Typ?</em>`}
         </span>
-        <span class="meta-badge ${p.machine_use === "Commercial" ? "meta-badge--commercial" : p.machine_use === "Privat" ? "meta-badge--privat" : "meta-badge--empty"}" data-meta-field="machine_use" data-meta-project="${p.id}" title="Verwendung bearbeiten">
+        <span class="meta-badge ${p.machine_use === "Commercial Use" ? "meta-badge--commercial" : p.machine_use === "Private Use" ? "meta-badge--privat" : "meta-badge--empty"}" data-meta-field="machine_use" data-meta-project="${p.id}" title="Verwendung bearbeiten">
           ${p.machine_use ? escapeHtml(p.machine_use) : `<em class="version-empty">Verw.?</em>`}
         </span>
       </div>
@@ -935,7 +936,7 @@ document.querySelector("#dashboard-grid").addEventListener("click", (event) => {
     if (!project) return;
     const options = field === "machine_type"
       ? ["", "Kapselmaschine / Nespresso Original", "Kapselmaschine / Nespresso Vertuo", "Kapselmaschine / CoffeeB", "Kapselmaschine / Cafissimo", "Kapselmaschine / Carogusto", "Kapselmaschine", "Vollautomatisch"]
-      : ["", "Commercial", "Privat"];
+      : ["", "Commercial Use", "Private Use"];
     const sel = document.createElement("select");
     sel.className = "meta-select";
     options.forEach((opt) => {
