@@ -679,7 +679,9 @@ function renderDocs(project) {
           ${entries.map((entry) => `
             <div class="evidence-file-row">
               ${entry.type === "Ordner"
-                ? `<button class="evidence-folder-btn" type="button" data-browse-subfolder="${entry.href}" data-browse-group="${group.primary}">📂 ${entry.name}</button>`
+                ? entry.empty
+                  ? `<span class="evidence-folder-btn evidence-folder-empty">📁 ${entry.name} <em>leer</em></span>`
+                  : `<button class="evidence-folder-btn" type="button" data-browse-subfolder="${entry.href}" data-browse-group="${group.primary}">📂 ${entry.name}</button>`
                 : entry.type === "Datei" && isOfficeFile(entry.name)
                   ? `<button class="word-action word-action--name" type="button" data-open-office-href="${entry.href}">${entry.name}</button>`
                   : `<a href="${entry.href}" target="_blank" rel="noreferrer">${entry.name}</a>`}
@@ -703,22 +705,24 @@ function renderDocs(project) {
     ? groups.map((group) => {
         const num = parseInt(group.count) || 0;
         const folderLabel = group.primary || termLabel(group.area);
+        const isEmpty = num === 0;
 
         const isSelected = activeEvidenceGroup === group.primary;
         return `
-          <article class="document-group-card ${statusClass(group.status)} ${isSelected ? "selected" : ""}"
-            data-evidence-group-card="${group.primary}" role="button" tabindex="0">
+          <article class="document-group-card ${statusClass(group.status)} ${isSelected ? "selected" : ""} ${isEmpty ? "dgc-empty" : ""}"
+            ${isEmpty ? "" : `data-evidence-group-card="${group.primary}" role="button" tabindex="0"`}>
             <div class="dgc-top">
               <strong>${folderLabel}</strong>
               <em class="status-toggle ${statusClass(group.status)}">${statusLabel(group.status)}</em>
             </div>
             <span class="dgc-area">${termLabel(group.area)}</span>
-            <div class="dgc-count">${num}<span>Dateien</span></div>
+            <div class="dgc-count">${isEmpty ? `<em class="dgc-leer">leer</em>` : `${num}<span>Dateien</span>`}</div>
+            ${isEmpty ? "" : `
             <div class="dgc-actions">
               <button class="finder-action" type="button" data-evidence-group="${group.primary}">${isSelected ? "Details ausblenden" : "Details anzeigen"}</button>
               <a class="dgc-link" href="${evidenceHref(group)}" target="_blank" rel="noreferrer">Ordner anzeigen →</a>
               <button class="finder-action" type="button" data-open-href="${evidenceHref(group)}">Im Finder öffnen</button>
-            </div>
+            </div>`}
           </article>
           ${isSelected ? groupDetailMarkup(group) : ""}`;
       }).join("")

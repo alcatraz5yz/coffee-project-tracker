@@ -65,7 +65,7 @@ function sendDirectoryListing(req, res, root, mountPath) {
   if (!stat.isDirectory()) return false;
 
   const entries = fs.readdirSync(target, { withFileTypes: true })
-    .filter((entry) => !entry.name.startsWith(".") && !entry.name.startsWith("~$") && !/^thumbs\.db$/i.test(entry.name) && !/\.tmp$/i.test(entry.name))
+    .filter((entry) => !entry.name.startsWith(".") && !entry.name.startsWith("~$") && !/\.db$/i.test(entry.name) && !/\.tmp$/i.test(entry.name))
     .sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name, "de"));
 
   const parentHref = relPath
@@ -568,18 +568,23 @@ app.get("/api/list-path", (req, res) => {
 
   const urlPath = decodeURIComponent(String(href).split("?")[0]);
   const entries = fs.readdirSync(target, { withFileTypes: true })
-    .filter((entry) => !entry.name.startsWith(".") && !entry.name.startsWith("~$") && !/^thumbs\.db$/i.test(entry.name) && !/\.tmp$/i.test(entry.name))
+    .filter((entry) => !entry.name.startsWith(".") && !entry.name.startsWith("~$") && !/\.db$/i.test(entry.name) && !/\.tmp$/i.test(entry.name))
     .sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name, "de"))
     .map((entry) => {
       const full = path.join(target, entry.name);
       const entryStat = fs.statSync(full);
       const isDirectory = entry.isDirectory();
+      const HIDE = /^[.~]|\.tmp$|\.db$/i;
+      const empty = isDirectory
+        ? (() => { try { return fs.readdirSync(full).filter(n => !HIDE.test(n)).length === 0; } catch { return false; } })()
+        : false;
       return {
         name: entry.name,
         type: isDirectory ? "Ordner" : "Datei",
         href: hrefJoin(urlPath, entry.name, isDirectory),
         modified: entryStat.mtime.toLocaleString("de-CH", { dateStyle: "short", timeStyle: "short" }),
-        size: isDirectory ? "" : formatFileSize(entryStat.size)
+        size: isDirectory ? "" : formatFileSize(entryStat.size),
+        empty
       };
     });
 
