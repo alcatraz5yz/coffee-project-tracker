@@ -569,7 +569,6 @@ app.get("/api/list-path", (req, res) => {
   const urlPath = decodeURIComponent(String(href).split("?")[0]);
   const entries = fs.readdirSync(target, { withFileTypes: true })
     .filter((entry) => !entry.name.startsWith(".") && !entry.name.startsWith("~$") && !/\.db$/i.test(entry.name) && !/\.tmp$/i.test(entry.name))
-    .sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name, "de"))
     .map((entry) => {
       const full = path.join(target, entry.name);
       const entryStat = fs.statSync(full);
@@ -583,10 +582,13 @@ app.get("/api/list-path", (req, res) => {
         type: isDirectory ? "Ordner" : "Datei",
         href: hrefJoin(urlPath, entry.name, isDirectory),
         modified: entryStat.mtime.toLocaleString("de-CH", { dateStyle: "short", timeStyle: "short" }),
+        mtime: entryStat.mtime.getTime(),
         size: isDirectory ? "" : formatFileSize(entryStat.size),
         empty
       };
-    });
+    })
+    .sort((a, b) => Number(b.type === "Ordner") - Number(a.type === "Ordner") || b.mtime - a.mtime)
+    .map(({ mtime, ...rest }) => rest);
 
   res.json({ href: urlPath, entries });
 });

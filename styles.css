@@ -1709,6 +1709,12 @@ h2 {
   border-bottom: 0;
 }
 
+.evidence-file-row--folder {
+  background: var(--accent-soft);
+  border-radius: 6px;
+  border-bottom: 1px solid var(--line);
+}
+
 .evidence-file-row.head {
   background: var(--panel-soft);
   color: var(--muted);

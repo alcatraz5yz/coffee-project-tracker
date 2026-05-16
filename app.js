@@ -659,7 +659,7 @@ function renderDocs(project) {
             <span>Name</span><span>Typ</span><span>Geändert</span><span>Aktion</span>
           </div>
           ${entries.map((entry) => `
-            <div class="evidence-file-row">
+            <div class="evidence-file-row${entry.type === "Ordner" ? " evidence-file-row--folder" : ""}">
               ${entry.type === "Ordner"
                 ? entry.empty
                   ? `<span class="evidence-folder-btn evidence-folder-empty">📁 ${entry.name} <em>leer</em></span>`
@@ -801,9 +801,29 @@ function goToDashboard(pushHistory = true) {
   if (pushHistory) history.pushState({ dashboard: true }, "", location.pathname);
 }
 
-window.addEventListener("popstate", (e) => {
-  if (e.state?.projectId) {
-    openProject(e.state.projectId, e.state.view || "overview", false);
+window.addEventListener("popstate", async (e) => {
+  if (e.state?.subfolderGroup && e.state?.projectId) {
+    if (activeProject?.id !== e.state.projectId) {
+      await openProject(e.state.projectId, "docs", false);
+    }
+    activeEvidenceGroup = e.state.openGroup;
+    setView("docs");
+    const group = activeProject.documentGroups?.find((g) => g.primary === e.state.subfolderGroup);
+    if (group) loadEvidenceEntries(group, e.state.subfolderHref);
+  } else if (e.state?.projectId) {
+    if (e.state.view === "docs") {
+      if (activeProject?.id !== e.state.projectId) {
+        await openProject(e.state.projectId, "docs", false);
+      }
+      const groupName = e.state.openGroup || activeEvidenceGroup;
+      activeEvidenceGroup = groupName;
+      setView("docs");
+      const group = activeProject.documentGroups?.find((g) => g.primary === groupName);
+      if (group) loadEvidenceEntries(group, evidenceHref(group));
+      else renderDocs(activeProject);
+    } else {
+      openProject(e.state.projectId, e.state.view || "overview", false);
+    }
   } else {
     activeProject = null;
     setView("dashboard");
@@ -1105,7 +1125,14 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
   const subfolderBtn = event.target.closest("[data-browse-subfolder]");
   if (subfolderBtn) {
     const group = activeProject.documentGroups?.find((g) => g.primary === subfolderBtn.dataset.browseGroup);
-    if (group) loadEvidenceEntries(group, subfolderBtn.dataset.browseSubfolder);
+    if (group) {
+      const href = subfolderBtn.dataset.browseSubfolder;
+      if (!history.state?.subfolderGroup) {
+        history.replaceState({ projectId: activeProject.id, view: "docs", openGroup: group.primary }, "", `#${activeProject.id}`);
+      }
+      history.pushState({ projectId: activeProject.id, view: "docs", openGroup: group.primary, subfolderGroup: group.primary, subfolderHref: href }, "", `#${activeProject.id}`);
+      loadEvidenceEntries(group, href);
+    }
     return;
   }
   // Back button
@@ -1115,9 +1142,10 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     if (group) {
       const key = evidenceCacheKey(activeProject.id, group.primary);
       const cached = evidenceEntries.get(key);
-      // Go up one level: strip last path segment from browseHref
       const parentHref = cached?.browseHref?.replace(/[^/]+\/?$/, "") || evidenceHref(group);
-      loadEvidenceEntries(group, parentHref === cached?.rootHref || parentHref < cached?.rootHref ? cached.rootHref : parentHref);
+      const targetHref = (parentHref === cached?.rootHref || parentHref < cached?.rootHref) ? cached.rootHref : parentHref;
+      history.pushState({ projectId: activeProject.id, view: "docs", openGroup: group.primary, subfolderGroup: group.primary, subfolderHref: targetHref }, "", `#${activeProject.id}`);
+      loadEvidenceEntries(group, targetHref);
     }
     return;
   }
