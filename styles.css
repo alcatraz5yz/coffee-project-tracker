@@ -1114,8 +1114,13 @@ button.summary-card {
   flex: 1;
   display: block;
   margin-top: 7px;
-  font-size: 15px;
+  font-size: 15px !important;
+  font-weight: 700;
   word-break: break-word;
+}
+
+.archive-location-text span {
+  display: block;
 }
 
 .archive-open-btn {

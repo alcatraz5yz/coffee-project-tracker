@@ -195,8 +195,9 @@ async function loadEvidenceEntries(group, browseHref) {
   const key = evidenceCacheKey(activeProject.id, group.primary);
   const href = browseHref || evidenceHref(group);
   const rootHref = evidenceHref(group);
-  evidenceEntries.set(key, { loading: true, entries: [], browseHref: href, rootHref });
-  renderDocs(activeProject);
+  const prev = evidenceEntries.get(key);
+  evidenceEntries.set(key, { loading: true, entries: prev?.entries || [], browseHref: href, rootHref });
+  if (!prev?.entries?.length) renderDocs(activeProject);
   try {
     const data = await apiFetch(`/api/list-path?href=${encodeURIComponent(href)}`);
     evidenceEntries.set(key, { loading: false, entries: data.entries || [], browseHref: href, rootHref });
@@ -376,7 +377,7 @@ function renderSummary(project) {
     </article>
     <article class="summary-card archive-card">
       <span>Archiv</span>
-      <strong class="archive-location-text ${archiveLoc ? "" : "muted"}">${archiveLoc ? escapeHtml(archiveLoc) : "—"}</strong>
+      <strong class="archive-location-text ${archiveLoc ? "" : "muted"}">${archiveLoc ? archiveLoc.split("·").map(s => `<span>${escapeHtml(s.trim())}</span>`).join("") : "—"}</strong>
       <button class="archive-open-btn" type="button" data-archive-open="${escapeHtml(project.id)}" title="In Excel öffnen">↗ Excel</button>
     </article>
     ${(project.stats || []).filter(([title]) => title !== "Certification").map(([title, value, note]) => {
@@ -801,29 +802,36 @@ function goToDashboard(pushHistory = true) {
   if (pushHistory) history.pushState({ dashboard: true }, "", location.pathname);
 }
 
+async function ensureProjectData(projectId) {
+  if (activeProject?.id !== projectId) {
+    activeProject = await apiFetch(`/api/projects/${projectId}`);
+  }
+}
+
 window.addEventListener("popstate", async (e) => {
   if (e.state?.subfolderGroup && e.state?.projectId) {
-    if (activeProject?.id !== e.state.projectId) {
-      await openProject(e.state.projectId, "docs", false);
-    }
+    // Level 3: inside subfolder
+    await ensureProjectData(e.state.projectId);
     activeEvidenceGroup = e.state.openGroup;
     setView("docs");
     const group = activeProject.documentGroups?.find((g) => g.primary === e.state.subfolderGroup);
     if (group) loadEvidenceEntries(group, e.state.subfolderHref);
+  } else if (e.state?.projectId && e.state?.view === "docs" && e.state?.openGroup) {
+    // Level 2: panel open at root
+    await ensureProjectData(e.state.projectId);
+    activeEvidenceGroup = e.state.openGroup;
+    setView("docs");
+    const group = activeProject.documentGroups?.find((g) => g.primary === e.state.openGroup);
+    if (group) loadEvidenceEntries(group, evidenceHref(group));
+    else renderDocs(activeProject);
+  } else if (e.state?.projectId && e.state?.view === "docs") {
+    // Level 1: docs tab, panel closed
+    await ensureProjectData(e.state.projectId);
+    activeEvidenceGroup = null;
+    setView("docs");
+    renderDocs(activeProject);
   } else if (e.state?.projectId) {
-    if (e.state.view === "docs") {
-      if (activeProject?.id !== e.state.projectId) {
-        await openProject(e.state.projectId, "docs", false);
-      }
-      const groupName = e.state.openGroup || activeEvidenceGroup;
-      activeEvidenceGroup = groupName;
-      setView("docs");
-      const group = activeProject.documentGroups?.find((g) => g.primary === groupName);
-      if (group) loadEvidenceEntries(group, evidenceHref(group));
-      else renderDocs(activeProject);
-    } else {
-      openProject(e.state.projectId, e.state.view || "overview", false);
-    }
+    openProject(e.state.projectId, e.state.view || "overview", false);
   } else {
     activeProject = null;
     setView("dashboard");
@@ -1127,9 +1135,6 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     const group = activeProject.documentGroups?.find((g) => g.primary === subfolderBtn.dataset.browseGroup);
     if (group) {
       const href = subfolderBtn.dataset.browseSubfolder;
-      if (!history.state?.subfolderGroup) {
-        history.replaceState({ projectId: activeProject.id, view: "docs", openGroup: group.primary }, "", `#${activeProject.id}`);
-      }
       history.pushState({ projectId: activeProject.id, view: "docs", openGroup: group.primary, subfolderGroup: group.primary, subfolderHref: href }, "", `#${activeProject.id}`);
       loadEvidenceEntries(group, href);
     }
@@ -1138,22 +1143,19 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
   // Back button
   const backBtn = event.target.closest("[data-evidence-back]");
   if (backBtn) {
-    const group = activeProject.documentGroups?.find((g) => g.primary === backBtn.dataset.evidenceBack);
-    if (group) {
-      const key = evidenceCacheKey(activeProject.id, group.primary);
-      const cached = evidenceEntries.get(key);
-      const parentHref = cached?.browseHref?.replace(/[^/]+\/?$/, "") || evidenceHref(group);
-      const targetHref = (parentHref === cached?.rootHref || parentHref < cached?.rootHref) ? cached.rootHref : parentHref;
-      history.pushState({ projectId: activeProject.id, view: "docs", openGroup: group.primary, subfolderGroup: group.primary, subfolderHref: targetHref }, "", `#${activeProject.id}`);
-      loadEvidenceEntries(group, targetHref);
-    }
+    history.back();
     return;
   }
 
   const groupBtn = event.target.closest("[data-evidence-group]");
   if (groupBtn) {
-    const group = activeProject.documentGroups?.find((item) => item.primary === groupBtn.dataset.evidenceGroup);
+    const wasOpen = activeEvidenceGroup === groupBtn.dataset.evidenceGroup;
     toggleEvidenceGroup(groupBtn.dataset.evidenceGroup);
+    if (!wasOpen && activeEvidenceGroup) {
+      history.replaceState({ projectId: activeProject.id, view: "docs" }, "", `#${activeProject.id}`);
+      history.pushState({ projectId: activeProject.id, view: "docs", openGroup: activeEvidenceGroup }, "", `#${activeProject.id}`);
+    }
+    const group = activeProject.documentGroups?.find((item) => item.primary === groupBtn.dataset.evidenceGroup);
     renderDocs(activeProject);
     if (activeEvidenceGroup && group) loadEvidenceEntries(group);
     return;
@@ -1161,8 +1163,13 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
 
   const groupCard = event.target.closest("[data-evidence-group-card]");
   if (groupCard && !event.target.closest("a, button")) {
-    const group = activeProject.documentGroups?.find((item) => item.primary === groupCard.dataset.evidenceGroupCard);
+    const wasOpen = activeEvidenceGroup === groupCard.dataset.evidenceGroupCard;
     toggleEvidenceGroup(groupCard.dataset.evidenceGroupCard);
+    if (!wasOpen && activeEvidenceGroup) {
+      history.replaceState({ projectId: activeProject.id, view: "docs" }, "", `#${activeProject.id}`);
+      history.pushState({ projectId: activeProject.id, view: "docs", openGroup: activeEvidenceGroup }, "", `#${activeProject.id}`);
+    }
+    const group = activeProject.documentGroups?.find((item) => item.primary === groupCard.dataset.evidenceGroupCard);
     renderDocs(activeProject);
     if (activeEvidenceGroup && group) loadEvidenceEntries(group);
     return;
