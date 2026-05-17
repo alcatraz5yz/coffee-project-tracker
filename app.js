@@ -1211,8 +1211,10 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     zoomLevel = Math.min(5, Math.max(0.2, z));
     const img = body.querySelector("img");
     if (img) { img.style.transform = `scale(${zoomLevel})`; return; }
-    const iframe = body.querySelector("iframe");
-    if (iframe && previewType === "office") iframe.style.zoom = zoomLevel;
+    if (previewType === "office") {
+      const iframe = body.querySelector("iframe");
+      try { iframe.contentDocument.body.style.zoom = zoomLevel; } catch (_) {}
+    }
   }
 
   function openPreview(row, href, name) {
@@ -1235,6 +1237,9 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
       zoomBar.style.display = "flex";
       const iframe = document.createElement("iframe");
       iframe.src = `/api/preview-file?href=${encodeURIComponent(href)}`;
+      iframe.addEventListener("load", () => {
+        try { iframe.contentDocument.body.style.zoom = zoomLevel; } catch (_) {}
+      });
       body.appendChild(iframe);
     } else {
       previewType = "pdf";
