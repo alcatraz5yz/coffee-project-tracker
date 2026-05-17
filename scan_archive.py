@@ -1,6 +1,6 @@
 import openpyxl, json, sys, os
 
-EXCEL_PATH = os.environ.get("ARCHIVE_EXCEL", "/Users/allan/Desktop/PCS_Archiv_Muster.xlsx")
+EXCEL_PATH = os.environ.get("ARCHIVE_EXCEL", os.path.join(os.path.expanduser("~"), "Desktop", "PCS_Archiv_Muster.xlsx"))
 
 try:
     wb = openpyxl.load_workbook(EXCEL_PATH)
