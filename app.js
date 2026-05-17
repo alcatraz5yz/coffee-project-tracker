@@ -1202,11 +1202,12 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
   const closeBtn = document.querySelector("#file-preview-close");
   const IMAGE_EXT = /\.(jpe?g|png|gif|webp|svg|bmp)$/i;
   const PDF_EXT = /\.pdf$/i;
+  const OFFICE_EXT = /\.(docx|xlsx|xls|xlsm|xlsb)$/i;
   let zoomLevel = 1;
   let selectedRow = null;
   let hoveredRow = null;
 
-  function canPreview(href) { return IMAGE_EXT.test(href) || PDF_EXT.test(href); }
+  function canPreview(href) { return IMAGE_EXT.test(href) || PDF_EXT.test(href) || OFFICE_EXT.test(href); }
 
   function setZoom(z) {
     zoomLevel = Math.min(5, Math.max(0.2, z));
@@ -1231,7 +1232,9 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     } else {
       zoomBar.style.display = "none";
       const iframe = document.createElement("iframe");
-      iframe.src = href;
+      iframe.src = OFFICE_EXT.test(href)
+        ? `/api/preview-file?href=${encodeURIComponent(href)}`
+        : href;
       body.appendChild(iframe);
     }
     panel.classList.add("active");
