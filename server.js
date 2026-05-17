@@ -3,6 +3,8 @@ const path = require("path");
 const os = require("os");
 const fs = require("fs");
 const { spawn } = require("child_process");
+const IS_WIN = process.platform === "win32";
+const PYTHON = IS_WIN ? "py" : "python3";
 const {
   getProjects,
   getProject,
@@ -69,7 +71,7 @@ function sendDirectoryListing(req, res, root, mountPath) {
     .sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name, "de"));
 
   const parentHref = relPath
-    ? path.posix.dirname(reqPath.endsWith("/") ? reqPath.slice(0, -1) : reqPath) + "/"
+    ? path.dirname(reqPath.endsWith("/") ? reqPath.slice(0, -1) : reqPath).replace(/\\/g, "/") + "/"
     : null;
 
   res.type("html").send(`<!doctype html>
@@ -367,7 +369,7 @@ const ARCHIVE_EXCEL_PATH = process.env.ARCHIVE_EXCEL || path.join(os.homedir(), 
 function runProjectNoScan(root) {
   return new Promise((resolve, reject) => {
     const scriptPath = path.join(__dirname, "scan_project_no.py");
-    const proc = spawn("python3", [scriptPath], { env: { ...process.env, PCS_ROOT: root } });
+    const proc = spawn(PYTHON, [scriptPath], { env: { ...process.env, PCS_ROOT: root } });
     let out = "";
     let err = "";
     proc.stdout.on("data", (d) => { out += d; });
@@ -389,7 +391,7 @@ function runProjectNoScan(root) {
 function runArchiveScan(excelPath) {
   return new Promise((resolve, reject) => {
     const scriptPath = path.join(__dirname, "scan_archive.py");
-    const proc = spawn("python3", [scriptPath], { env: { ...process.env, ARCHIVE_EXCEL: excelPath } });
+    const proc = spawn(PYTHON, [scriptPath], { env: { ...process.env, ARCHIVE_EXCEL: excelPath } });
     let out = "";
     let err = "";
     proc.stdout.on("data", (d) => { out += d; });
@@ -446,31 +448,39 @@ app.get("/api/open-archive", (req, res) => {
       "        break",
       "print(row_num)",
     ].join("\n");
-    rowNum = parseInt(execSync(`python3 -c "${pyCode.replace(/"/g, '\\"')}"`).toString().trim(), 10) || null;
+    const escapedCode = IS_WIN
+      ? pyCode.replace(/"/g, '\\"')
+      : pyCode.replace(/"/g, '\\"');
+    const pyCmd = IS_WIN
+      ? `py -c "${escapedCode}"`
+      : `python3 -c "${escapedCode}"`;
+    rowNum = parseInt(execSync(pyCmd).toString().trim(), 10) || null;
   } catch (_) {}
 
-  // Open the file with the default app (Numbers)
-  spawn("open", [excelPath], { detached: true }).unref();
-
-  // If found, navigate Numbers to that row after a short delay
-  if (rowNum) {
-    const cellRef = `A${rowNum}`;
-    const appleScript = [
-      'tell application "Numbers"',
-      "    activate",
-      "    delay 2",
-      "    tell front document",
-      "        tell active sheet",
-      "            tell table 1",
-      `                set selection range to cell "${cellRef}"`,
-      "            end tell",
-      "        end tell",
-      "    end tell",
-      "end tell",
-    ].join("\n");
-    setTimeout(() => {
-      spawn("osascript", ["-e", appleScript], { detached: true }).unref();
-    }, 500);
+  // Open the archive Excel file
+  if (IS_WIN) {
+    spawn("cmd", ["/c", "start", "", excelPath], { detached: true, stdio: "ignore" }).unref();
+  } else {
+    spawn("open", [excelPath], { detached: true, stdio: "ignore" }).unref();
+    if (rowNum) {
+      const cellRef = `A${rowNum}`;
+      const appleScript = [
+        'tell application "Numbers"',
+        "    activate",
+        "    delay 2",
+        "    tell front document",
+        "        tell active sheet",
+        "            tell table 1",
+        `                set selection range to cell "${cellRef}"`,
+        "            end tell",
+        "        end tell",
+        "    end tell",
+        "end tell",
+      ].join("\n");
+      setTimeout(() => {
+        spawn("osascript", ["-e", appleScript], { detached: true, stdio: "ignore" }).unref();
+      }, 500);
+    }
   }
 
   res.json({ ok: true });
@@ -596,6 +606,8 @@ app.get("/api/list-path", (req, res) => {
 
   res.json({ href: urlPath, entries });
 });
+
+app.get("/api/platform", (_req, res) => res.json({ platform: process.platform, isWin: IS_WIN }));
 
 // ── Start ──────────────────────────────────────────────────
 app.listen(PORT, () => {

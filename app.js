@@ -42,6 +42,9 @@ function recordRecent(projectId) {
 // ── State ────────────────────────────────────────────────────
 let projectList = [];
 let activeProject = null;
+let IS_WIN = false;
+let FILE_MANAGER_LABEL = "Finder";
+apiFetch("/api/platform").then(d => { IS_WIN = d.isWin; FILE_MANAGER_LABEL = d.isWin ? "Explorer" : "Finder"; }).catch(() => {});
 let activeSubtopic = "Approbation";
 let activeBuild = "Alle";
 let activeView = "overview";
@@ -671,7 +674,7 @@ function renderDocs(project) {
               <span>${entry.size || entry.type}</span>
               <span>${entry.modified}</span>
               <span class="evidence-file-actions">
-                ${entry.type !== "Ordner" ? `<button class="finder-action" type="button" data-open-href="${entry.href}">Öffnen</button>` : `<button class="finder-action" type="button" data-open-href="${entry.href}">Finder</button>`}
+                ${entry.type !== "Ordner" ? `<button class="finder-action" type="button" data-open-href="${entry.href}">Öffnen</button>` : `<button class="finder-action" type="button" data-open-href="${entry.href}">${FILE_MANAGER_LABEL}</button>`}
               </span>
             </div>
           `).join("")}
@@ -704,7 +707,7 @@ function renderDocs(project) {
             <div class="dgc-actions">
               <button class="finder-action" type="button" data-evidence-group="${group.primary}">${isSelected ? "Details ausblenden" : "Details anzeigen"}</button>
               <a class="dgc-link" href="${evidenceHref(group)}" target="_blank" rel="noreferrer">Ordner anzeigen →</a>
-              <button class="finder-action" type="button" data-open-href="${evidenceHref(group)}">Im Finder öffnen</button>
+              <button class="finder-action" type="button" data-open-href="${evidenceHref(group)}">Im ${FILE_MANAGER_LABEL} öffnen</button>
             </div>`}
           </article>
           ${isSelected ? groupDetailMarkup(group) : ""}`;
