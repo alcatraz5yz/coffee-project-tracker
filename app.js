@@ -1201,6 +1201,7 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
   const PDF_EXT = /\.pdf$/i;
   const OFFICE_EXT = /\.(docx|xlsx|xls|xlsm|xlsb)$/i;
   let zoomLevel = 1;
+  let previewType = "image";
   let selectedRow = null;
   let hoveredRow = null;
 
@@ -1209,7 +1210,9 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
   function setZoom(z) {
     zoomLevel = Math.min(5, Math.max(0.2, z));
     const img = body.querySelector("img");
-    if (img) img.style.transform = `scale(${zoomLevel})`;
+    if (img) { img.style.transform = `scale(${zoomLevel})`; return; }
+    const iframe = body.querySelector("iframe");
+    if (iframe && previewType === "office") iframe.style.zoom = zoomLevel;
   }
 
   function openPreview(row, href, name) {
@@ -1222,16 +1225,22 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     body.innerHTML = "";
     zoomLevel = 1;
     if (IMAGE_EXT.test(href)) {
+      previewType = "image";
       zoomBar.style.display = "flex";
       const img = document.createElement("img");
       img.src = href; img.alt = name;
       body.appendChild(img);
+    } else if (OFFICE_EXT.test(href)) {
+      previewType = "office";
+      zoomBar.style.display = "flex";
+      const iframe = document.createElement("iframe");
+      iframe.src = `/api/preview-file?href=${encodeURIComponent(href)}`;
+      body.appendChild(iframe);
     } else {
+      previewType = "pdf";
       zoomBar.style.display = "none";
       const iframe = document.createElement("iframe");
-      iframe.src = OFFICE_EXT.test(href)
-        ? `/api/preview-file?href=${encodeURIComponent(href)}`
-        : href;
+      iframe.src = href;
       body.appendChild(iframe);
     }
     panel.classList.add("active");
