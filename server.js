@@ -617,7 +617,7 @@ app.get("/api/preview-file", async (req, res) => {
         html: XLSX.utils.sheet_to_html(wb.Sheets[name])
       }));
       res.type("html").send(`<!doctype html><html><head><meta charset="utf-8"><style>
-        *{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;font-size:13px;background:#fff}
+        *{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;font-size:13px;background:#fff;overscroll-behavior:contain}
         .tabs{display:flex;gap:2px;padding:6px 8px;background:#f3f6f8;border-bottom:1px solid #d6dde2;overflow-x:auto;flex-shrink:0}
         .tab{padding:3px 10px;border:1px solid #c8d0d8;background:#fff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;white-space:nowrap}
         .tab.active{background:#1f6f8b;color:#fff;border-color:#1f6f8b}
@@ -638,7 +638,7 @@ app.get("/api/preview-file", async (req, res) => {
       const mammoth = require("mammoth");
       const result = await mammoth.convertToHtml({ path: target });
       res.type("html").send(`<!doctype html><html><head><meta charset="utf-8"><style>
-        body{margin:24px 28px;font-family:system-ui,sans-serif;font-size:14px;line-height:1.65;color:#172027;max-width:860px}
+        body{margin:24px 28px;font-family:system-ui,sans-serif;font-size:14px;line-height:1.65;color:#172027;max-width:860px;overscroll-behavior:contain}
         img{max-width:100%}table{border-collapse:collapse;width:100%;margin:8px 0}
         td,th{border:1px solid #d6dde2;padding:5px 8px}th{background:#f3f6f8;font-weight:700}
         h1,h2,h3{margin:1em 0 0.4em}p{margin:0.4em 0}
