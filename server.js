@@ -611,21 +611,94 @@ app.get("/api/preview-file", async (req, res) => {
 
   if (/\.(xlsx|xls|xlsm|xlsb)$/i.test(target)) {
     try {
-      const wb = XLSX.readFile(target);
-      const sheets = wb.SheetNames.map((name) => ({
-        name,
-        html: XLSX.utils.sheet_to_html(wb.Sheets[name])
-      }));
+      const wb = XLSX.readFile(target, { cellStyles: true, cellNF: true, cellDates: true });
+
+      function renderSheet(ws) {
+        if (!ws || !ws["!ref"]) return '<p style="padding:12px;color:#888">Leer</p>';
+        const range = XLSX.utils.decode_range(ws["!ref"]);
+        const maxR = Math.min(range.e.r, range.s.r + 1999);
+        const maxC = Math.min(range.e.c, range.s.c + 199);
+        const cols = ws["!cols"] || [];
+        const merges = ws["!merges"] || [];
+        const frozenRows = (ws["!freeze"]?.ySplit || 0) + range.s.r;
+
+        const mergeMap = new Map();
+        const skipCells = new Set();
+        for (const m of merges) {
+          if (m.s.r > maxR || m.s.c > maxC) continue;
+          mergeMap.set(`${m.s.r}_${m.s.c}`, {
+            rowspan: Math.min(m.e.r, maxR) - m.s.r + 1,
+            colspan: Math.min(m.e.c, maxC) - m.s.c + 1
+          });
+          for (let r = m.s.r; r <= Math.min(m.e.r, maxR); r++)
+            for (let c = m.s.c; c <= Math.min(m.e.c, maxC); c++)
+              if (r !== m.s.r || c !== m.s.c) skipCells.add(`${r}_${c}`);
+        }
+
+        let html = "<colgroup>";
+        for (let c = range.s.c; c <= maxC; c++) {
+          const col = cols[c] || {};
+          const w = col.wpx ? `${col.wpx}px` : col.wch ? `${Math.round(col.wch * 7)}px` : "80px";
+          html += `<col style="min-width:${w};width:${w}">`;
+        }
+        html += "</colgroup>";
+
+        for (let r = range.s.r; r <= maxR; r++) {
+          const sticky = frozenRows > range.s.r && r < frozenRows;
+          html += `<tr>`;
+          for (let c = range.s.c; c <= maxC; c++) {
+            if (skipCells.has(`${r}_${c}`)) continue;
+            const cell = ws[XLSX.utils.encode_cell({ r, c })];
+            const merge = mergeMap.get(`${r}_${c}`);
+            let val = cell ? (XLSX.utils.format_cell(cell) || "") : "";
+            if (val === "undefined" || val === "null") val = "";
+            val = val.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+            let style = sticky ? "position:sticky;top:0;z-index:2;" : "";
+            let cls = sticky ? "sh" : "";
+            if (cell?.s) {
+              const s = cell.s;
+              const bg = s.fill?.fgColor?.rgb;
+              if (bg && bg !== "FFFFFFFF" && bg !== "00000000" && bg.length >= 6)
+                style += `background:#${bg.slice(-6)};`;
+              else if (sticky)
+                style += "background:#e8eef2;";
+              if (s.font?.bold) style += "font-weight:700;";
+              if (s.font?.italic) style += "font-style:italic;";
+              const fg = s.font?.color?.rgb;
+              if (fg && fg !== "FF000000" && fg !== "00000000" && fg.length >= 6)
+                style += `color:#${fg.slice(-6)};`;
+              const ha = s.alignment?.horizontal;
+              if (ha === "center") style += "text-align:center;";
+              else if (ha === "right") style += "text-align:right;";
+            } else if (sticky) {
+              style += "background:#e8eef2;";
+            }
+
+            const ma = merge ? ` rowspan="${merge.rowspan}" colspan="${merge.colspan}"` : "";
+            const sa = style ? ` style="${style}"` : "";
+            const ca = cls ? ` class="${cls}"` : "";
+            html += `<td${ma}${sa}${ca}>${val}</td>`;
+          }
+          html += "</tr>";
+        }
+        const extra = range.e.r > maxR ? `<tr><td colspan="${maxC - range.s.c + 1}" style="color:#888;padding:8px;text-align:center">… ${range.e.r - maxR} weitere Zeilen</td></tr>` : "";
+        return `<table>${html}${extra}</table>`;
+      }
+
+      const sheets = wb.SheetNames.map((name) => ({ name, html: renderSheet(wb.Sheets[name]) }));
       res.type("html").send(`<!doctype html><html><head><meta charset="utf-8"><style>
-        *{box-sizing:border-box}body{margin:0;font-family:system-ui,sans-serif;font-size:13px;background:#fff;overscroll-behavior:contain}
-        .tabs{display:flex;gap:2px;padding:6px 8px;background:#f3f6f8;border-bottom:1px solid #d6dde2;overflow-x:auto;flex-shrink:0}
-        .tab{padding:3px 10px;border:1px solid #c8d0d8;background:#fff;border-radius:4px;cursor:pointer;font-size:12px;font-weight:700;white-space:nowrap}
+        *{box-sizing:border-box;margin:0;padding:0}
+        html,body{height:100%;overflow:hidden;overscroll-behavior:contain;font-family:system-ui,sans-serif;font-size:12px;background:#fff}
+        body{display:flex;flex-direction:column}
+        .tabs{flex-shrink:0;display:flex;gap:2px;padding:5px 8px;background:#f0f3f5;border-bottom:1px solid #d0d7dc;overflow-x:auto}
+        .tab{padding:3px 10px;border:1px solid #c0c8d0;background:#fff;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap;color:#444}
         .tab.active{background:#1f6f8b;color:#fff;border-color:#1f6f8b}
-        .sheet{display:none;overflow:auto;padding:10px}
+        .sheet{display:none;flex:1;overflow:auto}
         .sheet.active{display:block}
-        table{border-collapse:collapse;font-size:12px}
-        td,th{border:1px solid #d6dde2;padding:3px 8px;white-space:nowrap;vertical-align:top}
-        tr:first-child td,tr:first-child th{background:#f3f6f8;font-weight:700}
+        table{border-collapse:collapse;font-size:12px;white-space:nowrap}
+        td{border:1px solid #d0d7dc;padding:2px 6px;vertical-align:middle;max-width:400px;overflow:hidden;text-overflow:ellipsis}
+        td.sh{border-bottom:2px solid #a0aab2;font-weight:700}
       </style></head><body>
       <div class="tabs">${sheets.map((s, i) => `<button class="tab${i === 0 ? " active" : ""}" onclick="show(${i})">${s.name}</button>`).join("")}</div>
       ${sheets.map((s, i) => `<div class="sheet${i === 0 ? " active" : ""}" id="s${i}">${s.html}</div>`).join("")}
