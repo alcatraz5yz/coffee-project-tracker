@@ -2,47 +2,8 @@ const express = require("express");
 const path = require("path");
 const os = require("os");
 const fs = require("fs");
-const { spawn, execFile } = require("child_process");
-const crypto = require("crypto");
+const { spawn } = require("child_process");
 const XLSX = require("xlsx");
-
-// LibreOffice detection (macOS)
-const SOFFICE = "/Applications/LibreOffice.app/Contents/MacOS/soffice";
-const HAS_LIBREOFFICE = (() => {
-  try { fs.accessSync(SOFFICE, fs.constants.X_OK); return true; } catch (_) { return false; }
-})();
-const LO_CACHE_DIR = path.join(os.tmpdir(), "pcs-lo-cache");
-if (HAS_LIBREOFFICE) {
-  fs.mkdirSync(LO_CACHE_DIR, { recursive: true });
-  console.log("LibreOffice: verfügbar — hochwertiger PDF-Preview aktiv");
-}
-
-function convertWithLibreOffice(filePath) {
-  return new Promise((resolve, reject) => {
-    const stat = fs.statSync(filePath);
-    const key = crypto.createHash("md5").update(`${filePath}:${stat.mtimeMs}`).digest("hex");
-    const cached = path.join(LO_CACHE_DIR, `${key}.pdf`);
-    if (fs.existsSync(cached)) return resolve(cached);
-
-    const tmpDir = path.join(LO_CACHE_DIR, key);
-    fs.mkdirSync(tmpDir, { recursive: true });
-    execFile(SOFFICE, ["--headless", "--convert-to", "pdf", "--outdir", tmpDir, filePath],
-      { timeout: 60000 }, (err) => {
-        if (err) {
-          fs.rmSync(tmpDir, { recursive: true, force: true });
-          return reject(new Error(`LibreOffice: ${err.message}`));
-        }
-        const generated = path.join(tmpDir, `${path.basename(filePath, path.extname(filePath))}.pdf`);
-        if (!fs.existsSync(generated)) {
-          fs.rmSync(tmpDir, { recursive: true, force: true });
-          return reject(new Error("LibreOffice: PDF nicht erzeugt"));
-        }
-        fs.renameSync(generated, cached);
-        fs.rmSync(tmpDir, { recursive: true, force: true });
-        resolve(cached);
-      });
-  });
-}
 const {
   getProjects,
   getProject,
@@ -636,18 +597,7 @@ app.get("/api/projects/:id/excel-files", (req, res) => {
 app.get("/api/preview-file", async (req, res) => {
   const target = resolveAllowedHref(req.query?.href);
   if (!target) return res.status(400).send("Pfad nicht erlaubt");
-
-  // LibreOffice: convert to PDF for high-quality preview
-  if (HAS_LIBREOFFICE && /\.(xlsx|xls|xlsm|xlsb|docx|doc)$/i.test(target)) {
-    try {
-      const pdfPath = await convertWithLibreOffice(target);
-      res.setHeader("Content-Type", "application/pdf");
-      fs.createReadStream(pdfPath).pipe(res);
-      return;
-    } catch (e) {
-      console.warn("LibreOffice Fallback auf SheetJS:", e.message);
-    }
-  }
+  const ext = path.extname(target).toLowerCase();
 
   if (/\.(xlsx|xls|xlsm|xlsb)$/i.test(target)) {
     try {
@@ -806,12 +756,6 @@ app.get("/api/list-path", (req, res) => {
 
   res.json({ href: urlPath, entries });
 });
-
-app.get("/api/platform", (_req, res) => res.json({
-  platform: process.platform,
-  isWin: false,
-  hasLibreOffice: HAS_LIBREOFFICE
-}));
 
 // ── Start ──────────────────────────────────────────────────
 app.listen(PORT, () => {

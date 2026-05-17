@@ -42,8 +42,6 @@ function recordRecent(projectId) {
 // ── State ────────────────────────────────────────────────────
 let projectList = [];
 let activeProject = null;
-let HAS_LIBREOFFICE = false;
-apiFetch("/api/platform").then(d => { HAS_LIBREOFFICE = d.hasLibreOffice || false; }).catch(() => {});
 let activeSubtopic = "Approbation";
 let activeBuild = "Alle";
 let activeView = "overview";
@@ -1235,20 +1233,13 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
       img.src = href; img.alt = name;
       body.appendChild(img);
     } else if (OFFICE_EXT.test(href)) {
-      if (HAS_LIBREOFFICE) {
-        previewType = "pdf";
-        zoomBar.style.display = "none";
-      } else {
-        previewType = "office";
-        zoomBar.style.display = "flex";
-      }
+      previewType = "office";
+      zoomBar.style.display = "flex";
       const iframe = document.createElement("iframe");
       iframe.src = `/api/preview-file?href=${encodeURIComponent(href)}`;
-      if (previewType === "office") {
-        iframe.addEventListener("load", () => {
-          try { iframe.contentDocument.body.style.zoom = zoomLevel; } catch (_) {}
-        });
-      }
+      iframe.addEventListener("load", () => {
+        try { iframe.contentDocument.body.style.zoom = zoomLevel; } catch (_) {}
+      });
       body.appendChild(iframe);
     } else {
       previewType = "pdf";
