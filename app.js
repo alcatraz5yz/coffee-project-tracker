@@ -666,7 +666,7 @@ function renderDocs(project) {
                   ? `<span class="evidence-folder-btn evidence-folder-empty">📁 ${entry.name} <em>leer</em></span>`
                   : `<button class="evidence-folder-btn" type="button" data-browse-subfolder="${entry.href}" data-browse-group="${group.primary}">📂 ${entry.name} <em class="folder-count">${entry.childCount} Dateien</em></button>`
                 : entry.type === "Datei" && isOfficeFile(entry.name)
-                  ? `<button class="word-action word-action--name" type="button" data-open-office-href="${entry.href}">${entry.name}</button>`
+                  ? `<button class="word-action word-action--name" type="button" data-preview-href="${entry.href}">${entry.name}</button>`
                   : `<a href="${entry.href}" target="_blank" rel="noreferrer">${entry.name}</a>`}
               <span>${entry.size || entry.type}</span>
               <span>${entry.modified}</span>
@@ -1314,13 +1314,22 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     hoveredRow = row || null;
   });
 
+  document.querySelector("#docs-view").addEventListener("click", (e) => {
+    const btn = e.target.closest(".evidence-file-row:not(.evidence-file-row--folder) [data-preview-href]");
+    if (!btn) return;
+    const row = btn.closest(".evidence-file-row");
+    openPreview(row, btn.dataset.previewHref, btn.textContent.trim());
+  });
+
   window.addEventListener("keydown", (e) => {
     if (e.key === " ") {
       if (panel.classList.contains("active")) { e.preventDefault(); closePreview(); return; }
       if (hoveredRow) {
         e.preventDefault();
         const link = hoveredRow.querySelector("a[href]");
-        if (link && canPreview(link.href)) openPreview(hoveredRow, link.href, link.textContent.trim());
+        const previewBtn = hoveredRow.querySelector("[data-preview-href]");
+        if (link && canPreview(link.href)) { openPreview(hoveredRow, link.href, link.textContent.trim()); return; }
+        if (previewBtn) openPreview(hoveredRow, previewBtn.dataset.previewHref, previewBtn.textContent.trim());
         return;
       }
     }
@@ -1335,7 +1344,10 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
       const next = e.key === "ArrowDown" ? rows[idx + 1] : rows[idx - 1];
       if (next) {
         const link = next.querySelector("a[href]");
-        if (link && canPreview(link.href)) { next.scrollIntoView({ block: "nearest" }); openPreview(next, link.href, link.textContent.trim()); }
+        const previewBtn = next.querySelector("[data-preview-href]");
+        next.scrollIntoView({ block: "nearest" });
+        if (link && canPreview(link.href)) { openPreview(next, link.href, link.textContent.trim()); }
+        else if (previewBtn) { openPreview(next, previewBtn.dataset.previewHref, previewBtn.textContent.trim()); }
       }
     }
   }, true);
