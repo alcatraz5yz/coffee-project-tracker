@@ -3,6 +3,7 @@ const path = require("path");
 const os = require("os");
 const fs = require("fs");
 const { spawn } = require("child_process");
+const XLSX = require("xlsx");
 const {
   getProjects,
   getProject,
@@ -361,47 +362,94 @@ app.post("/api/open-folder", (req, res) => {
 
 const ARCHIVE_EXCEL_PATH = process.env.ARCHIVE_EXCEL || path.join(os.homedir(), "Desktop", "PCS_Archiv_Muster.xlsx");
 
+function _xlsxProjectNo(xlsxPath) {
+  try {
+    const wb = XLSX.readFile(xlsxPath, { sheetRows: 15 });
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: null });
+    for (const row of rows) {
+      for (let i = 0; i < row.length; i++) {
+        if (row[i] == null) continue;
+        const label = String(row[i]).trim().toLowerCase();
+        if (label.includes("project no") || label.includes("projektnr")) {
+          const val = row[i + 4];
+          if (val != null) return String(val).trim();
+        }
+      }
+    }
+  } catch (_) {}
+  return null;
+}
+
+function _findApprobationXlsx(projectDir) {
+  const results = [];
+  function walk(dir) {
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    if (path.basename(dir).toLowerCase() === "approbationsauftrag") {
+      for (const e of entries.sort((a, b) => a.name.localeCompare(b.name))) {
+        if (e.isFile() && /\.xlsx$/i.test(e.name) && !e.name.startsWith("~$") && !e.name.startsWith("."))
+          results.push(path.join(dir, e.name));
+      }
+      return;
+    }
+    for (const e of entries) {
+      if (e.name.startsWith(".") || e.name.startsWith("~$")) continue;
+      if (e.isDirectory()) walk(path.join(dir, e.name));
+    }
+  }
+  walk(projectDir);
+  return results;
+}
+
+function _projectIdFromFolder(name) {
+  const m = name.match(/^EF[\s_-]*(\d+)/i) || name.match(/^(\d+)/);
+  return m ? `EF${m[1]}` : null;
+}
+
 function runProjectNoScan(root) {
   return new Promise((resolve, reject) => {
-    const scriptPath = path.join(__dirname, "scan_project_no.py");
-    const proc = spawn("python3", [scriptPath], { env: { ...process.env, PCS_ROOT: root } });
-    let out = "";
-    let err = "";
-    proc.stdout.on("data", (d) => { out += d; });
-    proc.stderr.on("data", (d) => { err += d; });
-    proc.on("close", (code) => {
-      if (code !== 0) return reject(new Error(err || "Projektnr-Scanner-Fehler"));
-      try {
-        const entries = JSON.parse(out);
-        if (entries.error) return reject(new Error(entries.error));
-        entries.forEach(({ project_id, project_no }) => updateProjectNo(project_id, project_no));
-        resolve(entries.length);
-      } catch (e) {
-        reject(e);
+    let entries;
+    try {
+      entries = fs.readdirSync(root, { withFileTypes: true })
+        .filter(e => e.isDirectory() && !e.name.startsWith("."))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    } catch (e) { return reject(new Error(e.message)); }
+    let count = 0;
+    for (const entry of entries) {
+      const projectId = _projectIdFromFolder(entry.name);
+      if (!projectId) continue;
+      for (const xlsxPath of _findApprobationXlsx(path.join(root, entry.name))) {
+        const no = _xlsxProjectNo(xlsxPath);
+        if (no) { updateProjectNo(projectId, no); count++; break; }
       }
-    });
+    }
+    resolve(count);
   });
 }
 
 function runArchiveScan(excelPath) {
   return new Promise((resolve, reject) => {
-    const scriptPath = path.join(__dirname, "scan_archive.py");
-    const proc = spawn("python3", [scriptPath], { env: { ...process.env, ARCHIVE_EXCEL: excelPath } });
-    let out = "";
-    let err = "";
-    proc.stdout.on("data", (d) => { out += d; });
-    proc.stderr.on("data", (d) => { err += d; });
-    proc.on("close", (code) => {
-      if (code !== 0) return reject(new Error(err || "Scanner-Fehler"));
-      try {
-        const entries = JSON.parse(out);
-        if (entries.error) return reject(new Error(entries.error));
-        entries.forEach(({ project_id, location }) => updateArchiveLocation(project_id, location));
-        resolve(entries.length);
-      } catch (e) {
-        reject(e);
+    try {
+      const wb = XLSX.readFile(excelPath);
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: null });
+      const byEf = new Map();
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || !row[0]) continue;
+        const efNr = String(row[0]).trim();
+        const loc = row[4] ? String(row[4]).trim() : "";
+        if (!efNr || !loc || loc === "—") continue;
+        if (!byEf.has(efNr)) byEf.set(efNr, []);
+        const locs = byEf.get(efNr);
+        if (!locs.includes(loc)) locs.push(loc);
       }
-    });
+      let count = 0;
+      for (const [ef, locs] of byEf) {
+        updateArchiveLocation(ef, locs.join(" · "));
+        count++;
+      }
+      resolve(count);
+    } catch (e) { reject(new Error(`Archiv-Excel Fehler: ${e.message}`)); }
   });
 }
 
@@ -428,22 +476,17 @@ app.get("/api/open-archive", (req, res) => {
   const projectId = (req.query.project_id || "").replace(/[^A-Za-z0-9]/g, "");
   const excelPath = ARCHIVE_EXCEL_PATH;
 
-  // Find the row number for this project via the scan_archive.py data
+  // Find the row number for this project in the archive Excel
   let rowNum = null;
   try {
-    const { execSync } = require("child_process");
-    const pyCode = [
-      "import openpyxl, os",
-      `wb = openpyxl.load_workbook(r'${excelPath}')`,
-      "ws = wb.active",
-      "row_num = 0",
-      "for i, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):",
-      `    if str(row[0]).strip() == '${projectId}':`,
-      "        row_num = i",
-      "        break",
-      "print(row_num)",
-    ].join("\n");
-    rowNum = parseInt(execSync(`python3 -c "${pyCode.replace(/"/g, '\\"')}"`).toString().trim(), 10) || null;
+    const wb2 = XLSX.readFile(excelPath);
+    const rows2 = XLSX.utils.sheet_to_json(wb2.Sheets[wb2.SheetNames[0]], { header: 1, defval: null });
+    for (let i = 1; i < rows2.length; i++) {
+      if (rows2[i] && rows2[i][0] != null && String(rows2[i][0]).trim() === projectId) {
+        rowNum = i + 1;
+        break;
+      }
+    }
   } catch (_) {}
 
   // Open the file with the default app (Numbers)
