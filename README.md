@@ -9,7 +9,7 @@ Local dashboard for tracking coffee machine builds, samples, approbation evidenc
 
 No Python needed.
 
-## Setup
+## Setup — macOS
 
 ```sh
 git clone https://github.com/alcatraz5yz/coffee-project-tracker.git
@@ -18,22 +18,23 @@ npm install
 node server.js
 ```
 
+## Setup — Windows 11
+
+```powershell
+git clone https://github.com/alcatraz5yz/coffee-project-tracker.git
+cd coffee-project-tracker
+git checkout windows
+npm install
+node server.js
+```
+
 Then open **http://localhost:8090** in your browser.
-
-## Branches
-
-| Branch | Platform |
-|--------|----------|
-| `main` | macOS |
-| `windows` | Windows 11 |
-
-Use `git checkout windows` on a Windows machine.
 
 ## First launch
 
-1. Click **"Neu scannen"** to scan your PCS project folders
-2. Click **"Archiv sync"** to load archive locations from `PCS_Archiv_Muster.xlsx` (place it on your Desktop)
-3. Make sure your network drive (e.g. `P:\PCS`) is mapped before scanning
+1. Make sure your network drive (e.g. `P:\PCS`) is mapped
+2. Click **"Neu scannen"** to scan your PCS project folders
+3. Place `PCS_Archiv_Muster.xlsx` on your Desktop, then click **"Archiv sync"**
 
 ## Troubleshooting (Windows)
 
