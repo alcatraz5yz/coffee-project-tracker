@@ -353,7 +353,10 @@ app.post("/api/open-folder", (req, res) => {
   const folderPath = req.body?.path;
   if (!folderPath) return res.status(400).json({ error: "no path" });
   const { exec } = require("child_process");
-  exec(`open "${folderPath.replace(/"/g, '\\"')}"`, (err) => {
+  const cmd = process.platform === "win32"
+    ? `explorer "${folderPath.replace(/"/g, "")}"`
+    : `open "${folderPath.replace(/"/g, '\\"')}"`;
+  exec(cmd, (err) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ ok: true });
   });
