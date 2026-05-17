@@ -669,7 +669,7 @@ function renderDocs(project) {
                   ? `<span class="evidence-folder-btn evidence-folder-empty">📁 ${entry.name} <em>leer</em></span>`
                   : `<button class="evidence-folder-btn" type="button" data-browse-subfolder="${entry.href}" data-browse-group="${group.primary}">📂 ${entry.name} <em class="folder-count">${entry.childCount} Dateien</em></button>`
                 : entry.type === "Datei" && isOfficeFile(entry.name)
-                  ? `<button class="word-action word-action--name" type="button" data-preview-href="${entry.href}">${entry.name}</button>`
+                  ? `<button class="word-action word-action--name" type="button" data-open-office-href="${entry.href}">${entry.name}</button>`
                   : `<a href="${entry.href}" target="_blank" rel="noreferrer">${entry.name}</a>`}
               <span>${entry.size || entry.type}</span>
               <span>${entry.modified}</span>
@@ -1202,22 +1202,16 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
   const closeBtn = document.querySelector("#file-preview-close");
   const IMAGE_EXT = /\.(jpe?g|png|gif|webp|svg|bmp)$/i;
   const PDF_EXT = /\.pdf$/i;
-  const OFFICE_EXT = /\.(docx|xlsx|xls|xlsm|xlsb)$/i;
   let zoomLevel = 1;
-  let previewType = "image";
   let selectedRow = null;
   let hoveredRow = null;
 
-  function canPreview(href) { return IMAGE_EXT.test(href) || PDF_EXT.test(href) || OFFICE_EXT.test(href); }
+  function canPreview(href) { return IMAGE_EXT.test(href) || PDF_EXT.test(href); }
 
   function setZoom(z) {
     zoomLevel = Math.min(5, Math.max(0.2, z));
     const img = body.querySelector("img");
-    if (img) { img.style.transform = `scale(${zoomLevel})`; return; }
-    if (previewType === "office") {
-      const iframe = body.querySelector("iframe");
-      try { iframe.contentDocument.body.style.zoom = zoomLevel; } catch (_) {}
-    }
+    if (img) img.style.transform = `scale(${zoomLevel})`;
   }
 
   function openPreview(row, href, name) {
@@ -1230,22 +1224,11 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     body.innerHTML = "";
     zoomLevel = 1;
     if (IMAGE_EXT.test(href)) {
-      previewType = "image";
       zoomBar.style.display = "flex";
       const img = document.createElement("img");
       img.src = href; img.alt = name;
       body.appendChild(img);
-    } else if (OFFICE_EXT.test(href)) {
-      previewType = "office";
-      zoomBar.style.display = "flex";
-      const iframe = document.createElement("iframe");
-      iframe.src = `/api/preview-file?href=${encodeURIComponent(href)}`;
-      iframe.addEventListener("load", () => {
-        try { iframe.contentDocument.body.style.zoom = zoomLevel; } catch (_) {}
-      });
-      body.appendChild(iframe);
     } else {
-      previewType = "pdf";
       zoomBar.style.display = "none";
       const iframe = document.createElement("iframe");
       iframe.src = href;
@@ -1331,22 +1314,13 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     hoveredRow = row || null;
   });
 
-  document.querySelector("#docs-view").addEventListener("click", (e) => {
-    const btn = e.target.closest(".evidence-file-row:not(.evidence-file-row--folder) [data-preview-href]");
-    if (!btn) return;
-    const row = btn.closest(".evidence-file-row");
-    openPreview(row, btn.dataset.previewHref, btn.textContent.trim());
-  });
-
   window.addEventListener("keydown", (e) => {
     if (e.key === " ") {
       if (panel.classList.contains("active")) { e.preventDefault(); closePreview(); return; }
       if (hoveredRow) {
         e.preventDefault();
         const link = hoveredRow.querySelector("a[href]");
-        const previewBtn = hoveredRow.querySelector("[data-preview-href]");
-        if (link && canPreview(link.href)) { openPreview(hoveredRow, link.href, link.textContent.trim()); return; }
-        if (previewBtn) openPreview(hoveredRow, previewBtn.dataset.previewHref, previewBtn.textContent.trim());
+        if (link && canPreview(link.href)) openPreview(hoveredRow, link.href, link.textContent.trim());
         return;
       }
     }
@@ -1361,10 +1335,7 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
       const next = e.key === "ArrowDown" ? rows[idx + 1] : rows[idx - 1];
       if (next) {
         const link = next.querySelector("a[href]");
-        const previewBtn = next.querySelector("[data-preview-href]");
-        next.scrollIntoView({ block: "nearest" });
-        if (link && canPreview(link.href)) { openPreview(next, link.href, link.textContent.trim()); }
-        else if (previewBtn) { openPreview(next, previewBtn.dataset.previewHref, previewBtn.textContent.trim()); }
+        if (link && canPreview(link.href)) { next.scrollIntoView({ block: "nearest" }); openPreview(next, link.href, link.textContent.trim()); }
       }
     }
   }, true);
