@@ -193,6 +193,20 @@
       </section>
     </main>
 
+    <div id="file-preview-panel" class="file-preview-panel">
+      <div class="file-preview-resize-handle" id="file-preview-resize"></div>
+      <div class="file-preview-header">
+        <span class="file-preview-name" id="file-preview-name"></span>
+        <div class="file-preview-zoom" id="file-preview-zoom" style="display:none">
+          <button id="preview-zoom-out" title="Verkleinern">−</button>
+          <button id="preview-zoom-reset" title="Anpassen">⊡</button>
+          <button id="preview-zoom-in" title="Vergrössern">+</button>
+        </div>
+        <button class="file-preview-close" id="file-preview-fullscreen" title="Vollbild">⤢</button>
+        <button class="file-preview-close" id="file-preview-close" title="Schliessen">✕</button>
+      </div>
+      <div class="file-preview-body" id="file-preview-body"></div>
+    </div>
     <script src="config.js"></script>
     <script src="app.js"></script>
   </body>

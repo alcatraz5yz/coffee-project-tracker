@@ -574,9 +574,9 @@ app.get("/api/list-path", (req, res) => {
       const entryStat = fs.statSync(full);
       const isDirectory = entry.isDirectory();
       const HIDE = /^[.~]|\.tmp$|\.db$/i;
-      const empty = isDirectory
-        ? (() => { try { return fs.readdirSync(full).filter(n => !HIDE.test(n)).length === 0; } catch { return false; } })()
-        : false;
+      const childCount = isDirectory
+        ? (() => { try { return fs.readdirSync(full).filter(n => !HIDE.test(n)).length; } catch { return 0; } })()
+        : 0;
       return {
         name: entry.name,
         type: isDirectory ? "Ordner" : "Datei",
@@ -584,7 +584,8 @@ app.get("/api/list-path", (req, res) => {
         modified: entryStat.mtime.toLocaleString("de-CH", { dateStyle: "short", timeStyle: "short" }),
         mtime: entryStat.mtime.getTime(),
         size: isDirectory ? "" : formatFileSize(entryStat.size),
-        empty
+        empty: childCount === 0,
+        childCount: isDirectory ? childCount : null
       };
     })
     .sort((a, b) => Number(b.type === "Ordner") - Number(a.type === "Ordner") || b.mtime - a.mtime)

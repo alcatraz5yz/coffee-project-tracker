@@ -664,7 +664,7 @@ function renderDocs(project) {
               ${entry.type === "Ordner"
                 ? entry.empty
                   ? `<span class="evidence-folder-btn evidence-folder-empty">📁 ${entry.name} <em>leer</em></span>`
-                  : `<button class="evidence-folder-btn" type="button" data-browse-subfolder="${entry.href}" data-browse-group="${group.primary}">📂 ${entry.name}</button>`
+                  : `<button class="evidence-folder-btn" type="button" data-browse-subfolder="${entry.href}" data-browse-group="${group.primary}">📂 ${entry.name} <em class="folder-count">${entry.childCount} Dateien</em></button>`
                 : entry.type === "Datei" && isOfficeFile(entry.name)
                   ? `<button class="word-action word-action--name" type="button" data-open-office-href="${entry.href}">${entry.name}</button>`
                   : `<a href="${entry.href}" target="_blank" rel="noreferrer">${entry.name}</a>`}
@@ -1189,6 +1189,154 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     btn.disabled = false;
   }
 });
+
+// ── File preview panel ────────────────────────────────────────
+(function () {
+  const panel = document.querySelector("#file-preview-panel");
+  const nameEl = document.querySelector("#file-preview-name");
+  const body = document.querySelector("#file-preview-body");
+  const zoomBar = document.querySelector("#file-preview-zoom");
+  const closeBtn = document.querySelector("#file-preview-close");
+  const IMAGE_EXT = /\.(jpe?g|png|gif|webp|svg|bmp)$/i;
+  const PDF_EXT = /\.pdf$/i;
+  let zoomLevel = 1;
+  let selectedRow = null;
+  let hoveredRow = null;
+
+  function canPreview(href) { return IMAGE_EXT.test(href) || PDF_EXT.test(href); }
+
+  function setZoom(z) {
+    zoomLevel = Math.min(5, Math.max(0.2, z));
+    const img = body.querySelector("img");
+    if (img) img.style.transform = `scale(${zoomLevel})`;
+  }
+
+  function openPreview(row, href, name) {
+    if (selectedRow) selectedRow.classList.remove("preview-selected");
+    tx = 0; ty = 0;
+    panel.style.transform = "translate(0,0)";
+    selectedRow = row;
+    row.classList.add("preview-selected");
+    nameEl.textContent = name;
+    body.innerHTML = "";
+    zoomLevel = 1;
+    if (IMAGE_EXT.test(href)) {
+      zoomBar.style.display = "flex";
+      const img = document.createElement("img");
+      img.src = href; img.alt = name;
+      body.appendChild(img);
+    } else {
+      zoomBar.style.display = "none";
+      const iframe = document.createElement("iframe");
+      iframe.src = href;
+      body.appendChild(iframe);
+    }
+    panel.classList.add("active");
+  }
+
+  function closePreview() {
+    panel.classList.remove("active");
+    body.innerHTML = "";
+    if (selectedRow) selectedRow.classList.remove("preview-selected");
+    selectedRow = null;
+  }
+
+  closeBtn.addEventListener("click", closePreview);
+
+  const fullscreenBtn = document.querySelector("#file-preview-fullscreen");
+  fullscreenBtn.addEventListener("click", () => {
+    const isFs = panel.classList.toggle("fullscreen");
+    fullscreenBtn.textContent = isFs ? "⤡" : "⤢";
+    fullscreenBtn.title = isFs ? "Vollbild beenden" : "Vollbild";
+  });
+
+  // Resize from left edge
+  const resizeHandle = document.querySelector("#file-preview-resize");
+  resizeHandle.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = panel.offsetWidth;
+    let raf = null;
+    panel.classList.add("dragging");
+    const onMove = (ev) => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = null;
+        panel.style.width = Math.max(320, Math.min(window.innerWidth - 40, startWidth + (startX - ev.clientX))) + "px";
+      });
+    };
+    const onUp = () => {
+      panel.classList.remove("dragging");
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove, { passive: true });
+    document.addEventListener("mouseup", onUp);
+  });
+
+  // Drag to move via header — GPU-accelerated via transform
+  const header = document.querySelector(".file-preview-header");
+  let tx = 0, ty = 0;
+  header.addEventListener("mousedown", (e) => {
+    if (e.target.closest("button")) return;
+    e.preventDefault();
+    const startX = e.clientX - tx;
+    const startY = e.clientY - ty;
+    panel.classList.add("dragging");
+    let raf = null;
+    const onMove = (ev) => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = null;
+        const rect = panel.getBoundingClientRect();
+        tx = Math.max(-rect.left, Math.min(window.innerWidth - rect.right, ev.clientX - startX));
+        ty = Math.max(-rect.top, Math.min(window.innerHeight - rect.bottom + rect.height - 60, ev.clientY - startY));
+        panel.style.transform = `translate(${tx}px, ${ty}px)`;
+      });
+    };
+    const onUp = () => {
+      panel.classList.remove("dragging");
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove, { passive: true });
+    document.addEventListener("mouseup", onUp);
+  });
+  document.querySelector("#preview-zoom-in").addEventListener("click", () => setZoom(zoomLevel * 1.25));
+  document.querySelector("#preview-zoom-out").addEventListener("click", () => setZoom(zoomLevel * 0.8));
+  document.querySelector("#preview-zoom-reset").addEventListener("click", () => setZoom(1));
+
+  document.querySelector("#docs-view").addEventListener("mouseover", (e) => {
+    const row = e.target.closest(".evidence-file-row:not(.evidence-file-row--folder):not(.head)");
+    hoveredRow = row || null;
+  });
+
+  window.addEventListener("keydown", (e) => {
+    if (e.key === " ") {
+      if (panel.classList.contains("active")) { e.preventDefault(); closePreview(); return; }
+      if (hoveredRow) {
+        e.preventDefault();
+        const link = hoveredRow.querySelector("a[href]");
+        if (link && canPreview(link.href)) openPreview(hoveredRow, link.href, link.textContent.trim());
+        return;
+      }
+    }
+    if (!panel.classList.contains("active")) return;
+    if (e.key === "Escape") { closePreview(); return; }
+    if (e.key === "+" || e.key === "=") setZoom(zoomLevel * 1.25);
+    if (e.key === "-") setZoom(zoomLevel * 0.8);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const rows = [...document.querySelectorAll(".evidence-file-row:not(.evidence-file-row--folder):not(.head)")];
+      const idx = rows.indexOf(selectedRow);
+      const next = e.key === "ArrowDown" ? rows[idx + 1] : rows[idx - 1];
+      if (next) {
+        const link = next.querySelector("a[href]");
+        if (link && canPreview(link.href)) { next.scrollIntoView({ block: "nearest" }); openPreview(next, link.href, link.textContent.trim()); }
+      }
+    }
+  }, true);
+})();
 
 document.querySelector("#docs-view").addEventListener("keydown", (event) => {
   if (!["Enter", " "].includes(event.key)) return;
