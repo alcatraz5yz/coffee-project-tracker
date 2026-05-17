@@ -1,32 +1,46 @@
-# PCS Coffee Dashboard
+# PCS Kaffee Dashboard
 
-Local PCS dashboard for tracking coffee machine builds, samples, approbation evidence, report versions, blockers, and critical documents.
+Local dashboard for tracking coffee machine builds, samples, approbation evidence, certifications, and critical documents.
 
-## Run
+## Requirements
 
-Open `index.html` directly, or serve it locally:
+- **Node.js** (v18+) — [nodejs.org](https://nodejs.org)
+- **Git**
 
-```sh
-cd ~/Desktop/coffee-project-tracker
-python3 -m http.server 8090
-```
+No Python needed.
 
-Then open `http://localhost:8090`.
-
-For iPad access on the same Wi-Fi, use your Mac's local IP address:
+## Setup
 
 ```sh
-ipconfig getifaddr en0
+git clone https://github.com/alcatraz5yz/coffee-project-tracker.git
+cd coffee-project-tracker
+npm install
+node server.js
 ```
 
-Then open `http://<mac-ip>:8090` on the iPad.
+Then open **http://localhost:8090** in your browser.
 
-## Edit Data
+## Branches
 
-Edit `data.js` to add more machine projects.
+| Branch | Platform |
+|--------|----------|
+| `main` | macOS |
+| `windows` | Windows 11 |
 
-## Company Deployment
+Use `git checkout windows` on a Windows machine.
 
-For a secure company version, use SharePoint/Teams document links plus company login. Do not rely on direct `P:\...` drive links as the production mechanism.
+## First launch
 
-See `SECURITY_PLAN.md`.
+1. Click **"Neu scannen"** to scan your PCS project folders
+2. Click **"Archiv sync"** to load archive locations from `PCS_Archiv_Muster.xlsx` (place it on your Desktop)
+3. Make sure your network drive (e.g. `P:\PCS`) is mapped before scanning
+
+## Troubleshooting (Windows)
+
+If `npm install` fails on `better-sqlite3`, install build tools first:
+
+```powershell
+npm install --global windows-build-tools
+```
+
+Then retry `npm install`.

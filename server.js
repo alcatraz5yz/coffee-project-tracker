@@ -487,7 +487,11 @@ app.get("/api/open-archive", (req, res) => {
     const rows2 = XLSX.utils.sheet_to_json(wb2.Sheets[wb2.SheetNames[0]], { header: 1, defval: null });
     for (let i = 1; i < rows2.length; i++) {
       if (rows2[i] && rows2[i][0] != null && String(rows2[i][0]).trim() === projectId) {
+<<<<<<< HEAD
         rowNum = i + 1; // 1-indexed, row 1 is header
+=======
+        rowNum = i + 1;
+>>>>>>> main
         break;
       }
     }
