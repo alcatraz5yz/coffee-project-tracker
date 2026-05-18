@@ -39,6 +39,52 @@ function recordRecent(projectId) {
   localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
 }
 
+// ── PDF thumbnail rendering ───────────────────────────────────
+let _pdfThumbObserver = null;
+
+function getPdfThumbObserver() {
+  if (_pdfThumbObserver) return _pdfThumbObserver;
+  if (typeof window.pdfjsLib === "undefined") return null;
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  _pdfThumbObserver = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      _pdfThumbObserver.unobserve(e.target);
+      renderPdfThumb(e.target);
+    }
+  }, { rootMargin: "200px" });
+  return _pdfThumbObserver;
+}
+
+async function renderPdfThumb(canvas) {
+  canvas.dataset.pdfDone = "1";
+  try {
+    const pdf = await pdfjsLib.getDocument({ url: canvas.dataset.pdfHref }).promise;
+    const page = await pdf.getPage(1);
+    const SIZE = 40;
+    const vp0 = page.getViewport({ scale: 1 });
+    const scale = SIZE / Math.min(vp0.width, vp0.height);
+    const vp = page.getViewport({ scale });
+    canvas.width = vp.width;
+    canvas.height = vp.height;
+    await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+  } catch {
+    const ctx = canvas.getContext("2d");
+    canvas.width = 40; canvas.height = 40;
+    ctx.fillStyle = "#fee2e2"; ctx.fillRect(0, 0, 40, 40);
+    ctx.fillStyle = "#dc2626"; ctx.font = "bold 9px sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("PDF", 20, 20);
+  }
+}
+
+window._observePdfThumbs = () => {
+  const io = getPdfThumbObserver();
+  if (!io) return;
+  document.querySelectorAll("canvas.file-thumb-pdf:not([data-pdf-done])").forEach(c => io.observe(c));
+};
+
 // ── State ────────────────────────────────────────────────────
 let projectList = [];
 let activeProject = null;
@@ -560,7 +606,9 @@ function fileThumbHtml(entry) {
   if (/\.(jpe?g|png|gif|webp|svg|bmp)$/i.test(name)) {
     return `<img src="${href}" loading="lazy" class="file-thumb-img" alt="">`;
   }
-  if (/\.pdf$/i.test(name)) return `<span class="file-thumb-icon file-thumb-icon--pdf">PDF</span>`;
+  if (/\.pdf$/i.test(name)) {
+    return `<canvas class="file-thumb-img file-thumb-pdf" data-pdf-href="${href}"></canvas>`;
+  }
   if (isExcelFile(name)) return `<span class="file-thumb-icon file-thumb-icon--excel">XLS</span>`;
   if (isWordFile(name)) return `<span class="file-thumb-icon file-thumb-icon--word">DOC</span>`;
   return `<span class="file-thumb-icon file-thumb-icon--file">FILE</span>`;
@@ -773,6 +821,7 @@ function renderDocs(project) {
     : `<p class="empty-state">Für dieses Projekt ist noch kein PCS Nachweisindex angelegt.</p>`;
 
   document.querySelector("#reports-panel")?.classList.add("hidden");
+  window._observePdfThumbs?.();
 }
 
 // ── Fachfreigabe ──────────────────────────────────────────────
