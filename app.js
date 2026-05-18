@@ -653,10 +653,12 @@ function renderDocs(project) {
     allGroups.map(g => g.area?.includes(" / ") ? g.area.split(" / ")[0] : null).filter(Boolean)
   )];
 
-  // Reset filter if current market no longer exists
-  if (activeMarketFilter && !markets.includes(activeMarketFilter)) activeMarketFilter = null;
+  // Auto-select first market if none active and markets exist
+  if (markets.length > 0 && (!activeMarketFilter || !markets.includes(activeMarketFilter))) {
+    activeMarketFilter = markets[0];
+  }
 
-  const groups = markets.length > 0 && activeMarketFilter
+  const groups = activeMarketFilter
     ? allGroups.filter(g => !g.area?.includes(" / ") || g.area.startsWith(activeMarketFilter + " / "))
     : allGroups;
   const groupDetailMarkup = (group) => {
@@ -704,10 +706,9 @@ function renderDocs(project) {
   const filterBar = document.querySelector("#market-filter-bar");
   if (filterBar) {
     if (markets.length > 1) {
-      filterBar.innerHTML = `
-        <button class="market-filter-btn ${!activeMarketFilter ? "active" : ""}" data-market="">Alle</button>
-        ${markets.map(m => `<button class="market-filter-btn ${activeMarketFilter === m ? "active" : ""}" data-market="${m}">${m}</button>`).join("")}
-      `;
+      filterBar.innerHTML = markets.map(m =>
+        `<button class="market-filter-btn ${activeMarketFilter === m ? "active" : ""}" data-market="${m}">${m}</button>`
+      ).join("");
       filterBar.style.display = "flex";
     } else {
       filterBar.innerHTML = "";
@@ -1373,7 +1374,9 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
 document.querySelector("#docs-view").addEventListener("click", (event) => {
   const btn = event.target.closest("[data-market]");
   if (!btn) return;
-  activeMarketFilter = btn.dataset.market || null;
+  const market = btn.dataset.market;
+  if (!market || activeMarketFilter === market) return;
+  activeMarketFilter = market;
   activeEvidenceGroup = null;
   renderDocs(activeProject);
 });
