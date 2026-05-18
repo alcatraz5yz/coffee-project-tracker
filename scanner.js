@@ -141,9 +141,9 @@ async function findIecRootsAsync(projectDir) {
         .filter(e => e.isDirectory() && !isLockFile(e.name));
     } catch { return []; }
 
-    // Direct IEC folder → classic structure, no label
+    // Direct IEC folder — only treat as single no-label root if it's the only subfolder
     const iec = entries.find(e => e.name === "IEC");
-    if (iec) return [{ path: path.join(dirPath, "IEC"), label: "" }];
+    if (iec && entries.length === 1) return [{ path: path.join(dirPath, "IEC"), label: "" }];
 
     // Container folders (Zulassungen, Zulassung) → recurse one level
     const container = entries.find(e => /^Zulassung/i.test(e.name));
@@ -357,6 +357,12 @@ const stmts = {
   getStoredMtimes: db.prepare(
     "SELECT area, folder_mtime FROM document_groups WHERE project_id = ? AND folder_mtime IS NOT NULL"
   ),
+  getExistingAreas: db.prepare(
+    "SELECT DISTINCT area FROM document_groups WHERE project_id = ?"
+  ),
+  deleteStaleArea: db.prepare(
+    "DELETE FROM document_groups WHERE project_id = ? AND area = ?"
+  ),
   insertScanLog: db.prepare(
     `INSERT INTO scan_log (scanned_at, projects_found, files_found, notes) VALUES (?, ?, ?, ?)`
   ),
@@ -400,6 +406,22 @@ function writeProjectToDB(res, now) {
         id, g.area, g.status, g.count, g.summary,
         g.primary_doc, g.href, g.last_scanned, g.folder_mtime || null
       );
+    }
+  }
+
+  // Prune areas that no longer exist (e.g. after IEC root structure changes)
+  const activeAreas = new Set([
+    ...(skippedAreas || []),
+    ...documentGroups.map(g => g.area),
+  ]);
+  if (activeAreas.size > 0) {
+    for (const id of ids) {
+      const existingAreas = stmts.getExistingAreas.all(id).map(r => r.area);
+      for (const area of existingAreas) {
+        if (!activeAreas.has(area)) {
+          stmts.deleteStaleArea.run(id, area);
+        }
+      }
     }
   }
 
@@ -493,7 +515,52 @@ async function scan(customRoot, onProgress) {
   return result;
 }
 
-module.exports = { scan, PCS_ROOT };
+// ── Single-project scan ──────────────────────────────────────
+async function scanSingle(projectId, root) {
+  root = root || PCS_ROOT;
+  const now = new Date().toISOString();
+
+  // Find the folder in PCS_ROOT that contains this project
+  let rootEntries = [];
+  try {
+    rootEntries = (await fsp.readdir(root, { withFileTypes: true }))
+      .filter(e => e.isDirectory() && isProjectFolderName(e.name));
+  } catch (err) {
+    return { error: `Kann PCS-Root nicht lesen: ${err.message}` };
+  }
+
+  const targetNumber = projectId.replace(/^EF/i, "");
+  const entry = rootEntries.find(e => {
+    const nums = extractProjectNumbers(e.name);
+    return nums.includes(targetNumber);
+  });
+
+  if (!entry) return { error: `Ordner für ${projectId} nicht gefunden` };
+
+  const numbers = extractProjectNumbers(entry.name);
+  const primaryNumber = numbers[0];
+  const primaryId = `${PROJECT_PREFIX}${primaryNumber}`;
+  const projectDir = path.join(root, entry.name);
+
+  const storedMtimes = new Map(
+    stmts.getStoredMtimes.all(primaryId).map(r => [r.area, r.folder_mtime])
+  );
+
+  const res = await scanProject(primaryNumber, projectDir, storedMtimes, numbers);
+
+  db.transaction(() => { writeProjectToDB(res, now); })();
+
+  return {
+    projectId,
+    folder: entry.name,
+    documentGroups: res.documentGroups.length,
+    skipped: res.skipped,
+    scanned: res.scanned,
+    errors: res.errors,
+  };
+}
+
+module.exports = { scan, scanSingle, PCS_ROOT };
 
 // ── Run standalone ───────────────────────────────────────────
 if (require.main === module) {

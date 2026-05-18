@@ -284,6 +284,14 @@ select {
   background: var(--sidebar-panel-active);
 }
 
+.machine-list button.sidebar-variant {
+  margin-left: 12px;
+  width: calc(100% - 12px);
+  border-left: 2px solid var(--sidebar-line);
+  border-radius: 0 6px 6px 0;
+  opacity: 0.85;
+}
+
 
 .machine-list > button > span {
   grid-column: 1 / -1;

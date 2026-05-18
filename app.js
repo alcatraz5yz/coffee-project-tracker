@@ -247,6 +247,21 @@ function renderMachines() {
       .join(" ").toLowerCase().includes(q);
   });
 
+  // On dashboard: sort so variant groups are together.
+  // Each project gets a sort key = EF number of its group primary.
+  // Within a group: primary first, then variants by EF number.
+  const efNum = (id) => parseInt((id || "").replace(/^EF/i, ""), 10) || 0;
+  const sorted = activeView === "dashboard" ? [...filtered].sort((a, b) => {
+    const aPrimary = efNum(a.variant_of || a.id);
+    const bPrimary = efNum(b.variant_of || b.id);
+    if (aPrimary !== bPrimary) return aPrimary - bPrimary;
+    // Within group: primary (no variant_of) first
+    const aIsVariant = a.variant_of ? 1 : 0;
+    const bIsVariant = b.variant_of ? 1 : 0;
+    if (aIsVariant !== bIsVariant) return aIsVariant - bIsVariant;
+    return efNum(a.id) - efNum(b.id);
+  }) : filtered;
+
   const IEC_STAGES = new Set(["PT1", "OOT", "TS1", "TS2", "TS3"]);
   const renderStages = (stages, p) =>
     stages.map((b) => `<span data-build-select="${b}" class="${b === activeBuild && p.id === activeProject?.id ? "active" : ""}">${b}</span>`).join("");
@@ -260,8 +275,9 @@ function renderMachines() {
         ${iec.length && ul.length ? `<hr class="build-type-divider">` : ""}
         ${ul.length  ? `<span class="build-type-label">UL</span>${renderStages(ul, p)}` : ""}
       </div>` : "";
+    const isVariant = activeView === "dashboard" && p.variant_of;
     return `
-    <button class="${p.id === activeProject?.id ? "active" : ""}" data-id="${p.id}" type="button">
+    <button class="${p.id === activeProject?.id ? "active" : ""}${isVariant ? " sidebar-variant" : ""}" data-id="${p.id}" type="button">
       <strong>${p.id}</strong>
       <em class="${statusClass(p.health)}">${statusLabel(p.health)}</em>
       <span>${p.market ? `${termLabel(p.market)} / ` : ""}${p.phase}</span>
@@ -269,7 +285,7 @@ function renderMachines() {
     </button>`;
   };
 
-  machineList.innerHTML = filtered.map((p) => renderBtn(p)).join("");
+  machineList.innerHTML = sorted.map((p) => renderBtn(p)).join("");
 }
 
 const dashboardSearch = document.querySelector("#dashboard-search");
@@ -1761,6 +1777,24 @@ function showScanDone(s) {
 }
 
 async function startScanStream() {
+  // If a project is open, scan only that project
+  if (activeProject) {
+    scanBtn.disabled = true;
+    scanStatus.textContent = "Scanne…";
+    try {
+      await apiFetch(`/api/scan/project/${activeProject.id}`, { method: "POST" });
+      activeProject = await apiFetch(`/api/projects/${activeProject.id}`);
+      projectList = await apiFetch("/api/projects");
+      renderAll();
+      scanStatus.textContent = `${activeProject.id} ✓`;
+    } catch (e) {
+      scanStatus.textContent = "Fehler";
+    }
+    scanBtn.disabled = false;
+    return;
+  }
+
+  // Full scan when on dashboard
   scanBtn.disabled = true;
   scanStatus.textContent = "Scanne…";
   await apiFetch("/api/scan/start", { method: "POST" });
@@ -1775,7 +1809,6 @@ async function startScanStream() {
       showScanDone(s);
       scanBtn.disabled = false;
       projectList = await apiFetch("/api/projects");
-      if (activeProject) activeProject = await apiFetch(`/api/projects/${activeProject.id}`);
       if (activeView === "dashboard") { renderMachines(); renderDashboard(); } else renderAll();
       break;
     }

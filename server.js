@@ -32,7 +32,7 @@ const {
   deleteArchiveItem,
   db
 } = require("./db");
-const { scan, PCS_ROOT } = require("./scanner");
+const { scan, scanSingle, PCS_ROOT } = require("./scanner");
 
 const app = express();
 const PORT = process.env.PORT || 8090;
@@ -564,6 +564,16 @@ app.post("/api/scan/start", (_req, res) => {
     })
     .catch((err) => { console.error("Scan-Fehler:", err.message); scanInProgress = false; });
   res.json({ started: true });
+});
+
+app.post("/api/scan/project/:id", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await scanSingle(id, PCS_ROOT);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get("/api/scan/status", (_req, res) => {
