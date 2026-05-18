@@ -431,38 +431,52 @@ async function runProjectNoScan(root) {
   return count;
 }
 
-function runArchiveScan(excelPath) {
+let archiveRowsCache = null;
+
+function loadArchiveRows(excelPath) {
+  const wb = XLSX.readFile(excelPath);
+  archiveRowsCache = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: null });
+  return archiveRowsCache;
+}
+
+function processArchiveRows(rows, filterProjectId) {
+  const byEf = new Map();
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row) continue;
+    const efNum = row[3] != null ? String(row[3]).trim() : null;
+    if (!efNum || !efNum.match(/^\d{3,4}$/)) continue;
+    const efId = `EF${efNum}`;
+    if (filterProjectId && efId !== filterProjectId) continue;
+    const sektor = row[0] != null ? String(row[0]).trim() : "";
+    const einteilung = row[1] != null ? String(row[1]).trim() : "";
+    const nummer = row[2] != null ? String(row[2]).trim() : "";
+    const loc = sektor && einteilung && nummer ? `S${sektor}-${einteilung}${nummer}` : "";
+    if (!byEf.has(efId)) byEf.set(efId, { locs: new Set(), count: 0 });
+    const entry = byEf.get(efId);
+    if (loc) entry.locs.add(loc);
+    entry.count++;
+  }
+  let totalSamples = 0;
+  for (const [efId, { locs, count: n }] of byEf) {
+    const locStr = locs.size > 0
+      ? [...locs].join(", ") + ` (${n} Muster)`
+      : `${n} Muster`;
+    updateArchiveLocation(efId, locStr);
+    totalSamples += n;
+  }
+  return totalSamples;
+}
+
+function runArchiveScan(excelPath, filterProjectId) {
   return new Promise((resolve, reject) => {
     try {
-      const wb = XLSX.readFile(excelPath);
-      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: null });
-      // Col 3 = EF-Nummer (als Zahl), Col 0 = Sektor, Col 1 = Einteilung, Col 2 = Nummer
-      // → Standort: "Sektor X · Y-Z"
-      const byEf = new Map(); // efId → { locs: Set, count: number }
-      for (let i = 1; i < rows.length; i++) {
-        const row = rows[i];
-        if (!row) continue;
-        const efNum = row[3] != null ? String(row[3]).trim() : null;
-        if (!efNum || !efNum.match(/^\d{3,4}$/)) continue;
-        const efId = `EF${efNum}`;
-        const sektor = row[0] != null ? String(row[0]).trim() : "";
-        const einteilung = row[1] != null ? String(row[1]).trim() : "";
-        const nummer = row[2] != null ? String(row[2]).trim() : "";
-        const loc = sektor && einteilung && nummer ? `S${sektor}-${einteilung}${nummer}` : "";
-        if (!byEf.has(efId)) byEf.set(efId, { locs: new Set(), count: 0 });
-        const entry = byEf.get(efId);
-        if (loc) entry.locs.add(loc);
-        entry.count++;
-      }
-      let count = 0;
-      for (const [efId, { locs, count: n }] of byEf) {
-        const locStr = locs.size > 0
-          ? [...locs].join(", ") + ` (${n} Muster)`
-          : `${n} Muster`;
-        updateArchiveLocation(efId, locStr);
-        count++;
-      }
-      resolve(count);
+      // Per-project sync: use cache if available (avoids slow network read)
+      // Full sync: always re-read file and refresh cache
+      const rows = filterProjectId && archiveRowsCache
+        ? archiveRowsCache
+        : loadArchiveRows(excelPath);
+      resolve(processArchiveRows(rows, filterProjectId));
     } catch (e) { reject(new Error(`Archiv-Excel Fehler: ${e.message}`)); }
   });
 }
@@ -471,6 +485,15 @@ app.post("/api/scan-archive", async (req, res) => {
   const excelPath = req.body?.path || ARCHIVE_EXCEL_PATH;
   try {
     const updated = await runArchiveScan(excelPath);
+    res.json({ ok: true, updated });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/scan-archive/:id", async (req, res) => {
+  try {
+    const updated = await runArchiveScan(ARCHIVE_EXCEL_PATH, req.params.id);
     res.json({ ok: true, updated });
   } catch (e) {
     res.status(500).json({ error: e.message });

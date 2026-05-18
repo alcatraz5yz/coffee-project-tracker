@@ -1378,10 +1378,14 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
       e.preventDefault();
       const rows = [...document.querySelectorAll(".evidence-file-row:not(.evidence-file-row--folder):not(.head)")];
       const idx = rows.indexOf(selectedRow);
-      const next = e.key === "ArrowDown" ? rows[idx + 1] : rows[idx - 1];
-      if (next) {
-        const link = next.querySelector("a[href]");
-        if (link && canPreview(link.href)) { next.scrollIntoView({ block: "nearest" }); openPreview(next, link.href, link.textContent.trim()); }
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      for (let i = idx + step; i >= 0 && i < rows.length; i += step) {
+        const link = rows[i].querySelector("a[href]");
+        if (link && canPreview(link.href)) {
+          rows[i].scrollIntoView({ block: "nearest" });
+          openPreview(rows[i], link.href, link.textContent.trim());
+          break;
+        }
       }
     }
   }, true);
@@ -1823,10 +1827,12 @@ const archiveSyncBtn = document.querySelector("#archive-sync-btn");
 async function runArchiveSync() {
   archiveSyncBtn.disabled = true;
   archiveSyncBtn.textContent = "Sync…";
+  const url = activeProject
+    ? `/api/scan-archive/${activeProject.id}`
+    : "/api/scan-archive";
   try {
-    const result = await apiFetch("/api/scan-archive", { method: "POST" });
+    const result = await apiFetch(url, { method: "POST" });
     archiveSyncBtn.textContent = `✓ ${result.updated} Einträge`;
-    // Reload current project to pick up new archive_location
     if (activeProject) {
       activeProject = await apiFetch(`/api/projects/${activeProject.id}`);
       renderSummary(activeProject);
