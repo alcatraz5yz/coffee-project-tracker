@@ -1760,6 +1760,14 @@ h2 {
   border-bottom: 1px solid var(--line);
 }
 
+.evidence-file-row--word {
+  background: rgba(59, 130, 246, 0.07);
+}
+
+.evidence-file-row--excel {
+  background: rgba(34, 197, 94, 0.07);
+}
+
 .evidence-file-row.head {
   background: var(--panel-soft);
   color: var(--muted);

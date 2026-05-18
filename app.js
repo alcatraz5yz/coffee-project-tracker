@@ -767,7 +767,7 @@ function renderDocs(project) {
             <span>Name</span><span>Typ</span><span>Geändert</span><span>Aktion</span>
           </div>
           ${entries.map((entry) => `
-            <div class="evidence-file-row${entry.type === "Ordner" ? " evidence-file-row--folder" : ""}">
+            <div class="evidence-file-row${entry.type === "Ordner" ? " evidence-file-row--folder" : isWordFile(entry.name) ? " evidence-file-row--word" : isExcelFile(entry.name) ? " evidence-file-row--excel" : ""}">
               ${entry.type === "Ordner"
                 ? entry.empty
                   ? `<span class="evidence-folder-btn evidence-folder-empty">📁 ${entry.name} <em>leer</em></span>`
