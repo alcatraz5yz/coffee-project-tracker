@@ -723,9 +723,18 @@ function renderDocs(project) {
     .slice()
     .sort((a, b) => String(a.primary || "").localeCompare(String(b.primary || "")));
 
-  // Detect unique markets (prefix before " / " in area name)
+  // Detect unique markets (prefix before " / " in area name).
+  // Only treat a prefix as a real market if it looks like a market code (IEC, UL, EU, US, etc.)
+  // — not IEC_FOLDER_MAP values like "Standards / Changes" or "Manual / Labels".
+  function isMarketCode(s) {
+    return /^(IEC|UL|EU|US|JP|CN|AU|IN|MX|TW|BR|KR|CH|DE|FR)([\s,]|$)/.test(s);
+  }
   const markets = [...new Set(
-    allGroups.map(g => g.area?.includes(" / ") ? g.area.split(" / ")[0] : null).filter(Boolean)
+    allGroups.map(g => {
+      if (!g.area?.includes(" / ")) return null;
+      const prefix = g.area.split(" / ")[0];
+      return isMarketCode(prefix) ? prefix : null;
+    }).filter(Boolean)
   )];
 
   // Auto-select first market if none active and markets exist
@@ -734,7 +743,12 @@ function renderDocs(project) {
   }
 
   const groups = activeMarketFilter
-    ? allGroups.filter(g => !g.area?.includes(" / ") || g.area.startsWith(activeMarketFilter + " / "))
+    ? allGroups.filter(g => {
+        if (!g.area?.includes(" / ")) return true;
+        const prefix = g.area.split(" / ")[0];
+        if (!isMarketCode(prefix)) return true; // IEC_FOLDER_MAP area — always show
+        return g.area.startsWith(activeMarketFilter + " / ");
+      })
     : allGroups;
   const groupDetailMarkup = (group) => {
     const key = evidenceCacheKey(project.id, group.primary);
