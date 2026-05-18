@@ -415,6 +415,12 @@ body:not([data-theme="dark"]) .sidebar-builds span {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 25%, transparent);
 }
+body:not([data-theme="dark"]) .sidebar-builds span.active,
+body:not([data-theme="dark"]) .sidebar-builds span:hover {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
 
 em {
   border-radius: 999px;
