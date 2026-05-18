@@ -317,7 +317,7 @@ function renderMachines() {
     const ul  = (p.buildStages || []).filter((b) => !IEC_STAGES.has(b));
     const buildsHTML = (iec.length || ul.length) ? `
       <div class="sidebar-builds">
-        ${iec.length ? `<span class="build-type-label">IEC</span>${renderStages(iec, p)}` : ""}
+        ${renderStages(iec, p)}
         ${iec.length && ul.length ? `<hr class="build-type-divider">` : ""}
         ${ul.length  ? `<span class="build-type-label">UL</span>${renderStages(ul, p)}` : ""}
       </div>` : "";
