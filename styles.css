@@ -1846,6 +1846,49 @@ h2 {
   gap: 6px;
 }
 
+.file-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.file-name-cell a,
+.file-name-cell button {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-thumb-img {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+  flex-shrink: 0;
+  background: var(--panel-soft);
+}
+
+.file-thumb-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.file-thumb-icon--pdf  { background: #fee2e2; color: #dc2626; }
+.file-thumb-icon--word { background: #dbeafe; color: #1d4ed8; }
+.file-thumb-icon--excel { background: #dcfce7; color: #15803d; }
+.file-thumb-icon--file { background: var(--panel-soft); color: var(--muted); }
+
 .file-preview-panel {
   position: fixed;
   top: 0;

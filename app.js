@@ -554,6 +554,17 @@ function officeEditHref(link) {
 function shouldOpenOfficeLocally(link) {
   return trackerConfig.documentMode === "local" && isOfficeFile(evidenceHref(link));
 }
+function fileThumbHtml(entry) {
+  const name = entry.name || "";
+  const href = entry.href || "";
+  if (/\.(jpe?g|png|gif|webp|svg|bmp)$/i.test(name)) {
+    return `<img src="${href}" loading="lazy" class="file-thumb-img" alt="">`;
+  }
+  if (/\.pdf$/i.test(name)) return `<span class="file-thumb-icon file-thumb-icon--pdf">PDF</span>`;
+  if (isExcelFile(name)) return `<span class="file-thumb-icon file-thumb-icon--excel">XLS</span>`;
+  if (isWordFile(name)) return `<span class="file-thumb-icon file-thumb-icon--word">DOC</span>`;
+  return `<span class="file-thumb-icon file-thumb-icon--file">FILE</span>`;
+}
 function renderEvidenceCell(item) {
   if (!item.evidenceLinks?.length) return item.evidence || "";
   return `
@@ -699,9 +710,11 @@ function renderDocs(project) {
                 ? entry.empty
                   ? `<span class="evidence-folder-btn evidence-folder-empty">📁 ${entry.name} <em>leer</em></span>`
                   : `<button class="evidence-folder-btn" type="button" data-browse-subfolder="${entry.href}" data-browse-group="${group.primary}">📂 ${entry.name} <em class="folder-count">${entry.childCount} Dateien</em></button>`
-                : entry.type === "Datei" && isOfficeFile(entry.name)
-                  ? `<button class="word-action word-action--name" type="button" data-open-office-href="${entry.href}">${entry.name}</button>`
-                  : `<a href="${entry.href}" target="_blank" rel="noreferrer">${entry.name}</a>`}
+                : `<div class="file-name-cell">${fileThumbHtml(entry)}${
+                    isOfficeFile(entry.name)
+                      ? `<button class="word-action word-action--name" type="button" data-open-office-href="${entry.href}">${entry.name}</button>`
+                      : `<a href="${entry.href}" target="_blank" rel="noreferrer">${entry.name}</a>`
+                  }</div>`}
               <span>${entry.size || entry.type}</span>
               <span>${entry.modified}</span>
               <span class="evidence-file-actions">
