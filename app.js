@@ -49,6 +49,7 @@ let activeSubtopic = "Approbation";
 let activeBuild = "Alle";
 let activeView = "overview";
 let activeEvidenceGroup = null;
+let activeMarketFilter = null;
 const evidenceEntries = new Map();
 
 // ── Labels / helpers ─────────────────────────────────────────
@@ -518,7 +519,7 @@ function evidenceRelativePath(link) {
 function evidenceHref(link) {
   const rel = evidenceRelativePath(link);
   if (!rel) return "";
-  if (/^(evidence-\d+|files)\//.test(rel)) return encodeURI(rel);
+  if (/^(evidence-\d+|files)\//.test(rel)) return rel;
   if (trackerConfig.documentMode === "sharepoint") {
     return trackerConfig.sharePointRoot + rel.split("/").map(encodeURIComponent).join("/");
   }
@@ -643,9 +644,21 @@ function renderSubtopic(project) {
 
 // ── Docs / Evidence ───────────────────────────────────────────
 function renderDocs(project) {
-  const groups = (project.documentGroups || [])
+  const allGroups = (project.documentGroups || [])
     .slice()
     .sort((a, b) => String(a.primary || "").localeCompare(String(b.primary || "")));
+
+  // Detect unique markets (prefix before " / " in area name)
+  const markets = [...new Set(
+    allGroups.map(g => g.area?.includes(" / ") ? g.area.split(" / ")[0] : null).filter(Boolean)
+  )];
+
+  // Reset filter if current market no longer exists
+  if (activeMarketFilter && !markets.includes(activeMarketFilter)) activeMarketFilter = null;
+
+  const groups = markets.length > 0 && activeMarketFilter
+    ? allGroups.filter(g => !g.area?.includes(" / ") || g.area.startsWith(activeMarketFilter + " / "))
+    : allGroups;
   const groupDetailMarkup = (group) => {
     const key = evidenceCacheKey(project.id, group.primary);
     const cached = evidenceEntries.get(key);
@@ -686,6 +699,21 @@ function renderDocs(project) {
       </section>
     `;
   };
+
+  // Market filter bar
+  const filterBar = document.querySelector("#market-filter-bar");
+  if (filterBar) {
+    if (markets.length > 1) {
+      filterBar.innerHTML = `
+        <button class="market-filter-btn ${!activeMarketFilter ? "active" : ""}" data-market="">Alle</button>
+        ${markets.map(m => `<button class="market-filter-btn ${activeMarketFilter === m ? "active" : ""}" data-market="${m}">${m}</button>`).join("")}
+      `;
+      filterBar.style.display = "flex";
+    } else {
+      filterBar.innerHTML = "";
+      filterBar.style.display = "none";
+    }
+  }
 
   document.querySelector("#document-group-grid").innerHTML = groups.length
     ? groups.map((group) => {
@@ -786,6 +814,7 @@ function renderAll() {
 }
 
 async function openProject(projectId, view = "overview", pushHistory = true) {
+  activeMarketFilter = null;
   recordRecent(projectId);
   activeProject = await apiFetch(`/api/projects/${projectId}`);
   activeSubtopic = "Approbation";
@@ -1340,6 +1369,14 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     }
   }, true);
 })();
+
+document.querySelector("#docs-view").addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-market]");
+  if (!btn) return;
+  activeMarketFilter = btn.dataset.market || null;
+  activeEvidenceGroup = null;
+  renderDocs(activeProject);
+});
 
 document.querySelector("#docs-view").addEventListener("keydown", (event) => {
   if (!["Enter", " "].includes(event.key)) return;

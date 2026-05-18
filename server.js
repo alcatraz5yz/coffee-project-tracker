@@ -2,6 +2,7 @@ const express = require("express");
 const path = require("path");
 const os = require("os");
 const fs = require("fs");
+const { trackerConfig } = require("./config");
 const { spawn } = require("child_process");
 const XLSX = require("xlsx");
 const IS_WIN = process.platform === "win32";
@@ -364,7 +365,7 @@ app.post("/api/open-folder", (req, res) => {
   });
 });
 
-const ARCHIVE_EXCEL_PATH = process.env.ARCHIVE_EXCEL || path.join(os.homedir(), "Desktop", "PCS_Archiv_Muster.xlsx");
+const ARCHIVE_EXCEL_PATH = process.env.ARCHIVE_EXCEL || trackerConfig.archiveExcel || path.join(os.homedir(), "Desktop", "PCS_Archiv_Muster.xlsx");
 
 function _xlsxProjectNo(xlsxPath) {
   try {
@@ -384,11 +385,12 @@ function _xlsxProjectNo(xlsxPath) {
   return null;
 }
 
-function _findApprobationXlsx(projectDir) {
+async function _findApprobationXlsx(projectDir) {
   const results = [];
-  function walk(dir) {
+  async function walk(dir, depth) {
+    if (depth > 3) return;
     let entries;
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    try { entries = await fsp.readdir(dir, { withFileTypes: true }); } catch { return; }
     if (path.basename(dir).toLowerCase() === "approbationsauftrag") {
       for (const e of entries.sort((a, b) => a.name.localeCompare(b.name))) {
         if (e.isFile() && /\.xlsx$/i.test(e.name) && !e.name.startsWith("~$") && !e.name.startsWith("."))
@@ -398,10 +400,10 @@ function _findApprobationXlsx(projectDir) {
     }
     for (const e of entries) {
       if (e.name.startsWith(".") || e.name.startsWith("~$")) continue;
-      if (e.isDirectory()) walk(path.join(dir, e.name));
+      if (e.isDirectory()) await walk(path.join(dir, e.name), depth + 1);
     }
   }
-  walk(projectDir);
+  await walk(projectDir, 0);
   return results;
 }
 
@@ -410,25 +412,23 @@ function _projectIdFromFolder(name) {
   return m ? `EF${m[1]}` : null;
 }
 
-function runProjectNoScan(root) {
-  return new Promise((resolve, reject) => {
-    let entries;
-    try {
-      entries = fs.readdirSync(root, { withFileTypes: true })
-        .filter(e => e.isDirectory() && !e.name.startsWith("."))
-        .sort((a, b) => a.name.localeCompare(b.name));
-    } catch (e) { return reject(new Error(e.message)); }
-    let count = 0;
-    for (const entry of entries) {
-      const projectId = _projectIdFromFolder(entry.name);
-      if (!projectId) continue;
-      for (const xlsxPath of _findApprobationXlsx(path.join(root, entry.name))) {
-        const no = _xlsxProjectNo(xlsxPath);
-        if (no) { updateProjectNo(projectId, no); count++; break; }
-      }
+async function runProjectNoScan(root) {
+  let entries;
+  try {
+    entries = (await fsp.readdir(root, { withFileTypes: true }))
+      .filter(e => e.isDirectory() && !e.name.startsWith("."))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch (e) { throw new Error(e.message); }
+  let count = 0;
+  for (const entry of entries) {
+    const projectId = _projectIdFromFolder(entry.name);
+    if (!projectId) continue;
+    for (const xlsxPath of await _findApprobationXlsx(path.join(root, entry.name))) {
+      const no = _xlsxProjectNo(xlsxPath);
+      if (no) { updateProjectNo(projectId, no); count++; break; }
     }
-    resolve(count);
-  });
+  }
+  return count;
 }
 
 function runArchiveScan(excelPath) {
@@ -436,20 +436,30 @@ function runArchiveScan(excelPath) {
     try {
       const wb = XLSX.readFile(excelPath);
       const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: null });
-      const byEf = new Map();
+      // Col 3 = EF-Nummer (als Zahl), Col 0 = Sektor, Col 1 = Einteilung, Col 2 = Nummer
+      // → Standort: "Sektor X · Y-Z"
+      const byEf = new Map(); // efId → { locs: Set, count: number }
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i];
-        if (!row || !row[0]) continue;
-        const efNr = String(row[0]).trim();
-        const loc = row[4] ? String(row[4]).trim() : "";
-        if (!efNr || !loc || loc === "—") continue;
-        if (!byEf.has(efNr)) byEf.set(efNr, []);
-        const locs = byEf.get(efNr);
-        if (!locs.includes(loc)) locs.push(loc);
+        if (!row) continue;
+        const efNum = row[3] != null ? String(row[3]).trim() : null;
+        if (!efNum || !efNum.match(/^\d{3,4}$/)) continue;
+        const efId = `EF${efNum}`;
+        const sektor = row[0] != null ? String(row[0]).trim() : "";
+        const einteilung = row[1] != null ? String(row[1]).trim() : "";
+        const nummer = row[2] != null ? String(row[2]).trim() : "";
+        const loc = sektor && einteilung && nummer ? `S${sektor}-${einteilung}${nummer}` : "";
+        if (!byEf.has(efId)) byEf.set(efId, { locs: new Set(), count: 0 });
+        const entry = byEf.get(efId);
+        if (loc) entry.locs.add(loc);
+        entry.count++;
       }
       let count = 0;
-      for (const [ef, locs] of byEf) {
-        updateArchiveLocation(ef, locs.join(" · "));
+      for (const [efId, { locs, count: n }] of byEf) {
+        const locStr = locs.size > 0
+          ? [...locs].join(", ") + ` (${n} Muster)`
+          : `${n} Muster`;
+        updateArchiveLocation(efId, locStr);
         count++;
       }
       resolve(count);
@@ -544,6 +554,7 @@ app.post("/api/scan/start", (_req, res) => {
   scan(null, (p) => { scanProgress = p; })
     .then(async (r) => {
       console.log(`Scan fertig: ${r.projects.length} Projekt(e)`);
+      scanInProgress = false;
       try {
         const n = await runProjectNoScan(PCS_ROOT);
         console.log(`Projektnummern: ${n} gescannt`);
@@ -551,8 +562,7 @@ app.post("/api/scan/start", (_req, res) => {
         console.warn(`Projektnr-Scan fehlgeschlagen: ${e.message}`);
       }
     })
-    .catch((err) => console.error("Scan-Fehler:", err.message))
-    .finally(() => { scanInProgress = false; });
+    .catch((err) => { console.error("Scan-Fehler:", err.message); scanInProgress = false; });
   res.json({ started: true });
 });
 
