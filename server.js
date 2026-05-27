@@ -690,7 +690,7 @@ app.get("/api/list-path", (req, res) => {
 app.get("/api/platform", (_req, res) => res.json({ platform: process.platform, isWin: IS_WIN }));
 
 // ── Start ──────────────────────────────────────────────────
-app.listen(PORT, () => {
+app.listen(PORT, "127.0.0.1", () => {
   console.log(`PCS Dashboard → http://localhost:${PORT}`);
   console.log(`Datenbank: pcs.db  |  Dokumente: evidence-1157/`);
   runArchiveScan(ARCHIVE_EXCEL_PATH)
