@@ -97,6 +97,7 @@ let activeView = "overview";
 let activeEvidenceGroup = null;
 let activeMarketFilter = null;
 const evidenceEntries = new Map();
+const evidencePathEntries = new Map();
 
 // ── Labels / helpers ─────────────────────────────────────────
 const statusFlow = ["Open", "Done", "Not needed"];
@@ -245,13 +246,23 @@ async function loadEvidenceEntries(group, browseHref) {
   const key = evidenceCacheKey(activeProject.id, group.primary);
   const href = browseHref || evidenceHref(group);
   const rootHref = evidenceHref(group);
+  const pathKey = `${key}:${href}`;
+  const cachedPath = evidencePathEntries.get(pathKey);
+  if (cachedPath) {
+    evidenceEntries.set(key, { ...cachedPath, loading: false, browseHref: href, rootHref });
+    renderDocs(activeProject);
+    return;
+  }
   const prev = evidenceEntries.get(key);
   evidenceEntries.set(key, { loading: true, entries: prev?.entries || [], browseHref: href, rootHref });
   if (!prev?.entries?.length) renderDocs(activeProject);
   try {
     const data = await apiFetch(`/api/list-path?href=${encodeURIComponent(href)}`);
-    evidenceEntries.set(key, { loading: false, entries: data.entries || [], browseHref: href, rootHref });
+    const next = { loading: false, entries: data.entries || [], browseHref: href, rootHref };
+    evidencePathEntries.set(pathKey, next);
+    evidenceEntries.set(key, next);
   } catch (err) {
+    evidencePathEntries.delete(pathKey);
     evidenceEntries.set(key, { loading: false, error: true, entries: [], browseHref: href, rootHref });
     console.error("Evidence list error:", err);
   }

@@ -651,6 +651,9 @@ app.post("/api/open-path", (req, res) => {
   res.json({ ok: true });
 });
 
+const listPathCache = new Map();
+const LIST_PATH_CACHE_MS = 60_000;
+
 app.get("/api/list-path", (req, res) => {
   const href = req.query?.href;
   const target = resolveAllowedHref(href);
@@ -660,6 +663,10 @@ app.get("/api/list-path", (req, res) => {
   if (!stat.isDirectory()) return res.status(400).json({ error: "Pfad ist kein Ordner" });
 
   const urlPath = decodeURIComponent(String(href).split("?")[0]);
+  const cacheKey = `${target}:${stat.mtimeMs}`;
+  const cached = listPathCache.get(cacheKey);
+  if (cached && Date.now() - cached.createdAt < LIST_PATH_CACHE_MS) return res.json(cached.payload);
+
   const entries = fs.readdirSync(target, { withFileTypes: true })
     .filter((entry) => !entry.name.startsWith(".") && !entry.name.startsWith("~$") && !/\.db$/i.test(entry.name) && !/\.tmp$/i.test(entry.name))
     .map((entry) => {
@@ -684,7 +691,13 @@ app.get("/api/list-path", (req, res) => {
     .sort((a, b) => Number(b.type === "Ordner") - Number(a.type === "Ordner") || b.mtime - a.mtime)
     .map(({ mtime, ...rest }) => rest);
 
-  res.json({ href: urlPath, entries });
+  const payload = { href: urlPath, entries };
+  listPathCache.set(cacheKey, { createdAt: Date.now(), payload });
+  if (listPathCache.size > 200) {
+    const firstKey = listPathCache.keys().next().value;
+    listPathCache.delete(firstKey);
+  }
+  res.json(payload);
 });
 
 app.get("/api/platform", (_req, res) => res.json({ platform: process.platform, isWin: IS_WIN }));
