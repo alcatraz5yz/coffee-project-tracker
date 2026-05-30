@@ -23,12 +23,23 @@ node server.js
 ```powershell
 git clone https://github.com/alcatraz5yz/coffee-project-tracker.git
 cd coffee-project-tracker
-git checkout windows
 npm install
 node server.js
 ```
 
 Then open **http://localhost:8090** in your browser.
+
+For background mode without a console window:
+
+```powershell
+wscript start.vbs
+```
+
+To stop it:
+
+```powershell
+stop.bat
+```
 
 ## First launch (Windows)
 

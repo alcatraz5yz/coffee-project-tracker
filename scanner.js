@@ -17,9 +17,10 @@ const fsp = fs.promises;
 const path = require("path");
 const os = require("os");
 const { db } = require("./db");
+const { trackerConfig } = require("./config");
 
 // ── Config ──────────────────────────────────────────────────
-const PCS_ROOT = process.env.PCS_ROOT || path.join(os.homedir(), "Desktop");
+const PCS_ROOT = process.env.PCS_ROOT || trackerConfig.pcsRoot || path.join(os.homedir(), "Desktop");
 const PROJECT_PREFIX = process.env.PROJECT_PREFIX || "EF";
 const CONCURRENCY = 8;
 

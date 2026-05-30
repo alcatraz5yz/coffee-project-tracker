@@ -4,6 +4,7 @@ const os = require("os");
 const fs = require("fs");
 const { spawn, spawnSync } = require("child_process");
 const XLSX = require("xlsx");
+const { trackerConfig } = require("./config");
 const {
   getProjects,
   getProject,
@@ -31,9 +32,16 @@ const {
   db
 } = require("./db");
 const { scan, PCS_ROOT } = require("./scanner");
+const { classifyNewEntries } = require("./tabelle30-match");
+const { parseTabelle30, parseExcelErgaenzung } = require("./tabelle30-node");
+const { updateTabelle30 } = require("./tabelle30-update-node");
+const { readDocumentXml } = require("./docx-reader");
+const { fileContainsTabelle24, parseTabelle24, updateTabelle24 } = require("./tabelle24-node");
+const { lookupVde } = require("./vde-lookup-node");
 
 const app = express();
 const PORT = process.env.PORT || 8090;
+const HOST = process.env.HOST || "127.0.0.1";
 const evidenceRoots = new Map();
 
 app.use(express.json());
@@ -51,6 +59,14 @@ function hrefJoin(baseUrl, name, isDirectory) {
   return `${cleanBase}${encodeURIComponent(name)}${isDirectory ? "/" : ""}`;
 }
 
+// True only when `target` is `root` itself or a path genuinely inside it.
+// A plain startsWith(root) check would also accept sibling folders that merely
+// share a name prefix (e.g. "evidence-1157-backup" for root "evidence-1157"),
+// which would let crafted ../ hrefs escape the allowed root.
+function isWithin(root, target) {
+  return target === root || target.startsWith(root + path.sep);
+}
+
 function sendDirectoryListing(req, res, root, mountPath) {
   const mount = mountPath.endsWith("/") ? mountPath.slice(0, -1) : mountPath;
   const reqPath = decodeURIComponent(req.originalUrl.split("?")[0]);
@@ -59,7 +75,7 @@ function sendDirectoryListing(req, res, root, mountPath) {
   const safeRoot = fs.realpathSync(root);
   const target = path.resolve(safeRoot, relPath);
 
-  if (!target.startsWith(safeRoot)) return res.status(403).send("Forbidden");
+  if (!isWithin(safeRoot, target)) return res.status(403).send("Forbidden");
   if (!fs.existsSync(target)) return false;
 
   const stat = fs.statSync(target);
@@ -168,21 +184,21 @@ function resolveAllowedHref(href) {
     const rel = urlPath.slice(prefix.length);
     const safeRoot = fs.realpathSync(root);
     const target = path.resolve(safeRoot, rel);
-    if (target.startsWith(safeRoot) && fs.existsSync(target)) return target;
+    if (isWithin(safeRoot, target) && fs.existsSync(target)) return target;
   }
 
   if (urlPath.startsWith("/files/")) {
     const safeRoot = fs.realpathSync(PCS_ROOT);
     const rel = urlPath.slice("/files/".length);
     const target = path.resolve(safeRoot, rel);
-    if (target.startsWith(safeRoot) && fs.existsSync(target)) return target;
+    if (isWithin(safeRoot, target) && fs.existsSync(target)) return target;
 
     const parts = rel.split("/");
     const projectFolder = parts[0] || "";
     const projectMatch = projectFolder.match(/^EF[\s_-]*(\d+)$/i);
     if (projectMatch) {
       const fallback = path.resolve(safeRoot, projectMatch[1], ...parts.slice(1));
-      if (fallback.startsWith(safeRoot) && fs.existsSync(fallback)) return fallback;
+      if (isWithin(safeRoot, fallback) && fs.existsSync(fallback)) return fallback;
     }
   }
 
@@ -293,14 +309,14 @@ app.use("/files", (req, _res, next) => {
   const safeRoot = fs.realpathSync(PCS_ROOT);
   const rel = decodeHrefPath(req.path).replace(/^\/+/, "");
   const target = path.resolve(safeRoot, rel);
-  if (target.startsWith(safeRoot) && fs.existsSync(target)) return next();
+  if (isWithin(safeRoot, target) && fs.existsSync(target)) return next();
 
   const parts = rel.split("/");
   const projectMatch = (parts[0] || "").match(/^EF[\s_-]*(\d+)$/i);
   if (projectMatch) {
     const fallbackParts = [projectMatch[1], ...parts.slice(1)];
     const fallback = path.resolve(safeRoot, ...fallbackParts);
-    if (fallback.startsWith(safeRoot) && fs.existsSync(fallback)) {
+    if (isWithin(safeRoot, fallback) && fs.existsSync(fallback)) {
       const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
       req.url = `/${fallbackParts.map(encodeURIComponent).join("/")}${query}`;
     }
@@ -435,7 +451,7 @@ app.post("/api/open-folder", (req, res) => {
   });
 });
 
-const ARCHIVE_EXCEL_PATH = process.env.ARCHIVE_EXCEL || path.join(os.homedir(), "Desktop", "PCS_Archiv_Muster.xlsx");
+const ARCHIVE_EXCEL_PATH = process.env.ARCHIVE_EXCEL || trackerConfig.archiveExcel || path.join(os.homedir(), "Desktop", "PCS_Archiv_Muster.xlsx");
 
 function _xlsxProjectNo(xlsxPath) {
   try {
@@ -909,26 +925,6 @@ app.post("/api/file-action", (req, res) => {
 });
 
 // ── Tabelle 24 (component-certificate table scanner) ──────────────
-const TABELLE24_SCRIPT = path.join(os.homedir(), "Desktop", "scripts-tabelle24", "parse_bauteilliste.py");
-
-function runJsonProcess(command, args, stdinJson) {
-  return new Promise((resolve, reject) => {
-    const proc = spawn(command, args, { stdio: [stdinJson ? "pipe" : "ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    proc.stdout.on("data", (d) => { stdout += d; });
-    proc.stderr.on("data", (d) => { stderr += d; });
-    proc.on("close", (code) => {
-      if (code !== 0) return reject(new Error(stderr.trim() || `${command} exited ${code}`));
-      try {
-        resolve(JSON.parse(stdout));
-      } catch (err) {
-        reject(new Error(`non-JSON output: ${err.message}`));
-      }
-    });
-    if (stdinJson) proc.stdin.end(JSON.stringify(stdinJson));
-  });
-}
 
 function resolveTabelle24Root(query) {
   if (query.root && typeof query.root === "string") {
@@ -1199,10 +1195,8 @@ function analyzeTabelle24Rows(parsed, targetRoot) {
 }
 
 // List Intern Bauteilliste files in a project that actually contain Tabelle 24.
-// Two-stage: walk (skip Archiv subdirs, require "intern" in name per workflow rule —
-// never the customer VDE copies) → content filter via has_tabelle24.py (greps for
-// "TABLE: components" marker in the .docx/.doc/.docm, no LibreOffice conversion).
-const HAS_TABELLE24_SCRIPT = path.join(os.homedir(), "Desktop", "scripts-tabelle24", "has_tabelle24.py");
+// Walk (skip Archiv subdirs, require "intern" in name per workflow rule — never
+// the customer VDE copies), then content-filter via pure Node marker scan.
 app.get("/api/tabelle24/files", (req, res) => {
   const resolved = resolveTabelle24Root(req.query);
   if (!resolved) return res.status(400).json({ error: "missing or unresolved ?root=, ?href=, or ?projectId=" });
@@ -1225,42 +1219,23 @@ app.get("/api/tabelle24/files", (req, res) => {
   }
   walk(searchRoot, 0);
 
-  if (!fs.existsSync(HAS_TABELLE24_SCRIPT)) return res.status(500).json({ error: `filter script missing: ${HAS_TABELLE24_SCRIPT}` });
-  const proc = spawn("python3", [HAS_TABELLE24_SCRIPT], { stdio: ["pipe", "pipe", "pipe"] });
-  let stdout = "", stderr = "";
-  proc.stdout.on("data", (d) => { stdout += d; });
-  proc.stderr.on("data", (d) => { stderr += d; });
-  proc.on("close", (code) => {
-    if (code !== 0) return res.status(500).json({ error: stderr.trim() || `filter exited ${code}` });
-    let hits;
-    try { hits = JSON.parse(stdout); }
-    catch (e) { return res.status(500).json({ error: `filter returned non-JSON: ${e.message}` }); }
-    const files = hits.map((p) => {
-      const stat = fs.statSync(p);
-      return { path: p, name: path.basename(p), size: stat.size, mtime: stat.mtime.toISOString() };
-    }).sort((a, b) => b.mtime.localeCompare(a.mtime));
-    res.json({ root: searchRoot, files });
-  });
-  proc.stdin.end(allCandidates.join("\n"));
+  const hits = allCandidates.filter(fileContainsTabelle24);
+  const files = hits.map((p) => {
+    const stat = fs.statSync(p);
+    return { path: p, name: path.basename(p), size: stat.size, mtime: stat.mtime.toISOString() };
+  }).sort((a, b) => b.mtime.localeCompare(a.mtime));
+  res.json({ root: searchRoot, files });
 });
 
 // Look up a VDE certificate, return PDF list + extracted date + comparison verdict.
-const VDE_LOOKUP_SCRIPT = path.join(os.homedir(), "Desktop", "scripts-tabelle24", "vde_lookup.py");
-app.post("/api/tabelle24/vde-lookup", (req, res) => {
+app.post("/api/tabelle24/vde-lookup", async (req, res) => {
   const { certNumber, currentDate } = req.body || {};
   if (!certNumber || typeof certNumber !== "string") return res.status(400).json({ error: "missing certNumber" });
-  if (!fs.existsSync(VDE_LOOKUP_SCRIPT)) return res.status(500).json({ error: `vde_lookup script missing: ${VDE_LOOKUP_SCRIPT}` });
-
-  const proc = spawn("python3", [VDE_LOOKUP_SCRIPT], { stdio: ["pipe", "pipe", "pipe"] });
-  let stdout = "", stderr = "";
-  proc.stdout.on("data", (d) => { stdout += d; });
-  proc.stderr.on("data", (d) => { stderr += d; });
-  proc.on("close", (code) => {
-    if (code !== 0) return res.status(500).json({ error: stderr.trim() || `lookup exited ${code}` });
-    try { res.json(JSON.parse(stdout)); }
-    catch (e) { res.status(500).json({ error: `bad JSON: ${e.message}`, raw: stdout.slice(0, 500) }); }
-  });
-  proc.stdin.end(JSON.stringify({ certNumber, currentDate }));
+  try {
+    res.json(await lookupVde({ certNumber, currentDate }));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Serve a file from anywhere under ~/Desktop/ (used by Tabelle 24 PDF thumbnails).
@@ -1270,7 +1245,7 @@ app.get("/api/tabelle24/file", (req, res) => {
   if (!p || typeof p !== "string") return res.status(400).send("missing ?path");
   const safe = path.resolve(p);
   const desktop = path.resolve(os.homedir(), "Desktop");
-  if (!safe.startsWith(desktop) || !fs.existsSync(safe)) return res.status(404).send("not found");
+  if (!isWithin(desktop, safe) || !fs.existsSync(safe)) return res.status(404).send("not found");
   const ext = path.extname(safe).toLowerCase();
   const types = { ".pdf": "application/pdf", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".gif": "image/gif", ".webp": "image/webp" };
   res.setHeader("Content-Type", types[ext] || "application/octet-stream");
@@ -1283,9 +1258,9 @@ app.get("/api/tabelle24/vde-pdf", (req, res) => {
   const p = req.query.path;
   if (!p || typeof p !== "string") return res.status(400).send("missing ?path");
   const safe = path.resolve(p);
-  // Only allow paths inside the OS temp dir's vde-lookups subdir (where vde_lookup.py writes).
+  // Only allow paths inside the OS temp dir's vde-lookups subdir (where VDE lookup writes).
   const allowed = path.resolve(os.tmpdir(), "vde-lookups");
-  if (!safe.startsWith(allowed) || !fs.existsSync(safe)) return res.status(404).send("not found");
+  if (!isWithin(allowed, safe) || !fs.existsSync(safe)) return res.status(404).send("not found");
   res.setHeader("Content-Type", "application/pdf");
   fs.createReadStream(safe).pipe(res);
 });
@@ -1307,10 +1282,9 @@ app.post("/api/tabelle24/vde-place", async (req, res) => {
   if (!targetFolder || typeof targetFolder !== "string") return res.status(400).json({ error: "missing targetFolder" });
   const target = path.resolve(targetFolder);
   if (!fs.existsSync(target)) return res.status(404).json({ error: `target folder not found: ${target}` });
-  if (!fs.existsSync(VDE_LOOKUP_SCRIPT)) return res.status(500).json({ error: `vde_lookup script missing: ${VDE_LOOKUP_SCRIPT}` });
 
   try {
-    const lookup = await runJsonProcess("python3", [VDE_LOOKUP_SCRIPT], { certNumber, currentDate });
+    const lookup = await lookupVde({ certNumber, currentDate });
     if (!lookup.downloadedPdf || !fs.existsSync(lookup.downloadedPdf)) {
       return res.json({ lookup, placed: false, archived: [], saved: null, message: "no downloaded PDF available" });
     }
@@ -1344,34 +1318,45 @@ app.post("/api/tabelle24/vde-place", async (req, res) => {
 });
 
 // Apply status changes to a Bauteilliste, write a new .docx, return its path.
-const TABELLE24_UPDATE_SCRIPT = path.join(os.homedir(), "Desktop", "scripts-tabelle24", "update_bauteilliste.py");
 app.post("/api/tabelle24/save", (req, res) => {
   const { sourceFile, outputFile, changes } = req.body || {};
   if (!sourceFile || typeof sourceFile !== "string") return res.status(400).json({ error: "missing sourceFile" });
   if (!Array.isArray(changes) || !changes.length) return res.status(400).json({ error: "missing changes[]" });
   if (!fs.existsSync(sourceFile)) return res.status(404).json({ error: `source not found: ${sourceFile}` });
-  if (!fs.existsSync(TABELLE24_UPDATE_SCRIPT)) return res.status(500).json({ error: `update script missing: ${TABELLE24_UPDATE_SCRIPT}` });
-
-  const proc = spawn("python3", [TABELLE24_UPDATE_SCRIPT], { stdio: ["pipe", "pipe", "pipe"] });
-  let stdout = "", stderr = "";
-  proc.stdout.on("data", (d) => { stdout += d; });
-  proc.stderr.on("data", (d) => { stderr += d; });
-  proc.on("close", (code) => {
-    if (code !== 0) return res.status(500).json({ error: stderr.trim() || `updater exited ${code}` });
-    try { res.json(JSON.parse(stdout)); }
-    catch (e) { res.status(500).json({ error: `updater returned non-JSON: ${e.message}`, raw: stdout.slice(0, 500) }); }
-  });
-  proc.stdin.end(JSON.stringify({ sourceFile, outputFile, changes }));
+  try {
+    res.json(updateTabelle24({ sourceFile, outputFile, changes }));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ── Tabelle 30 (VDE Typenprüfung — "Resistance to heat and fire") ─────────────
-const TABELLE30_SCRIPT = path.join(os.homedir(), "Desktop", "scripts-tabelle24", "parse_tabelle30.py");
-const HAS_TABELLE30_SCRIPT = path.join(os.homedir(), "Desktop", "scripts-tabelle24", "has_tabelle30.py");
+const TABELLE30_MARKER = "Resistance to heat and fire";
+const TABELLE30_MARKER_ALT = "TABLE: Resistance to heat";
+
+function fileContainsTabelle30(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  try {
+    if (ext === ".docx" || ext === ".docm") {
+      const xml = readDocumentXml(filePath);
+      return xml.includes(TABELLE30_MARKER) || xml.includes(TABELLE30_MARKER_ALT);
+    }
+    if (ext === ".doc") {
+      const raw = fs.readFileSync(filePath);
+      return raw.includes(Buffer.from(TABELLE30_MARKER, "utf16le"))
+        || raw.includes(Buffer.from(TABELLE30_MARKER, "utf8"))
+        || raw.includes(Buffer.from(TABELLE30_MARKER_ALT, "utf16le"));
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
 
 // List Word files (anywhere under the project root) that actually contain a Tabelle 30
 // section. Two-stage: walk → collect all .doc/.docx/.docm → pipe paths through
-// has_tabelle30.py which greps the marker (fast zip read for .docx/.docm, raw-bytes
-// search for .doc — no LibreOffice conversion needed).
+// a pure-Node marker scan (fast zip read for .docx/.docm, raw-byte search for
+// .doc — no Python or LibreOffice needed for the file picker).
 app.get("/api/tabelle30/files", (req, res) => {
   const root = req.query.root;
   if (!root || typeof root !== "string") return res.status(400).json({ error: "missing ?root=<absolute path to EF project>" });
@@ -1394,24 +1379,277 @@ app.get("/api/tabelle30/files", (req, res) => {
   }
   walk(resolved, 0);
 
-  if (!fs.existsSync(HAS_TABELLE30_SCRIPT)) return res.status(500).json({ error: `filter script missing: ${HAS_TABELLE30_SCRIPT}` });
+  const hits = allCandidates.filter(fileContainsTabelle30);
+  const files = hits.map((p) => {
+    const stat = fs.statSync(p);
+    return { path: p, name: path.basename(p), size: stat.size, mtime: stat.mtime.toISOString() };
+  }).sort((a, b) => b.mtime.localeCompare(a.mtime));
+  res.json({ root: resolved, files });
+});
 
-  const proc = spawn("python3", [HAS_TABELLE30_SCRIPT], { stdio: ["pipe", "pipe", "pipe"] });
-  let stdout = "", stderr = "";
-  proc.stdout.on("data", (d) => { stdout += d; });
-  proc.stderr.on("data", (d) => { stderr += d; });
-  proc.on("close", (code) => {
-    if (code !== 0) return res.status(500).json({ error: stderr.trim() || `filter exited ${code}` });
-    let hits;
-    try { hits = JSON.parse(stdout); }
-    catch (e) { return res.status(500).json({ error: `filter returned non-JSON: ${e.message}` }); }
-    const files = hits.map((p) => {
-      const stat = fs.statSync(p);
-      return { path: p, name: path.basename(p), size: stat.size, mtime: stat.mtime.toISOString() };
-    }).sort((a, b) => b.mtime.localeCompare(a.mtime));
-    res.json({ root: resolved, files });
-  });
-  proc.stdin.end(allCandidates.join("\n"));
+// ── Tabelle 30 Phase 2: Excel-Vergleich ──────────────────────
+// List candidate "Ergänzung" Excel files under the project root — typically in
+// "02 Änderungen/" with "ergänzung" or "ergaenzung" in the filename.
+app.get("/api/tabelle30/excels", (req, res) => {
+  const root = req.query.root;
+  const showAll = req.query.all === "1" || req.query.all === "true";
+  if (!root || typeof root !== "string") return res.status(400).json({ error: "missing ?root=" });
+  const resolved = path.resolve(root);
+  if (!fs.existsSync(resolved)) return res.status(404).json({ error: `not found: ${resolved}` });
+
+  const found = [];
+  function walk(dir, depth) {
+    if (depth > 5) return;
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        walk(full, depth + 1);
+      } else if (/\.(xlsx|xlsm)$/i.test(e.name) && !/^~\$/.test(e.name) && (showAll || /(erg[äa]nzung|material|change|alternativ)/i.test(e.name + dir))) {
+        const stat = fs.statSync(full);
+        found.push({ path: full, name: e.name, size: stat.size, mtime: stat.mtime.toISOString() });
+      }
+    }
+  }
+  walk(resolved, 0);
+  const resultFiles = found;
+  const excelPriority = (f) => {
+    const hay = `${f.name} ${f.path}`.toLowerCase();
+    if (hay.includes("alternative") || hay.includes("alternativ")) return 0;
+    if (hay.includes("02 änderungen") || hay.includes("02 änderungen") || hay.includes("ergänzung") || hay.includes("ergaenzung") || hay.includes("change")) return 1;
+    if (hay.includes("tabelle30") || hay.includes("tabelle 30")) return 2;
+    if (hay.includes("material")) return 3;
+    return 4;
+  };
+  resultFiles.sort((a, b) => excelPriority(a) - excelPriority(b) || b.mtime.localeCompare(a.mtime));
+  res.json({ root: resolved, files: resultFiles });
+});
+
+// Compare an Excel Ergänzung file against the current Tabelle 30 from a Word report.
+// Returns categorized rows: new (in Excel only), matched (both), and skipped Excel rows
+// like "Keep ..." entries that aren't real material changes.
+app.post("/api/tabelle30/compare", (req, res) => {
+  const { wordFile, excelFile } = req.body || {};
+  if (!wordFile || !excelFile) return res.status(400).json({ error: "missing { wordFile, excelFile }" });
+  if (!fs.existsSync(wordFile))  return res.status(404).json({ error: `wordFile not found: ${wordFile}` });
+  if (!fs.existsSync(excelFile)) return res.status(404).json({ error: `excelFile not found: ${excelFile}` });
+
+  try {
+    const wordData = parseTabelle30(wordFile);
+    const excelData = parseExcelErgaenzung(excelFile);
+    if (excelData.format === "part-list" && !excelData.hasTab30Markers && !excelData.hasChangeMarkers) {
+      return res.status(400).json({
+        error: `Dieses Excel hat keine Tab30-Markierungen und keine erkennbaren "Add the part number"-Änderungen: ${path.basename(excelFile)}.`,
+        excelFile,
+        excelRowCount: excelData.rowCount,
+      });
+    }
+
+    // Matching strategy: Word and Excel name the same components differently
+    // ("Panel Rear CC, Pos. 10" vs "Panel Rear CC CM"). We use a "stem":
+    // first segment before comma / "Pos." / multi-word suffix, normalized + truncated.
+    // A Word row matches an Excel row when stems match AND material has substring overlap.
+    const norm = (s) => String(s || "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .replace(/[^\w\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const stem = (s) => {
+      const n = norm(s);
+      // Strip "pos N" / "pos. N" suffixes and anything after a comma
+      return n
+        .replace(/\b(pos|position)\b.*$/, "")
+        .split(",")[0]
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 4)
+        .join(" ");
+    };
+    const materialKey = (s) => {
+      // Material identifiers like "ABS Terluran GP22" — keep first 3-4 meaningful tokens
+      return norm(s).split(/\s+/).filter((t) => t.length >= 2 && !/^\d+$/.test(t)).slice(0, 4).join(" ");
+    };
+    const colorKey = (s) => {
+      const words = norm(s).split(/\s+/);
+      return ["black", "white", "green", "red", "grey", "gray", "transparent"].find((c) => words.includes(c)) || "";
+    };
+    const positionsFromText = (s) => {
+      const positions = new Set();
+      const text = String(s || "");
+      const re = /\bpos\.?\s*([0-9][0-9\-]*(?:\/[0-9\-]+)?)/gi;
+      let match;
+      while ((match = re.exec(text))) {
+        const raw = match[1];
+        positions.add(raw);
+        if (raw.includes("/")) {
+          const [base, suffix] = raw.split("/");
+          positions.add(base);
+          const parts = base.split("-");
+          if (parts.length > 1 && suffix) {
+            positions.add([...parts.slice(0, -1), suffix].join("-"));
+          }
+        }
+      }
+      return positions;
+    };
+
+    // Index Word rows by stem of partName
+    const wordByStem = new Map();
+    const wordByPosition = new Map();
+    for (const row of wordData.rows) {
+      const partName = row.cells?.[0] || "";
+      const material = row.cells?.[2] || "";
+      const refLast  = row.cells?.[row.cells.length - 1] || "";
+      const partStem = stem(partName);
+      const indexed = {
+        rowIdx: row.rowIdx,
+        partName: partName.trim(),
+        material: material.trim(),
+        matKey: materialKey(material),
+        color: colorKey(material),
+        refLast: refLast.trim(),
+      };
+      if (!partStem) continue;
+      if (!wordByStem.has(partStem)) wordByStem.set(partStem, []);
+      wordByStem.get(partStem).push(indexed);
+      for (const pos of positionsFromText(partName)) {
+        if (!wordByPosition.has(pos)) wordByPosition.set(pos, []);
+        wordByPosition.get(pos).push(indexed);
+      }
+    }
+
+    const matched = [];
+    const newEntries = [];
+    const skipped = [];
+    const changeMarkerEntries = [];
+    const isPlaceholderMaterial = (s) => {
+      const compact = String(s || "").replace(/[\s/.,;:_-]+/g, "");
+      return !compact || /^x+$/i.test(compact) || /^na$/i.test(compact);
+    };
+
+    for (const excelRow of excelData.rows) {
+      const changeTo = excelRow.changeTo || "";
+      // Skip rows that are "Keep ...", empty, or placeholder-only ("--- --- ---").
+      if (isPlaceholderMaterial(changeTo) || /^keep\b/i.test(changeTo) || changeTo === excelRow.todayUsed) {
+        skipped.push({ excelRow, reason: isPlaceholderMaterial(changeTo) ? "empty / placeholder material" : "no change / Keep" });
+        continue;
+      }
+
+      if (excelData.hasChangeMarkers && !excelData.hasTab30Markers) {
+        // Supplier change-list: rows are flagged "new" by the supplier, but we still
+        // cross-check each against the existing Tabelle 30 so only genuinely missing
+        // parts are added (see tabelle30-match.js). Classified after the loop.
+        changeMarkerEntries.push({ excelRow, candidatePartMatches: [] });
+        continue;
+      }
+
+      const partStem = stem(excelRow.partName);
+      const excelMatKey = materialKey(changeTo);
+      const excelColor = colorKey(changeTo);
+      const excelPosition = String(excelRow.position || "").trim();
+      // Prefer exact exploded-position matches; Tabelle 30 often groups several
+      // object names in one Word row, so name stems alone miss existing rows.
+      let candidates = excelPosition ? (wordByPosition.get(excelPosition) || []) : [];
+      const hadPositionCandidates = candidates.length > 0;
+      // Direct stem hit
+      if (!candidates.length) candidates = wordByStem.get(partStem) || [];
+      // If no direct stem hit, allow looser: any Word stem that shares ≥2 tokens with this Excel stem
+      if (!candidates.length) {
+        const excelTokens = partStem.split(/\s+/).filter(Boolean);
+        for (const [wStem, rows] of wordByStem.entries()) {
+          const wTokens = wStem.split(/\s+/).filter(Boolean);
+          const shared = excelTokens.filter((t) => wTokens.includes(t)).length;
+          if (shared >= 2) candidates.push(...rows);
+        }
+      }
+
+      // Check material overlap among candidates
+      const exact = candidates.find((c) => {
+        if (!c.matKey || !excelMatKey) return false;
+        if (c.color && excelColor && c.color !== excelColor) return false;
+        const cTokens = c.matKey.split(/\s+/).filter(Boolean);
+        const eTokens = excelMatKey.split(/\s+/).filter(Boolean);
+        return cTokens.filter((t) => eTokens.includes(t)).length >= 2;
+      });
+
+      if (exact) {
+        matched.push({ excelRow, wordRowIdx: exact.rowIdx, wordMaterial: exact.material });
+      } else if (hadPositionCandidates) {
+        // The object/position already exists in Tabelle 30. Do not create a
+        // duplicate preview row just because material wording differs slightly
+        // (e.g. PA-757 vs PA-757F+masterbatch); surface it as matched for now.
+        const existing = candidates[0];
+        matched.push({
+          excelRow,
+          wordRowIdx: existing.rowIdx,
+          wordMaterial: existing.material,
+          materialWarning: true,
+        });
+      } else {
+        newEntries.push({
+          excelRow,
+          candidatePartMatches: candidates.map((c) => ({ rowIdx: c.rowIdx, partName: c.partName, material: c.material })),
+        });
+      }
+    }
+
+    // Supplier change-list entries: cross-check against the existing Tabelle 30 rows.
+    // Only parts whose name AND material grade both strongly match an existing row are
+    // treated as already present (excluded). Everything else stays on the add-list;
+    // partial overlaps keep a non-blocking warning so the engineer can verify.
+    if (changeMarkerEntries.length) {
+      const { add, present } = classifyNewEntries(changeMarkerEntries, wordData.rows);
+      for (const e of add) {
+        newEntries.push({
+          excelRow: e.excelRow,
+          candidatePartMatches: [],
+          warning: e._match.warning || null,
+          matchRowIdx: e._match.matchRowIdx || null,
+        });
+      }
+      for (const e of present) {
+        matched.push({
+          excelRow: e.excelRow,
+          wordRowIdx: e._match.matchRowIdx,
+          alreadyPresent: true,
+          note: e._match.warning,
+        });
+      }
+    }
+
+    res.json({
+      wordFile,
+      excelFile,
+      wordRowCount: wordData.rowCount,
+      excelRowCount: excelData.rowCount,
+      summary: {
+        matched: matched.length,
+        new: newEntries.length,
+        skipped: skipped.length,
+      },
+      matched, new: newEntries, skipped,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Apply selected Excel entries to Tabelle 30 in the Word file.
+// Body: { sourceFile, outputFile?, entries: [{ partName, supplier, material, reference }] }
+// Returns: { outputFile, applied, warnings } or { error }.
+app.post("/api/tabelle30/apply", (req, res) => {
+  const { sourceFile, outputFile, entries } = req.body || {};
+  if (!sourceFile || typeof sourceFile !== "string") return res.status(400).json({ error: "missing sourceFile" });
+  if (!Array.isArray(entries) || !entries.length) return res.status(400).json({ error: "no entries to apply" });
+  if (!fs.existsSync(sourceFile)) return res.status(404).json({ error: `source not found: ${sourceFile}` });
+  try {
+    res.json(updateTabelle30({ sourceFile, outputFile, entries }));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Parse Tabelle 30 from a Typenprüfung file.
@@ -1420,17 +1658,11 @@ app.post("/api/tabelle30/parse", (req, res) => {
   if (!file || typeof file !== "string") return res.status(400).json({ error: "missing { file }" });
   const resolved = path.resolve(file);
   if (!fs.existsSync(resolved)) return res.status(404).json({ error: `not found: ${resolved}` });
-  if (!fs.existsSync(TABELLE30_SCRIPT)) return res.status(500).json({ error: `parser script missing: ${TABELLE30_SCRIPT}` });
-
-  const proc = spawn("python3", [TABELLE30_SCRIPT, resolved], { stdio: ["ignore", "pipe", "pipe"] });
-  let stdout = "", stderr = "";
-  proc.stdout.on("data", (d) => { stdout += d; });
-  proc.stderr.on("data", (d) => { stderr += d; });
-  proc.on("close", (code) => {
-    if (code !== 0) return res.status(500).json({ error: stderr.trim() || `parser exited ${code}` });
-    try { res.json(JSON.parse(stdout)); }
-    catch (e) { res.status(500).json({ error: `parser returned non-JSON: ${e.message}`, raw: stdout.slice(0, 500) }); }
-  });
+  try {
+    res.json(parseTabelle30(resolved));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Parse one Bauteilliste file → Tabelle 24 rows as JSON.
@@ -1439,17 +1671,11 @@ app.post("/api/tabelle24/parse", (req, res) => {
   if (!file || typeof file !== "string") return res.status(400).json({ error: "missing { file }" });
   const resolved = path.resolve(file);
   if (!fs.existsSync(resolved)) return res.status(404).json({ error: `not found: ${resolved}` });
-  if (!fs.existsSync(TABELLE24_SCRIPT)) return res.status(500).json({ error: `parser script missing: ${TABELLE24_SCRIPT}` });
-
-  const proc = spawn("python3", [TABELLE24_SCRIPT, resolved], { stdio: ["ignore", "pipe", "pipe"] });
-  let stdout = "", stderr = "";
-  proc.stdout.on("data", (d) => { stdout += d; });
-  proc.stderr.on("data", (d) => { stderr += d; });
-  proc.on("close", (code) => {
-    if (code !== 0) return res.status(500).json({ error: stderr.trim() || `parser exited ${code}` });
-    try { res.json(JSON.parse(stdout)); }
-    catch (e) { res.status(500).json({ error: `parser returned non-JSON: ${e.message}`, raw: stdout.slice(0, 500) }); }
-  });
+  try {
+    res.json(parseTabelle24(resolved));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Build the automation worklist: row -> target folder -> M3/certificate tasks.
@@ -1458,10 +1684,9 @@ app.post("/api/tabelle24/analyze", async (req, res) => {
   if (!file || typeof file !== "string") return res.status(400).json({ error: "missing { file }" });
   const resolved = path.resolve(file);
   if (!fs.existsSync(resolved)) return res.status(404).json({ error: `not found: ${resolved}` });
-  if (!fs.existsSync(TABELLE24_SCRIPT)) return res.status(500).json({ error: `parser script missing: ${TABELLE24_SCRIPT}` });
 
   try {
-    const parsed = await runJsonProcess("python3", [TABELLE24_SCRIPT, resolved]);
+    const parsed = parseTabelle24(resolved);
     const targetRoot = req.body?.targetRoot
       ? path.resolve(req.body.targetRoot)
       : deriveTabelle24TargetRoot(resolved);
@@ -1486,8 +1711,8 @@ app.post("/api/tabelle24/analyze", async (req, res) => {
 });
 
 // ── Start ──────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`PCS Dashboard → http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`PCS Dashboard → http://${HOST}:${PORT}`);
   console.log(`Datenbank: pcs.db  |  Dokumente: evidence-1157/`);
   runArchiveScan(ARCHIVE_EXCEL_PATH)
     .then((n) => console.log(`Archiv-Excel: ${n} Einträge synchronisiert`))
