@@ -44,7 +44,14 @@ const PORT = process.env.PORT || 8090;
 const HOST = process.env.HOST || "127.0.0.1";
 const evidenceRoots = new Map();
 
-app.use(express.json());
+app.disable("x-powered-by");
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "same-origin");
+  res.setHeader("X-Frame-Options", "SAMEORIGIN");
+  next();
+});
+app.use(express.json({ limit: "2mb" }));
 
 function escapeHtml(value) {
   return String(value)
@@ -65,6 +72,32 @@ function hrefJoin(baseUrl, name, isDirectory) {
 // which would let crafted ../ hrefs escape the allowed root.
 function isWithin(root, target) {
   return target === root || target.startsWith(root + path.sep);
+}
+
+function boundedCacheGet(cache, key, producer, maxEntries = 250) {
+  if (cache.has(key)) return cache.get(key);
+  const value = producer();
+  cache.set(key, value);
+  if (cache.size > maxEntries) cache.delete(cache.keys().next().value);
+  return value;
+}
+
+function fileCacheKey(filePath) {
+  const stat = fs.statSync(filePath);
+  return `${path.resolve(filePath)}\0${stat.size}\0${stat.mtimeMs}`;
+}
+
+const markerCache = new Map();
+const parsedTabelle24Cache = new Map();
+const parsedTabelle30Cache = new Map();
+const parsedExcelCache = new Map();
+
+function cachedMarker(filePath, markerName, producer) {
+  return boundedCacheGet(markerCache, `${markerName}\0${fileCacheKey(filePath)}`, producer, 500);
+}
+
+function cachedParse(cache, filePath, producer) {
+  return boundedCacheGet(cache, fileCacheKey(filePath), producer, 120);
 }
 
 function sendDirectoryListing(req, res, root, mountPath) {
@@ -290,6 +323,40 @@ function directoryListingMiddleware(root, mountPath) {
   };
 }
 
+function denySensitiveFiles(req, res, next) {
+  const name = path.basename(decodeHrefPath(req.path));
+  if (name.startsWith(".") || name.startsWith("~$") || /\.(db|db-shm|db-wal|sqlite|tmp)$/i.test(name)) {
+    return res.status(404).send("not found");
+  }
+  next();
+}
+
+const STATIC_FILES = new Set([
+  "index.html",
+  "app.js",
+  "styles.css",
+  "config.js",
+  "tabelle24.html",
+  "tabelle30.html",
+]);
+
+app.get("/", (_req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+
+for (const file of STATIC_FILES) {
+  app.get(`/${file}`, (_req, res) => {
+    res.sendFile(path.join(__dirname, file));
+  });
+}
+
+for (const dir of ["assets", "public"]) {
+  const full = path.join(__dirname, dir);
+  if (fs.existsSync(full)) {
+    app.use(`/${dir}`, express.static(full, { dotfiles: "ignore", index: false, fallthrough: false }));
+  }
+}
+
 // Resolve evidence-* symlinks to their real paths so Express can serve them
 // (Express blocks symlinks that point outside the root directory by default)
 try {
@@ -298,11 +365,10 @@ try {
     const real = fs.realpathSync(path.join(__dirname, name));
     evidenceRoots.set(name, real);
     app.use(`/${name}`, directoryListingMiddleware(real, `/${name}`));
+    app.use(`/${name}`, denySensitiveFiles);
     app.use(`/${name}`, express.static(real, { dotfiles: "ignore", index: false }));
   }
 } catch {}
-
-app.use(express.static(path.join(__dirname)));
 
 // Serve P:\PCS (or local equivalent) at /files/ so scanner hrefs work
 app.use("/files", (req, _res, next) => {
@@ -324,6 +390,7 @@ app.use("/files", (req, _res, next) => {
   next();
 });
 app.use("/files", directoryListingMiddleware(PCS_ROOT, "/files"));
+app.use("/files", denySensitiveFiles);
 app.use("/files", express.static(PCS_ROOT, { dotfiles: "ignore", index: false }));
 
 // ── Projects ───────────────────────────────────────────────
@@ -451,7 +518,8 @@ app.post("/api/open-folder", (req, res) => {
   });
 });
 
-const ARCHIVE_EXCEL_PATH = process.env.ARCHIVE_EXCEL || trackerConfig.archiveExcel || path.join(os.homedir(), "Desktop", "PCS_Archiv_Muster.xlsx");
+const CONFIG_ARCHIVE_EXCEL = process.platform === "win32" ? trackerConfig.archiveExcel : null;
+const ARCHIVE_EXCEL_PATH = process.env.ARCHIVE_EXCEL || CONFIG_ARCHIVE_EXCEL || path.join(os.homedir(), "Desktop", "PCS_Archiv_Muster.xlsx");
 
 function _xlsxProjectNo(xlsxPath) {
   try {
@@ -1219,7 +1287,7 @@ app.get("/api/tabelle24/files", (req, res) => {
   }
   walk(searchRoot, 0);
 
-  const hits = allCandidates.filter(fileContainsTabelle24);
+  const hits = allCandidates.filter((p) => cachedMarker(p, "t24", () => fileContainsTabelle24(p)));
   const files = hits.map((p) => {
     const stat = fs.statSync(p);
     return { path: p, name: path.basename(p), size: stat.size, mtime: stat.mtime.toISOString() };
@@ -1379,7 +1447,7 @@ app.get("/api/tabelle30/files", (req, res) => {
   }
   walk(resolved, 0);
 
-  const hits = allCandidates.filter(fileContainsTabelle30);
+  const hits = allCandidates.filter((p) => cachedMarker(p, "t30", () => fileContainsTabelle30(p)));
   const files = hits.map((p) => {
     const stat = fs.statSync(p);
     return { path: p, name: path.basename(p), size: stat.size, mtime: stat.mtime.toISOString() };
@@ -1436,8 +1504,8 @@ app.post("/api/tabelle30/compare", (req, res) => {
   if (!fs.existsSync(excelFile)) return res.status(404).json({ error: `excelFile not found: ${excelFile}` });
 
   try {
-    const wordData = parseTabelle30(wordFile);
-    const excelData = parseExcelErgaenzung(excelFile);
+    const wordData = cachedParse(parsedTabelle30Cache, wordFile, () => parseTabelle30(wordFile));
+    const excelData = cachedParse(parsedExcelCache, excelFile, () => parseExcelErgaenzung(excelFile));
     if (excelData.format === "part-list" && !excelData.hasTab30Markers && !excelData.hasChangeMarkers) {
       return res.status(400).json({
         error: `Dieses Excel hat keine Tab30-Markierungen und keine erkennbaren "Add the part number"-Änderungen: ${path.basename(excelFile)}.`,
@@ -1659,7 +1727,7 @@ app.post("/api/tabelle30/parse", (req, res) => {
   const resolved = path.resolve(file);
   if (!fs.existsSync(resolved)) return res.status(404).json({ error: `not found: ${resolved}` });
   try {
-    res.json(parseTabelle30(resolved));
+    res.json(cachedParse(parsedTabelle30Cache, resolved, () => parseTabelle30(resolved)));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1672,7 +1740,7 @@ app.post("/api/tabelle24/parse", (req, res) => {
   const resolved = path.resolve(file);
   if (!fs.existsSync(resolved)) return res.status(404).json({ error: `not found: ${resolved}` });
   try {
-    res.json(parseTabelle24(resolved));
+    res.json(cachedParse(parsedTabelle24Cache, resolved, () => parseTabelle24(resolved)));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1686,7 +1754,7 @@ app.post("/api/tabelle24/analyze", async (req, res) => {
   if (!fs.existsSync(resolved)) return res.status(404).json({ error: `not found: ${resolved}` });
 
   try {
-    const parsed = parseTabelle24(resolved);
+    const parsed = cachedParse(parsedTabelle24Cache, resolved, () => parseTabelle24(resolved));
     const targetRoot = req.body?.targetRoot
       ? path.resolve(req.body.targetRoot)
       : deriveTabelle24TargetRoot(resolved);

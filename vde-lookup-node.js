@@ -92,6 +92,16 @@ function extractUpdatedDate(pdfPath) {
   }
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function lookupVde({ certNumber, currentDate }) {
   const cert = String(certNumber || "").trim();
   if (!cert) throw new Error("missing certNumber");
@@ -107,9 +117,9 @@ async function lookupVde({ certNumber, currentDate }) {
   };
 
   const certUrl = VDE_CERT_URL.replace("{cert}", encodeURIComponent(cert));
-  const page = await fetch(certUrl, {
+  const page = await fetchWithTimeout(certUrl, {
     headers: { "User-Agent": "Mozilla/5.0", "Accept": "text/html,application/xhtml+xml" },
-  });
+  }, 30000);
   if (!page.ok) {
     result.error = `certificate page failed: HTTP ${page.status}`;
     return result;
@@ -124,7 +134,7 @@ async function lookupVde({ certNumber, currentDate }) {
 
   const chosen = chooseAppendix(result.pdfList);
   result.chosen = chosen;
-  const pdf = await fetch(chosen.url, { headers: { "User-Agent": "Mozilla/5.0", "Referer": "https://www.vde.com/" } });
+  const pdf = await fetchWithTimeout(chosen.url, { headers: { "User-Agent": "Mozilla/5.0", "Referer": "https://www.vde.com/" } }, 30000);
   const bytes = Buffer.from(await pdf.arrayBuffer());
   if (!pdf.ok || bytes.subarray(0, 5).toString() !== "%PDF-") {
     result.error = `download failed: HTTP ${pdf.status}, ${bytes.length} bytes`;
