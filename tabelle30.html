@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tabelle 30 Scanner</title>
+    <style>
+      :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      body { margin: 0; background: #eef2f4; color: #172027; }
+      /* Embedded inside the dashboard iframe → blend with the parent's paper background */
+      body.embedded { background: transparent; }
+      body.embedded > main > header { display: none; }
+      body.embedded > main { padding: 0 4px 26px; }
+      body.embedded .controls,
+      body.embedded #results-panel {
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+        padding-left: 0;
+        padding-right: 0;
+      }
+      body.embedded .controls { padding-top: 8px; padding-bottom: 8px; }
+      body.embedded .row-controls input[type="text"],
+      body.embedded .row-controls select { background: rgba(255,255,255,0.9); }
+      /* No layout overflow when filename is long */
+      .controls { grid-template-columns: minmax(0, 1fr); }
+      .row-controls { min-width: 0; }
+      .row-controls input[type="text"],
+      .row-controls select { min-width: 0; width: 0; }
+      .row-controls select { text-overflow: ellipsis; }
+      body.embedded.theme-dark { color: #d6dde2; }
+      body.embedded.theme-dark .meta, body.embedded.theme-dark .empty { color: #99a4ab; }
+      body.embedded.theme-dark .row-controls label { color: #d6dde2; }
+      body.embedded.theme-dark .row-controls input[type="text"],
+      body.embedded.theme-dark .row-controls select {
+        background: rgba(20, 28, 38, 0.55); color: #eef2f4; border-color: #3a4856;
+      }
+      body.embedded.theme-dark #results-panel table { background: rgba(20,28,38,0.35); }
+      body.embedded.theme-dark #results-panel th { background: rgba(20,28,38,0.65); color: #d6dde2; }
+      body.embedded.theme-dark #results-panel td { color: #d6dde2; border-bottom-color: #2a3340; }
+      body.embedded.theme-dark .run-blue,
+      body.embedded.theme-dark .run-blue2 { color: #c3d4e8 !important; }
+      body.embedded.theme-dark .run-green { color: #6ee093 !important; }
+      body.embedded.theme-dark .run-red   { color: #ff8a8a !important; }
+      body.embedded.theme-dark .run-yellow-hl {
+        background: rgba(255,212,90,0.28) !important; color: #ffe07a !important;
+      }
+
+      main { max-width: 1400px; margin: 0 auto; padding: 26px; }
+      header { display: flex; justify-content: space-between; gap: 16px; align-items: end; margin-bottom: 16px; }
+      h1 { margin: 0; font-size: 24px; }
+      p { margin: 5px 0 0; color: #63707a; }
+      a { color: #1f6f8b; font-weight: 750; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      button, input, select { font: inherit; }
+      button { border: 0; border-radius: 7px; padding: 9px 12px; background: #1f6f8b; color: white; font-weight: 800; cursor: pointer; }
+      button:hover { background: #185b73; }
+      button:disabled { background: #a8b2b9; cursor: not-allowed; }
+      .controls { background: white; border: 1px solid #d6dde2; border-radius: 8px; padding: 16px; margin-bottom: 16px; display: grid; gap: 10px; }
+      .controls input[type="text"], .controls select { padding: 8px 10px; border: 1px solid #c5cdd3; border-radius: 6px; }
+      .row-controls { display: flex; gap: 10px; align-items: center; }
+      .row-controls label { font-weight: 700; min-width: 120px; }
+      .meta { color: #63707a; font-size: 13px; margin-top: 6px; }
+
+      #results-panel {
+        background: white; border: 1px solid #d6dde2; border-radius: 8px;
+        box-shadow: 0 16px 34px rgba(20, 32, 42, 0.08); overflow-x: auto;
+      }
+      table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+      th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #e5ebef; vertical-align: top; }
+      th { background: #f3f6f8; color: #63707a; font-size: 10px; text-transform: uppercase; font-weight: 800; white-space: nowrap; }
+      td { white-space: pre-line; }
+      tbody tr:nth-child(even) { background: rgba(0,0,0,0.015); }
+      body.embedded.theme-dark tbody tr:nth-child(even) { background: rgba(255,255,255,0.025); }
+      .empty { padding: 40px; text-align: center; color: #63707a; }
+      .err { padding: 16px; background: #ffe2e2; color: #a01616; border-radius: 8px; }
+      /* Original Word colors (preserved for Light mode; mapped to bright in dark) */
+      .run-green { color: #00B050; font-weight: 700; }
+      .run-red { color: #FF0000; font-weight: 700; }
+      .run-blue { color: #002060; }
+      .run-blue2 { color: #1F3864; }
+      .run-yellow-hl { background: #FFFF00; padding: 0 2px; }
+      .run-cyan-hl { background: #00FFFF; padding: 0 2px; }
+      .run-strike { text-decoration: line-through; }
+    </style>
+  </head>
+  <body>
+    <script>
+      try { if (window.top !== window.self) document.body.classList.add("embedded"); } catch { document.body.classList.add("embedded"); }
+      (function applyTheme() {
+        const t = new URLSearchParams(location.search).get("theme") || "light";
+        document.body.classList.add(t === "dark" ? "theme-dark" : "theme-light");
+      })();
+      window.addEventListener("message", (ev) => {
+        if (ev.origin !== window.location.origin) return;
+        if (ev.data?.type === "theme") {
+          document.body.classList.remove("theme-light", "theme-dark");
+          document.body.classList.add(ev.data.theme === "dark" ? "theme-dark" : "theme-light");
+        }
+      });
+    </script>
+    <main>
+      <header>
+        <div>
+          <h1>Tabelle 30 Scanner</h1>
+          <p>Resistance to heat and fire — aus dem VDE Typenprüfung-Bericht.</p>
+        </div>
+        <div><a href="/">← Dashboard</a></div>
+      </header>
+
+      <section class="controls">
+        <div class="row-controls">
+          <label for="project-root">EF-Projekt-Ordner</label>
+          <input id="project-root" type="text" style="flex:1" placeholder="z.B. /Users/allan/Desktop/1175" value="/Users/allan/Desktop/1175">
+          <button id="list-btn" type="button">Dateien suchen</button>
+        </div>
+        <div class="row-controls">
+          <label for="file-select">Typenprüfung-Bericht</label>
+          <select id="file-select" style="flex:1"><option value="">(noch nichts geladen)</option></select>
+          <button id="parse-btn" type="button" disabled>Parsen</button>
+        </div>
+        <div class="meta" id="meta"></div>
+      </section>
+
+      <section id="results-panel">
+        <div class="empty">Noch keine Daten — Datei wählen und "Parsen" klicken.</div>
+      </section>
+    </main>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const meta = $("meta");
+
+      async function fetchFiles() {
+        const root = $("project-root").value.trim();
+        if (!root) return;
+        meta.textContent = "Suche...";
+        const r = await fetch(`/api/tabelle30/files?root=${encodeURIComponent(root)}`);
+        if (!r.ok) {
+          const { error } = await r.json().catch(() => ({ error: r.statusText }));
+          meta.textContent = `Fehler: ${error}`;
+          return;
+        }
+        const { files } = await r.json();
+        const sel = $("file-select");
+        sel.innerHTML = "";
+        if (!files.length) {
+          sel.innerHTML = '<option value="">(keine Typenprüfung-Datei gefunden)</option>';
+          meta.textContent = "Keine Datei mit 'typenpruf' oder 'vde' im Namen gefunden.";
+          $("parse-btn").disabled = true;
+          return;
+        }
+        for (const f of files) {
+          const opt = document.createElement("option");
+          opt.value = f.path;
+          opt.textContent = `${f.name}  (${(f.size/1024).toFixed(0)} KB, ${f.mtime.slice(0,10)})`;
+          sel.appendChild(opt);
+        }
+        meta.textContent = `${files.length} Datei(en) gefunden. Neueste oben.`;
+        $("parse-btn").disabled = false;
+      }
+
+      async function parseFile() {
+        const file = $("file-select").value;
+        if (!file) return;
+        const panel = $("results-panel");
+        panel.innerHTML = '<div class="empty">Parse läuft...</div>';
+        $("parse-btn").disabled = true;
+        const r = await fetch("/api/tabelle30/parse", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ file }),
+        });
+        $("parse-btn").disabled = false;
+        if (!r.ok) {
+          const { error } = await r.json().catch(() => ({ error: r.statusText }));
+          panel.innerHTML = `<div class="err">Fehler: ${escapeHtml(error)}</div>`;
+          return;
+        }
+        const data = await r.json();
+        renderTable(panel, data);
+      }
+
+      function renderTable(panel, data) {
+        // Header rows from the file rendered as <thead>
+        const headerHtml = data.headerRows.map((hr) =>
+          `<tr>${hr.map((c) => `<th>${escapeHtml(c).replace(/\n/g, "<br>")}</th>`).join("")}</tr>`
+        ).join("");
+        const bodyHtml = data.rows.map((r) => `
+          <tr>
+            <td><strong>${r.rowIdx}</strong></td>
+            ${r.cells.map((_, i) => `<td>${renderRuns(r.cellRuns?.[i], r.cells[i])}</td>`).join("")}
+          </tr>
+        `).join("");
+        const note = `<div class="meta" style="padding:10px 12px">${data.rowCount} Datenzeilen aus <strong>Table ${data.tableIdx}</strong>.</div>`;
+        panel.innerHTML = `${note}<table><thead>
+          <tr><th>#</th>${data.headerRows[0]?.map(() => "<th></th>").join("") || ""}</tr>
+          ${headerHtml}
+        </thead><tbody>${bodyHtml}</tbody></table>`;
+      }
+
+      function renderRuns(runs, fallback) {
+        if (!Array.isArray(runs) || !runs.length) return escapeHtml(fallback || "");
+        return runs.map((run) => {
+          const classes = [];
+          if (run.color === "00B050") classes.push("run-green");
+          else if (run.color === "FF0000") classes.push("run-red");
+          else if (run.color === "002060") classes.push("run-blue");
+          else if (run.color === "1F3864") classes.push("run-blue2");
+          if (run.highlight === "yellow") classes.push("run-yellow-hl");
+          if (run.highlight === "cyan") classes.push("run-cyan-hl");
+          if (run.strike) classes.push("run-strike");
+          return `<span class="${classes.join(" ")}">${escapeHtml(run.text)}</span>`;
+        }).join("");
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      }
+
+      $("list-btn").addEventListener("click", fetchFiles);
+      $("parse-btn").addEventListener("click", parseFile);
+
+      // If a projectId was passed in the URL by the dashboard, prefill the root.
+      const params = new URLSearchParams(location.search);
+      const pid = params.get("projectId");
+      if (pid) {
+        const m = pid.match(/EF\s*(\d+)/i);
+        if (m) $("project-root").value = `/Users/allan/Desktop/${m[1]}`;
+      }
+      fetchFiles();
+    </script>
+  </body>
+</html>

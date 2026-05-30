@@ -46,6 +46,9 @@
         <div class="top-actions hidden">
           <button id="view-overview" class="active" type="button">PCS Status</button>
           <button id="view-docs" type="button">Dateien</button>
+          <button id="view-calculations" type="button">Berechnungen</button>
+          <button id="tabelle24-link" type="button" class="nowrap-btn">Tabelle 24</button>
+          <button id="tabelle30-link" type="button" class="nowrap-btn">Tabelle 30</button>
           <button id="view-subtopic" type="button">Approbation</button>
           <button id="view-packaging" type="button">Versand</button>
           <button id="view-tasks" type="button">Massnahmen</button>
@@ -180,6 +183,27 @@
         </div>
       </section>
 
+      <section id="calculations-view" class="hidden">
+        <div class="table-panel calculations-panel">
+          <div class="table-header">
+            <div>
+              <h2>Berechnungen</h2>
+              <p>Excel-Formeln aus Leistungsaufnahme und Ziffer 11/19 direkt im Dashboard.</p>
+            </div>
+            <button id="calc-reset" class="calc-reset-btn" type="button">Zurücksetzen</button>
+          </div>
+          <div id="calculations-container"></div>
+        </div>
+      </section>
+
+      <section id="tabelle24-view" class="hidden tabelle24-view">
+        <iframe id="tabelle24-frame" class="tabelle24-frame" title="Tabelle 24"></iframe>
+      </section>
+
+      <section id="tabelle30-view" class="hidden tabelle24-view">
+        <iframe id="tabelle30-frame" class="tabelle24-frame" title="Tabelle 30"></iframe>
+      </section>
+
       <section id="freigabe-view" class="hidden">
         <div id="freigabe-container"></div>
       </section>
@@ -207,6 +231,7 @@
       </div>
       <div class="file-preview-body" id="file-preview-body"></div>
     </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" async></script>
     <script src="config.js"></script>
     <script src="app.js"></script>
   </body>
