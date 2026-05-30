@@ -1198,13 +1198,17 @@ function analyzeTabelle24Rows(parsed, targetRoot) {
   return analysis;
 }
 
-// List Intern Bauteilliste files in a project (under 09 Bautelliste / 09 Bauteilliste, incl. variant subfolders).
+// List Intern Bauteilliste files in a project that actually contain Tabelle 24.
+// Two-stage: walk (skip Archiv subdirs, require "intern" in name per workflow rule —
+// never the customer VDE copies) → content filter via has_tabelle24.py (greps for
+// "TABLE: components" marker in the .docx/.doc/.docm, no LibreOffice conversion).
+const HAS_TABELLE24_SCRIPT = path.join(os.homedir(), "Desktop", "scripts-tabelle24", "has_tabelle24.py");
 app.get("/api/tabelle24/files", (req, res) => {
   const resolved = resolveTabelle24Root(req.query);
   if (!resolved) return res.status(400).json({ error: "missing or unresolved ?root=, ?href=, or ?projectId=" });
   const searchRoot = normalizeTabelle24SearchRoot(resolved);
 
-  const candidates = [];
+  const allCandidates = [];
   function walk(dir, depth) {
     if (depth > 4) return;
     let entries;
@@ -1215,14 +1219,29 @@ app.get("/api/tabelle24/files", (req, res) => {
         if (/^archiv$/i.test(e.name)) continue;
         walk(full, depth + 1);
       } else if (/\.(docx?|docm)$/i.test(e.name) && /intern/i.test(e.name) && !/^~\$/.test(e.name)) {
-        const stat = fs.statSync(full);
-        candidates.push({ path: full, name: e.name, size: stat.size, mtime: stat.mtime.toISOString() });
+        allCandidates.push(full);
       }
     }
   }
   walk(searchRoot, 0);
-  candidates.sort((a, b) => b.mtime.localeCompare(a.mtime));
-  res.json({ root: searchRoot, files: candidates });
+
+  if (!fs.existsSync(HAS_TABELLE24_SCRIPT)) return res.status(500).json({ error: `filter script missing: ${HAS_TABELLE24_SCRIPT}` });
+  const proc = spawn("python3", [HAS_TABELLE24_SCRIPT], { stdio: ["pipe", "pipe", "pipe"] });
+  let stdout = "", stderr = "";
+  proc.stdout.on("data", (d) => { stdout += d; });
+  proc.stderr.on("data", (d) => { stderr += d; });
+  proc.on("close", (code) => {
+    if (code !== 0) return res.status(500).json({ error: stderr.trim() || `filter exited ${code}` });
+    let hits;
+    try { hits = JSON.parse(stdout); }
+    catch (e) { return res.status(500).json({ error: `filter returned non-JSON: ${e.message}` }); }
+    const files = hits.map((p) => {
+      const stat = fs.statSync(p);
+      return { path: p, name: path.basename(p), size: stat.size, mtime: stat.mtime.toISOString() };
+    }).sort((a, b) => b.mtime.localeCompare(a.mtime));
+    res.json({ root: searchRoot, files });
+  });
+  proc.stdin.end(allCandidates.join("\n"));
 });
 
 // Look up a VDE certificate, return PDF list + extracted date + comparison verdict.
@@ -1347,16 +1366,19 @@ app.post("/api/tabelle24/save", (req, res) => {
 
 // ── Tabelle 30 (VDE Typenprüfung — "Resistance to heat and fire") ─────────────
 const TABELLE30_SCRIPT = path.join(os.homedir(), "Desktop", "scripts-tabelle24", "parse_tabelle30.py");
+const HAS_TABELLE30_SCRIPT = path.join(os.homedir(), "Desktop", "scripts-tabelle24", "has_tabelle30.py");
 
-// List candidate Typenprüfung reports under a project (12 Untersuchungen folder, .doc/.docx
-// with "typenpruf"/"vde" in the name).
+// List Word files (anywhere under the project root) that actually contain a Tabelle 30
+// section. Two-stage: walk → collect all .doc/.docx/.docm → pipe paths through
+// has_tabelle30.py which greps the marker (fast zip read for .docx/.docm, raw-bytes
+// search for .doc — no LibreOffice conversion needed).
 app.get("/api/tabelle30/files", (req, res) => {
   const root = req.query.root;
   if (!root || typeof root !== "string") return res.status(400).json({ error: "missing ?root=<absolute path to EF project>" });
   const resolved = path.resolve(root);
   if (!fs.existsSync(resolved)) return res.status(404).json({ error: `not found: ${resolved}` });
 
-  const candidates = [];
+  const allCandidates = [];
   function walk(dir, depth) {
     if (depth > 5) return;
     let entries;
@@ -1365,15 +1387,31 @@ app.get("/api/tabelle30/files", (req, res) => {
       const full = path.join(dir, e.name);
       if (e.isDirectory()) {
         walk(full, depth + 1);
-      } else if (/\.(docx?|docm)$/i.test(e.name) && !/^~\$/.test(e.name) && /(typenpr[uü]f|vde[_ ])/i.test(e.name)) {
-        const stat = fs.statSync(full);
-        candidates.push({ path: full, name: e.name, size: stat.size, mtime: stat.mtime.toISOString() });
+      } else if (/\.(docx?|docm)$/i.test(e.name) && !/^~\$/.test(e.name)) {
+        allCandidates.push(full);
       }
     }
   }
   walk(resolved, 0);
-  candidates.sort((a, b) => b.mtime.localeCompare(a.mtime));
-  res.json({ root: resolved, files: candidates });
+
+  if (!fs.existsSync(HAS_TABELLE30_SCRIPT)) return res.status(500).json({ error: `filter script missing: ${HAS_TABELLE30_SCRIPT}` });
+
+  const proc = spawn("python3", [HAS_TABELLE30_SCRIPT], { stdio: ["pipe", "pipe", "pipe"] });
+  let stdout = "", stderr = "";
+  proc.stdout.on("data", (d) => { stdout += d; });
+  proc.stderr.on("data", (d) => { stderr += d; });
+  proc.on("close", (code) => {
+    if (code !== 0) return res.status(500).json({ error: stderr.trim() || `filter exited ${code}` });
+    let hits;
+    try { hits = JSON.parse(stdout); }
+    catch (e) { return res.status(500).json({ error: `filter returned non-JSON: ${e.message}` }); }
+    const files = hits.map((p) => {
+      const stat = fs.statSync(p);
+      return { path: p, name: path.basename(p), size: stat.size, mtime: stat.mtime.toISOString() };
+    }).sort((a, b) => b.mtime.localeCompare(a.mtime));
+    res.json({ root: resolved, files });
+  });
+  proc.stdin.end(allCandidates.join("\n"));
 });
 
 // Parse Tabelle 30 from a Typenprüfung file.

@@ -66,12 +66,55 @@
         background: white; border: 1px solid #d6dde2; border-radius: 8px;
         box-shadow: 0 16px 34px rgba(20, 32, 42, 0.08); overflow-x: auto;
       }
-      table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
-      th, td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #e5ebef; vertical-align: top; }
-      th { background: #f3f6f8; color: #63707a; font-size: 10px; text-transform: uppercase; font-weight: 800; white-space: nowrap; }
-      td { white-space: pre-line; }
-      tbody tr:nth-child(even) { background: rgba(0,0,0,0.015); }
-      body.embedded.theme-dark tbody tr:nth-child(even) { background: rgba(255,255,255,0.025); }
+      /* Table layout: auto sizing with minimums so narrow numeric columns don't get squeezed
+         to character-width while text columns hog space. The body wrapper allows horizontal
+         scroll for narrow viewports. */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+        table-layout: fixed;
+      }
+      th, td {
+        padding: 8px 10px;
+        text-align: left;
+        border-bottom: 1px solid #e5ebef;
+        vertical-align: top;
+        line-height: 1.45;
+        /* No word-break — keep words intact. Long words just stretch their column. */
+        white-space: pre-line;
+        min-width: 60px;
+      }
+      th {
+        background: #eef2f4;
+        color: #52606b;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-weight: 800;
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+      }
+      thead tr:not(:last-child) th { border-bottom: 1px solid #d6dde2; background: #f7f9fa; }
+      tbody tr:nth-child(even) td { background: rgba(0,0,0,0.018); }
+      tbody tr:hover td { background: rgba(31, 111, 139, 0.06); }
+      body.embedded.theme-dark tbody tr:nth-child(even) td { background: rgba(255,255,255,0.025); }
+      body.embedded.theme-dark tbody tr:hover td { background: rgba(255,255,255,0.05); }
+      /* First column is the row number — narrow, monospace, muted */
+      td:first-child, th:first-child {
+        width: 36px;
+        min-width: 36px;
+        color: #99a4ab;
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 11px;
+      }
+      td:first-child strong { font-weight: 700; color: #52606b; }
+      /* Only 4 data columns now (Object / Manufacturer / Type / Reference). Roomy widths. */
+      td:nth-child(2), th:nth-child(2) { width: 28%; min-width: 200px; }  /* Object/Part */
+      td:nth-child(3), th:nth-child(3) { width: 22%; min-width: 160px; }  /* Manufacturer */
+      td:nth-child(4), th:nth-child(4) { width: 20%; min-width: 140px; }  /* Type/model */
+      td:nth-child(5), th:nth-child(5) { width: 25%; min-width: 160px; }  /* Reference */
       .empty { padding: 40px; text-align: center; color: #63707a; }
       .err { padding: 16px; background: #ffe2e2; color: #a01616; border-radius: 8px; }
       /* Original Word colors (preserved for Light mode; mapped to bright in dark) */
@@ -79,9 +122,23 @@
       .run-red { color: #FF0000; font-weight: 700; }
       .run-blue { color: #002060; }
       .run-blue2 { color: #1F3864; }
-      .run-yellow-hl { background: #FFFF00; padding: 0 2px; }
-      .run-cyan-hl { background: #00FFFF; padding: 0 2px; }
+      /* Suppress yellow + cyan highlights entirely. The Tabelle-30 source has yellow on
+         essentially every word (someone marked the whole file during review) — preserving
+         it would be visual noise. Original colors still render via .run-green / .run-red. */
+      .run-yellow-hl, .run-cyan-hl { background: transparent; padding: 0; }
       .run-strike { text-decoration: line-through; }
+      /* Footnote rows (Supplementary information at the bottom) — full-width, subdued */
+      tbody tr.footnote-row td {
+        background: rgba(31,111,139,0.04);
+        font-size: 11px;
+        color: #52606b;
+        border-top: 1px solid #d6dde2;
+      }
+      body.embedded.theme-dark tbody tr.footnote-row td {
+        background: rgba(255,255,255,0.04);
+        color: #99a4ab;
+        border-top-color: #3a4856;
+      }
     </style>
   </head>
   <body>
@@ -182,21 +239,45 @@
       }
 
       function renderTable(panel, data) {
-        // Header rows from the file rendered as <thead>
-        const headerHtml = data.headerRows.map((hr) =>
-          `<tr>${hr.map((c) => `<th>${escapeHtml(c).replace(/\n/g, "<br>")}</th>`).join("")}</tr>`
-        ).join("");
-        const bodyHtml = data.rows.map((r) => `
-          <tr>
+        // Pick only the four useful columns: Object/Part, Manufacturer, Type/Model, Reference.
+        // - Object/Part   = cells[0]
+        // - Manufacturer  = cells[1]
+        // - Type/Model    = cells[2]
+        // - Reference     = LAST cell (Anmerkungen / Report-no. — index varies because
+        //                  some rows have fewer test-result columns)
+        const headerHtml = `<tr>
+          <th>#</th>
+          <th>Object / Part No.</th>
+          <th>Manufacturer / Trademark</th>
+          <th>Type / Model</th>
+          <th>Reference</th>
+        </tr>`;
+
+        const bodyHtml = data.rows.map((r) => {
+          // Footnote rows ("Supplementary information: …") have one populated cell — span all
+          // four data columns with a subdued style.
+          const populated = r.cells.filter((c) => c && c.trim()).length;
+          const isFootnote = populated === 1 && (r.cells[0] || "").length > 80;
+          if (isFootnote) {
+            return `<tr class="footnote-row">
+              <td><strong>${r.rowIdx}</strong></td>
+              <td colspan="4">${renderRuns(r.cellRuns?.[0], r.cells[0])}</td>
+            </tr>`;
+          }
+          const lastIdx = r.cells.length - 1;
+          const refIdx = lastIdx >= 3 ? lastIdx : 3;  // if very short row, still try index 3
+          const cell = (i) => `<td>${renderRuns(r.cellRuns?.[i], r.cells[i] || "")}</td>`;
+          return `<tr>
             <td><strong>${r.rowIdx}</strong></td>
-            ${r.cells.map((_, i) => `<td>${renderRuns(r.cellRuns?.[i], r.cells[i])}</td>`).join("")}
-          </tr>
-        `).join("");
-        const note = `<div class="meta" style="padding:10px 12px">${data.rowCount} Datenzeilen aus <strong>Table ${data.tableIdx}</strong>.</div>`;
-        panel.innerHTML = `${note}<table><thead>
-          <tr><th>#</th>${data.headerRows[0]?.map(() => "<th></th>").join("") || ""}</tr>
-          ${headerHtml}
-        </thead><tbody>${bodyHtml}</tbody></table>`;
+            ${cell(0)}
+            ${cell(1)}
+            ${cell(2)}
+            ${cell(refIdx)}
+          </tr>`;
+        }).join("");
+
+        const note = `<div class="meta" style="padding:10px 12px">${data.rowCount} Bauteile aus <strong>Table ${data.tableIdx}</strong> (Resistance to heat and fire).</div>`;
+        panel.innerHTML = `${note}<table><thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody></table>`;
       }
 
       function renderRuns(runs, fallback) {
