@@ -1,0 +1,1057 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tabelle 24 Scanner</title>
+    <style>
+      :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      body { margin: 0; background: #eef2f4; color: #172027; }
+      /* Embedded in the dashboard iframe → blend with the parent's paper background */
+      html.embedded,
+      html:has(body.embedded),
+      body.embedded { background: transparent; }
+      html.embedded.theme-dark,
+      html:has(body.embedded.theme-dark),
+      body.embedded.theme-dark {
+        background: #0f171d !important;
+      }
+      body.embedded > main > header { display: none; }
+      body.embedded > main {
+        max-width: none;
+        width: 100%;
+        margin: 0;
+        padding: 0 0 26px;
+      }
+      /* No card chrome on the controls/results panels — they sit directly on the paper bg */
+      body.embedded .controls,
+      body.embedded #save-area,
+      body.embedded #results-panel {
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+        padding-left: 0;
+        padding-right: 0;
+      }
+      body.embedded .controls { padding-top: 8px; padding-bottom: 8px; }
+      body.embedded .row-controls input[type="text"],
+      body.embedded .row-controls select {
+        backdrop-filter: blur(8px);
+      }
+      body.embedded.theme-light .row-controls input[type="text"],
+      body.embedded.theme-light .row-controls select {
+        background: rgba(255,255,255,0.58);
+      }
+      /* Without these, a long Bauteilliste filename in the <select> blows the layout wide and
+         pushes the action buttons (Parsen / Arbeitsliste / Dateien suchen) off-screen:
+         - The grid column must be explicit (minmax(0, 1fr)), otherwise it sizes to max-content
+           = the longest <option> + intrinsic widths of all children.
+         - Flex children need min-width:0 so they shrink below their content size.
+         - Select truncates with ellipsis instead of stretching. */
+      .controls { grid-template-columns: minmax(0, 1fr); }
+      .row-controls { min-width: 0; }
+      .row-controls input[type="text"],
+      .row-controls select { min-width: 0; width: 0; }
+      .row-controls select { text-overflow: ellipsis; }
+      /* Hide the Status + Aktion columns when embedded — the white "UNKNOWN" blocks and the
+         per-row button bar are noise in the dashboard view; actions live elsewhere. */
+      body.embedded th.status-col,
+      body.embedded td.status-cell,
+      body.embedded th.action-col,
+      body.embedded td.action-cell { display: none; }
+      /* Dark theme color overrides (kept) — make the parser table + Arbeitsliste readable. */
+      body.embedded.theme-dark { color: #d6dde2; }
+      body.embedded.theme-dark .meta,
+      body.embedded.theme-dark .empty { color: #99a4ab; }
+      body.embedded.theme-dark .row-controls label { color: #d6dde2; }
+      body.embedded.theme-dark .row-controls input[type="text"],
+      body.embedded.theme-dark .row-controls select {
+        background: rgba(20, 28, 38, 0.52);
+        color: #eef2f4;
+        border-color: #3a4856;
+      }
+      body.embedded.theme-dark .controls,
+      body.embedded.theme-dark #save-area,
+      body.embedded.theme-dark #results-panel,
+      body.embedded.theme-dark .panel {
+        background: rgba(20,28,38,0.18);
+        border-color: transparent;
+        box-shadow: none;
+      }
+      body.embedded.theme-dark .controls {
+        background: transparent;
+      }
+      body.embedded.theme-light .panel,
+      body.embedded.theme-light #results-panel {
+        background: transparent;
+        box-shadow: none;
+      }
+      body.embedded.theme-light .controls,
+      body.embedded.theme-light #save-area {
+        background: transparent;
+        box-shadow: none;
+      }
+      /* Dark mode: dark table surface + bright Word-equivalent colors (#002060 blue → light
+         blue-grey, green/red brighter). Light mode keeps the original Word colors on white. */
+      body.embedded.theme-dark #results-panel table { background: rgba(20,28,38,0.35); }
+      body.embedded.theme-dark #results-panel th    { background: rgba(20,28,38,0.65); color: #d6dde2; }
+      body.embedded.theme-dark #results-panel td    { color: #d6dde2; border-bottom-color: #2a3340; }
+      body.embedded.theme-dark #results-panel tbody tr.primary td { border-top-color: #3a4856; }
+      body.embedded.theme-dark #results-panel tbody tr.staged { background: rgba(255,212,90,0.10); }
+      body.embedded.theme-dark #results-panel > .meta { color: #99a4ab; }
+      /* Map the Word default-blue (#002060/#1F3864) to a bright equivalent on dark bg. */
+      body.embedded.theme-dark .run-blue,
+      body.embedded.theme-dark .run-blue2,
+      body.embedded.theme-dark .mof-default { color: #c3d4e8 !important; }
+      body.embedded.theme-dark .run-green,
+      body.embedded.theme-dark .mof-green   { color: #6ee093 !important; }
+      body.embedded.theme-dark .run-red,
+      body.embedded.theme-dark .mof-red     { color: #ff8a8a !important; }
+      body.embedded.theme-dark .run-yellow-hl,
+      body.embedded.theme-dark .mof-yellow-hl {
+        background: rgba(255,212,90,0.28) !important;
+        color: #ffe07a !important;
+      }
+      body.embedded.theme-dark .run-cyan-hl {
+        background: rgba(118,210,255,0.22) !important;
+        color: #b8ecff !important;
+      }
+      /* Folder-info column: small pill per row, count of PDFs in the assigned Komponenten folder */
+      .folder-cell { white-space: nowrap; }
+      .folder-badge {
+        display: inline-block;
+        padding: 2px 7px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 800;
+        margin-right: 4px;
+      }
+      .folder-badge.ok      { background: #d9f5e2; color: #1a6d36; }
+      .folder-badge.empty   { background: #f0f0f0; color: #63707a; }
+      .folder-badge.missing { background: #ffe2e2; color: #a01616; }
+      .folder-badge.archiv  { background: #e9eef2; color: #52606b; }
+      .folder-badge.none    { background: transparent; color: #99a4ab; }
+      body.embedded.theme-dark .folder-badge.ok      { background: rgba(74,208,123,0.20); color: #6ee093; }
+      body.embedded.theme-dark .folder-badge.empty   { background: rgba(255,255,255,0.07); color: #99a4ab; }
+      body.embedded.theme-dark .folder-badge.missing { background: rgba(255,116,116,0.20); color: #ff8a8a; }
+      body.embedded.theme-dark .folder-badge.archiv  { background: rgba(255,255,255,0.07); color: #c3d4e8; }
+      /* PDF thumbnails in the Ordner column — small 32×40 previews of the actual PDFs. */
+      .folder-thumbs { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+      .row-pdf-thumb {
+        width: 32px;
+        height: 40px;
+        border: 1px solid #d6dde2;
+        border-radius: 3px;
+        background: #ffffff;
+        flex-shrink: 0;
+        cursor: pointer;
+      }
+      .row-pdf-thumb:hover { box-shadow: 0 0 0 2px #1f6f8b; }
+      body.embedded.theme-dark .row-pdf-thumb { border-color: #3a4856; background: #2a3340; }
+      /* Arbeitsliste (analyze view) dark-mode overrides */
+      body.embedded.theme-dark .worklist-summary {
+        background: rgba(20,28,38,0.5); border-bottom-color: #2a3340;
+      }
+      body.embedded.theme-dark .worklist-summary span {
+        background: rgba(255,255,255,0.06); border-color: #3a4856; color: #d6dde2;
+      }
+      body.embedded.theme-dark .work-row { border-bottom-color: #2a3340; }
+      body.embedded.theme-dark .work-row.head {
+        background: rgba(20,28,38,0.65); color: #99a4ab;
+      }
+      body.embedded.theme-dark .work-folder { color: #c3d4e8; }
+      body.embedded.theme-dark .tag {
+        background: rgba(255,255,255,0.07); color: #c3d4e8;
+      }
+      body.embedded.theme-dark .tag.m3 {
+        background: rgba(74,208,123,0.18); color: #6ee093;
+      }
+      body.embedded.theme-dark .tag.vde {
+        background: rgba(150,110,220,0.22); color: #c8b3f0;
+      }
+      body.embedded.theme-dark .tag.jet {
+        background: rgba(255,212,90,0.20); color: #ffcf66;
+      }
+      body.embedded.theme-dark .tag.missing {
+        background: rgba(255,116,116,0.20); color: #ff8a8a;
+      }
+      main { max-width: 1200px; margin: 0 auto; padding: 26px; }
+      header { display: flex; justify-content: space-between; gap: 16px; align-items: end; margin-bottom: 16px; }
+      h1 { margin: 0; font-size: 24px; }
+      p { margin: 5px 0 0; color: #63707a; }
+      a { color: #1f6f8b; font-weight: 750; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      button, input { font: inherit; }
+      button { border: 0; border-radius: 7px; padding: 9px 12px; background: #1f6f8b; color: white; font-weight: 800; cursor: pointer; }
+      button:hover { background: #185b73; }
+      button:disabled { background: #a8b2b9; cursor: not-allowed; }
+      .controls { background: white; border: 1px solid #d6dde2; border-radius: 8px; padding: 16px; margin-bottom: 16px; display: grid; gap: 10px; }
+      .controls input[type="text"], .controls select { padding: 8px 10px; border: 1px solid #c5cdd3; border-radius: 6px; }
+      .row-controls { display: flex; gap: 10px; align-items: center; }
+      .row-controls label { font-weight: 700; min-width: 120px; }
+      .meta { color: #63707a; font-size: 13px; margin-top: 6px; }
+      .panel { overflow: hidden; border: 1px solid #d6dde2; border-radius: 8px; background: white; box-shadow: 0 16px 34px rgba(20, 32, 42, 0.08); }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #e5ebef; vertical-align: top; font-size: 13px; }
+      th { background: #f3f6f8; color: #63707a; font-size: 11px; text-transform: uppercase; font-weight: 800; }
+      tbody tr.green td.status-cell { background: #d9f5e2; color: #1a6d36; font-weight: 800; }
+      tbody tr.red   td.status-cell { background: #ffe2e2; color: #a01616; font-weight: 800; }
+      tbody tr.yellow td.status-cell { background: #fff3c2; color: #856300; font-weight: 800; }
+      tbody tr.unknown td.status-cell { background: #f0f0f0; color: #63707a; font-weight: 800; }
+      /* Group rendering: continuation rows have no top border and a subtle indent on col 1 */
+      tbody tr.continuation td { border-top: 0 !important; padding-top: 4px; }
+      tbody tr.primary td { border-top: 2px solid #b8c3cb; padding-top: 12px; }
+      tbody tr.continuation td:nth-child(2)::before {
+        content: "↳ ";
+        color: #99a4ab;
+        font-weight: 800;
+      }
+      .action-cell { white-space: nowrap; }
+      .action-cell button { padding: 4px 8px; margin-right: 4px; margin-bottom: 4px; font-size: 11px; border-radius: 5px; }
+      .action-cell button.confirm { background: #2a9646; }
+      .action-cell button.expire  { background: #b53030; }
+      .action-cell button.update  { background: #c89800; color: #1a1a1a; }
+      .action-cell button.vde     { background: #553388; }
+      .action-cell button.active  { box-shadow: inset 0 0 0 3px #1a1a1a; }
+      .action-cell input[type="text"] { width: 100px; padding: 3px 6px; font-size: 11px; }
+      .vde-result {
+        padding: 12px 14px;
+        background: #f3eefb;
+        border-left: 4px solid #553388;
+        font-size: 12px;
+      }
+      .vde-result .verdict {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-weight: 800;
+        margin-right: 8px;
+      }
+      .vde-result .verdict.current { background: #d9f5e2; color: #1a6d36; }
+      .vde-result .verdict.newer   { background: #fff3c2; color: #856300; }
+      .vde-result .verdict.older   { background: #d4e2ff; color: #1a3677; }
+      .vde-result .verdict.unknown { background: #f0f0f0; color: #63707a; }
+      .vde-result .verdict.not-found { background: #ffe2e2; color: #a01616; }
+      .vde-result a { color: #553388; }
+      .vde-result .vde-pdf-list { margin: 6px 0 4px; padding-left: 18px; }
+      .vde-result .apply-bar { margin-top: 8px; }
+      .vde-result .apply-bar button { font-size: 11px; padding: 4px 10px; }
+      .vde-spinner { padding: 12px; color: #553388; font-style: italic; }
+      tbody tr.staged { background: #fffbe7; }
+      .save-bar { display: flex; gap: 12px; align-items: center; padding: 12px; background: #1f6f8b; color: white; border-radius: 8px; margin-bottom: 16px; }
+      .save-bar button { background: #ffffff; color: #1f6f8b; }
+      .save-bar button:hover { background: #f0f5f8; }
+      .save-bar .pending { font-weight: 800; }
+      .save-result { padding: 12px; background: #d9f5e2; color: #1a6d36; border-radius: 8px; margin-bottom: 16px; word-break: break-all; }
+      /* Inline color picker — appears next to a clicked mark-of-conformity cell. */
+      .mark-cell { cursor: pointer; }
+      .mark-cell:hover { outline: 1px dashed rgba(120,120,120,0.4); outline-offset: 1px; }
+      tbody tr.staged .mark-cell { outline: 2px solid #c89800; }
+      .color-popover {
+        position: absolute;
+        z-index: 100;
+        display: flex;
+        gap: 6px;
+        padding: 6px;
+        background: #ffffff;
+        border: 1px solid #d6dde2;
+        border-radius: 8px;
+        box-shadow: 0 8px 22px rgba(20,32,42,0.20);
+      }
+      body.embedded.theme-dark .color-popover {
+        background: #1a2230;
+        border-color: #3a4856;
+      }
+      .color-popover button {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        border: 2px solid rgba(0,0,0,0.10);
+        cursor: pointer;
+        padding: 0;
+        font-size: 14px;
+      }
+      .color-popover button.green  { background: #00B050; color: #ffffff; }
+      .color-popover button.yellow { background: #FFE03A; color: #4a3a00; }
+      .color-popover button.red    { background: #FF3030; color: #ffffff; }
+      .color-popover button.blue   { background: #2563b8; color: #ffffff; }
+      .color-popover button.update { background: linear-gradient(135deg, #FFE03A 50%, #00B050 50%); color: #1a1a1a; }
+      .color-popover input.new-date {
+        width: 110px;
+        padding: 4px 8px;
+        font-size: 12px;
+        border: 1px solid #d6dde2;
+        border-radius: 6px;
+      }
+      .color-popover .clear-btn {
+        width: auto;
+        padding: 0 10px;
+        border-radius: 6px;
+        background: transparent;
+        color: #63707a;
+        border: 1px solid transparent;
+      }
+      .color-popover .clear-btn:hover { background: rgba(120,120,120,0.10); }
+      .worklist-summary { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; background: #f3f6f8; border-bottom: 1px solid #d6dde2; }
+      .worklist-summary span { border-radius: 999px; background: white; border: 1px solid #d6dde2; padding: 4px 9px; font-size: 12px; font-weight: 800; color: #52606b; }
+      .work-row { display: grid; grid-template-columns: 46px 120px 1fr 160px 220px 90px; gap: 10px; padding: 10px 12px; border-bottom: 1px solid #e5ebef; align-items: start; font-size: 12px; }
+      .work-row.head { background: #f3f6f8; color: #63707a; font-size: 11px; text-transform: uppercase; font-weight: 800; }
+      .work-folder { word-break: break-word; color: #172027; }
+      .work-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+      .tag { border-radius: 999px; padding: 2px 7px; background: #e9eef2; color: #52606b; font-weight: 800; }
+      .tag.vde { background: #f3eefb; color: #553388; }
+      .tag.jet { background: #fff3c2; color: #856300; }
+      .tag.m3 { background: #d9f5e2; color: #1a6d36; }
+      .tag.missing { background: #ffe2e2; color: #a01616; }
+      .tag button { margin-left: 5px; padding: 1px 5px; border-radius: 999px; font-size: 10px; background: currentColor; color: white; }
+      .mark-cell { white-space: pre-line; font-family: ui-monospace, "SF Mono", monospace; font-size: 12px; }
+      .mark-cell .mof-green { color: #00B050; font-weight: 800; }
+      .mark-cell .mof-red   { color: #FF0000; font-weight: 800; }
+      .mark-cell .mof-default { color: #002060; }
+      .mark-cell .mof-strike { text-decoration: line-through; }
+      .mark-cell .mof-yellow-hl { background: #FFFF00; padding: 0 2px; }
+      .cell-content { white-space: pre-line; }
+      .run-green { color: #00B050; font-weight: 800; }
+      .run-red { color: #FF0000; font-weight: 800; }
+      .run-blue { color: #002060; }
+      .run-blue2 { color: #1F3864; }
+      .run-yellow-hl { background: #FFFF00; padding: 0 2px; }
+      .run-cyan-hl { background: #d8fbff; padding: 0 2px; }
+      .run-strike { text-decoration: line-through; }
+      .part-number { color: inherit; font-weight: 900; }
+      .empty { padding: 40px; text-align: center; color: #63707a; }
+      .err { padding: 16px; background: #ffe2e2; color: #a01616; border-radius: 8px; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  </head>
+  <body>
+    <script>
+      // Embedded inside the dashboard's iframe → blend with parent (transparent bg, no own header).
+      // Standalone view (window.top === window.self) keeps its full chrome.
+      try {
+        if (window.top !== window.self) {
+          document.documentElement.classList.add("embedded");
+          document.body.classList.add("embedded");
+        }
+      } catch {
+        document.documentElement.classList.add("embedded");
+        document.body.classList.add("embedded");
+      }
+      // Theme passed by the dashboard via ?theme=dark|light. Default light.
+      (function applyTheme() {
+        const t = new URLSearchParams(location.search).get("theme") || "light";
+        document.documentElement.classList.remove("theme-light", "theme-dark");
+        document.body.classList.remove("theme-light", "theme-dark");
+        const cls = t === "dark" ? "theme-dark" : "theme-light";
+        document.documentElement.classList.add(cls);
+        document.body.classList.add(cls);
+      })();
+      // Live update when the dashboard toggles theme (parent posts {type:"theme", theme:"…"}).
+      window.addEventListener("message", (ev) => {
+        if (ev.origin !== window.location.origin) return;
+        if (ev.data?.type === "theme") {
+          document.documentElement.classList.remove("theme-light", "theme-dark");
+          document.body.classList.remove("theme-light", "theme-dark");
+          document.documentElement.classList.add(ev.data.theme === "dark" ? "theme-dark" : "theme-light");
+          document.body.classList.add(ev.data.theme === "dark" ? "theme-dark" : "theme-light");
+        }
+      });
+    </script>
+    <main>
+      <header>
+        <div>
+          <h1>Tabelle 24 Scanner</h1>
+          <p>Bauteilliste lesen, Zertifikats-Zeilen prüfen, Word-Status vorbereiten.</p>
+        </div>
+        <div><a href="/">← Dashboard</a></div>
+      </header>
+
+      <section class="controls">
+        <div class="row-controls">
+          <label for="project-root">EF-Projekt-Ordner</label>
+          <input id="project-root" type="text" style="flex:1" placeholder="z.B. /Users/allan/Desktop/1157" value="/Users/allan/Desktop/1157">
+          <button id="list-btn" type="button">Dateien suchen</button>
+        </div>
+        <div class="row-controls">
+          <label for="file-select">Bauteilliste</label>
+          <select id="file-select" style="flex:1"><option value="">(noch nichts geladen)</option></select>
+          <button id="parse-btn" type="button" disabled>Parsen</button>
+          <button id="analyze-btn" type="button" disabled>Arbeitsliste</button>
+        </div>
+        <div class="meta" id="meta"></div>
+      </section>
+
+      <section id="save-area"></section>
+
+      <section class="panel" id="results-panel">
+        <div class="empty">Noch keine Daten — Datei wählen und "Parsen" klicken.</div>
+      </section>
+    </main>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const meta = $("meta");
+      const params = new URLSearchParams(location.search);
+      const projectId = params.get("projectId");
+      const rootParam = params.get("root");
+      const hrefParam = params.get("href");
+      let currentData = null;          // parsed JSON from /parse
+      let staged = new Map();          // rowIdx -> { action, newDate, paraIdx }
+      let currentWorklist = null;
+
+      async function fetchFiles() {
+        const root = $("project-root").value.trim();
+        if (!root && !projectId && !hrefParam) return;
+        meta.textContent = "Suche...";
+        const query = projectId
+          ? `projectId=${encodeURIComponent(projectId)}`
+          : hrefParam
+            ? `href=${encodeURIComponent(hrefParam)}`
+            : `root=${encodeURIComponent(root)}`;
+        const r = await fetch(`/api/tabelle24/files?${query}`);
+        if (!r.ok) {
+          const { error } = await r.json().catch(() => ({ error: r.statusText }));
+          meta.textContent = `Fehler: ${error}`;
+          return;
+        }
+        const { root: resolvedRoot, files } = await r.json();
+        if (resolvedRoot) $("project-root").value = resolvedRoot;
+        const sel = $("file-select");
+        sel.innerHTML = "";
+        if (!files.length) {
+          sel.innerHTML = '<option value="">(keine Intern-Dateien gefunden)</option>';
+          meta.textContent = "Keine Datei mit 'Intern' im Namen unter dem Pfad gefunden.";
+          $("parse-btn").disabled = true;
+          return;
+        }
+        for (const f of files) {
+          const opt = document.createElement("option");
+          opt.value = f.path;
+          opt.textContent = `${f.name}  (${(f.size/1024).toFixed(0)} KB, ${f.mtime.slice(0,10)})`;
+          sel.appendChild(opt);
+        }
+        meta.textContent = `${files.length} Datei(en) gefunden. Neueste oben.`;
+        $("parse-btn").disabled = false;
+        $("analyze-btn").disabled = false;
+      }
+
+      async function parseFile() {
+        const file = $("file-select").value;
+        if (!file) return;
+        const panel = $("results-panel");
+        panel.innerHTML = '<div class="empty">Parse läuft...</div>';
+        $("parse-btn").disabled = true;
+        // Run parse + analyze in parallel — analyze gives us per-row folder + PDF counts.
+        const [parseRes, analyzeRes] = await Promise.all([
+          fetch("/api/tabelle24/parse", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ file }),
+          }),
+          fetch("/api/tabelle24/analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ file }),
+          }).catch(() => null),
+        ]);
+        $("parse-btn").disabled = false;
+        if (!parseRes.ok) {
+          const { error } = await parseRes.json().catch(() => ({ error: parseRes.statusText }));
+          panel.innerHTML = `<div class="err">Fehler: ${error}</div>`;
+          return;
+        }
+        const data = await parseRes.json();
+        // Merge folder/PDF info per rowIdx if analyze succeeded.
+        if (analyzeRes && analyzeRes.ok) {
+          try {
+            const analyzed = await analyzeRes.json();
+            const byIdx = new Map((analyzed.rows || []).map(a => [a.rowIdx, a]));
+            for (const row of data.rows) {
+              const a = byIdx.get(row.rowIdx);
+              if (a) {
+                row.folderInfo = {
+                  targetFolder: a.targetFolder,
+                  targetExists: a.targetExists,
+                  hasArchiv: a.hasArchiv,
+                  pdfCount: a.pdfCount,
+                  fileCount: a.fileCount,
+                  section: a.section,
+                };
+              }
+            }
+          } catch {}
+        }
+        renderRows(panel, data);
+      }
+
+      async function analyzeFile() {
+        const file = $("file-select").value;
+        if (!file) return;
+        const panel = $("results-panel");
+        panel.innerHTML = '<div class="empty">Arbeitsliste wird erstellt...</div>';
+        $("analyze-btn").disabled = true;
+        const r = await fetch("/api/tabelle24/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ file }),
+        });
+        $("analyze-btn").disabled = false;
+        if (!r.ok) {
+          const { error } = await r.json().catch(() => ({ error: r.statusText }));
+          panel.innerHTML = `<div class="err">Fehler: ${escapeHtml(error)}</div>`;
+          return;
+        }
+        currentWorklist = await r.json();
+        renderWorklist(panel, currentWorklist);
+      }
+
+      function renderWorklist(panel, data) {
+        const rows = data.rows || [];
+        const summary = `<div class="worklist-summary">
+          <span>${rows.length} Arbeitspunkte</span>
+          <span>${data.totals.rowsWithM3} mit M3</span>
+          <span>${data.totals.rowsWithCertificates} mit Zertifikat</span>
+          <span>${data.totals.vde} VDE</span>
+          <span>${data.totals.jet} JET</span>
+          <span>${data.totals.enec} ENEC</span>
+          <span>${data.totals.foldersMissing} Ordner fehlen</span>
+        </div>`;
+        const head = `<div class="work-row head">
+          <span>#</span><span>Block</span><span>Zielordner</span><span>M3</span><span>Zertifikate</span><span>PDFs</span>
+        </div>`;
+        const body = rows.map((row) => {
+          const folder = row.targetFolder.replace(data.targetRoot, "").replace(/^\/+/, "") || row.targetFolder;
+          const parts = row.partNumbers.length
+            ? `<div class="work-tags">${row.partNumbers.map(n => `<span class="tag m3">${escapeHtml(n)}</span>`).join("")}</div>`
+            : '<span class="meta">-</span>';
+          const certs = row.certificates.length
+            ? `<div class="work-tags">${row.certificates.map(c => {
+                const cls = c.authority.toLowerCase().split("/")[0];
+                const place = c.authority === "VDE" && c.number
+                  ? `<button type="button" data-vde-place="${escapeHtml(c.number)}" data-row="${row.rowIdx}">holen</button>`
+                  : "";
+                return `<span class="tag ${cls}">${escapeHtml(c.authority)} ${escapeHtml(c.number || "")}${place}</span>`;
+              }).join("")}</div>`
+            : '<span class="meta">-</span>';
+          const status = `${row.targetExists ? "" : '<span class="tag missing">Ordner fehlt</span>'}
+            <span class="tag">${row.pdfCount} PDF</span>
+            ${row.hasArchiv ? '<span class="tag">Archiv</span>' : ""}`;
+          return `<div class="work-row">
+            <strong>${row.rowIdx}</strong>
+            <span>${escapeHtml(row.section)}</span>
+            <span class="work-folder">${escapeHtml(folder)}</span>
+            <span>${parts}</span>
+            <span>${certs}</span>
+            <span class="work-tags">${status}</span>
+          </div>`;
+        }).join("");
+        panel.innerHTML = `${summary}${head}${body || '<div class="empty">Keine Arbeitspunkte erkannt.</div>'}`;
+        panel.querySelectorAll("[data-vde-place]").forEach((btn) => {
+          btn.addEventListener("click", () => placeVdePdf(btn));
+        });
+      }
+
+      async function placeVdePdf(btn) {
+        if (!currentWorklist) return;
+        const row = currentWorklist.rows.find(r => r.rowIdx === Number(btn.dataset.row));
+        if (!row) return;
+        const certNumber = btn.dataset.vdePlace;
+        btn.disabled = true;
+        btn.textContent = "läuft";
+        try {
+          const r = await fetch("/api/tabelle24/vde-place", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ certNumber, currentDate: row.currentDate, targetFolder: row.targetFolder }),
+          });
+          const data = await r.json();
+          if (!r.ok) throw new Error(data.error || r.statusText);
+          btn.textContent = data.placed ? "ok" : "kein PDF";
+          btn.title = data.saved || data.message || "";
+        } catch (e) {
+          btn.textContent = "Fehler";
+          btn.title = e.message;
+        }
+      }
+
+      function renderRows(panel, data) {
+        currentData = data;
+        staged = new Map();
+        renderSaveBar();
+        const editable = true;  // both paragraph and table formats are editable now
+
+        const head = `<thead><tr>
+          <th style="width:40px">#</th>
+          <th style="width:25%">Bauteil / Nummer (links)</th>
+          <th>Hersteller</th>
+          <th>Typ</th>
+          <th>tech. Daten</th>
+          <th>Standard</th>
+          <th style="width:18%">Mark of Conformity</th>
+          <th class="folder-col" style="width:90px" title="Dateien im zugeordneten Komponenten-Ordner">Ordner</th>
+          <th class="status-col" style="width:70px">Status</th>
+          ${editable ? '<th class="action-col" style="width:230px">Aktion</th>' : ""}
+        </tr></thead>`;
+
+        const body = data.rows.map((r) => {
+          // Stable address per row — paragraph format uses paraIdx, table format uses table coordinates.
+          const addrAttrs = data.format === "paragraph"
+            ? `data-para="${r.endParaIdx}"`
+            : `data-table="${r.tableIdx}" data-table-row="${r.tableRowIdx}" data-mark-cell="${r.markCellIdx}"`;
+          const actionCell = editable ? `
+            <td class="action-cell" data-row="${r.rowIdx}" ${addrAttrs}>
+              <button class="confirm" data-act="confirm">✓ Confirm</button>
+              <button class="expire"  data-act="expire">✗ Expire</button>
+              <button class="update"  data-act="update">↻ Update</button>
+              <input type="text" class="new-date" placeholder="neues Datum" style="display:none">
+            </td>` : "";
+          const groupClass = r.groupPosition || "";
+          const vdeNum = extractVdeNumber(r.markOfConformity);
+          const vdeBtn = (editable && vdeNum)
+            ? `<br><button class="vde" data-act="vde-lookup" data-vde="${vdeNum}">🔍 VDE ${vdeNum} prüfen</button>` : "";
+          const mainRow = `
+            <tr class="${r.status} ${groupClass}" data-row="${r.rowIdx}" data-group="${r.groupId ?? ""}">
+              <td>${r.rowIdx}</td>
+              <td class="cell-content">${renderRuns(r.cellRuns?.[0], r.cells[0] || "")}</td>
+              <td class="cell-content">${renderRuns(r.cellRuns?.[1], r.cells[1] || "")}</td>
+              <td class="cell-content">${renderRuns(r.cellRuns?.[2], r.cells[2] || "")}</td>
+              <td class="cell-content">${renderRuns(r.cellRuns?.[3], r.cells[3] || "")}</td>
+              <td class="cell-content">${renderRuns(r.cellRuns?.[4], r.cells[4] || "")}</td>
+              <td class="mark-cell">${renderRuns(r.markOfConformityRuns, r.markOfConformity)}</td>
+              <td class="folder-cell">${renderFolderBadge(r.folderInfo)}</td>
+              <td class="status-cell">${r.status.toUpperCase()}</td>
+              ${editable ? actionCell.replace("</td>", `${vdeBtn}</td>`) : ""}
+            </tr>`;
+          // Optional VDE result drawer (initially empty, populated on lookup)
+          const drawer = editable && vdeNum
+            ? `<tr class="vde-drawer" data-for-row="${r.rowIdx}" style="display:none"><td colspan="9"><div class="vde-result-host"></div></td></tr>`
+            : "";
+          return mainRow + drawer;
+        }).join("");
+
+        const note = data.format === "table"
+          ? '<div class="meta" style="padding:10px 12px"><strong>Tabellen-Format</strong> (.doc-Konversion). Original-Farben sind verloren — alle Status "unknown". Aktionen per Klick wie gewohnt; das gespeicherte File ist eine neue .docx.</div>'
+          : '<div class="meta" style="padding:10px 12px">Paragraph-Format — klick auf Confirm/Expire/Update pro Zeile, dann oben "Word-Datei speichern".</div>';
+        panel.innerHTML = `${note}<table>${head}<tbody>${body}</tbody></table>`;
+
+        if (editable) {
+          wireActionButtons(panel);
+          wireMarkCellPicker(panel, data);
+        }
+        // Kick off PDF thumbnail rendering for any new canvases just inserted.
+        observePdfThumbs();
+      }
+
+      // Click a mark-of-conformity cell → floating picker with 5 colors. Stages a change.
+      let openPopover = null;
+      function closePopover() {
+        if (openPopover) { openPopover.remove(); openPopover = null; }
+      }
+      document.addEventListener("click", (ev) => {
+        if (!openPopover) return;
+        if (openPopover.contains(ev.target)) return;
+        if (ev.target.closest(".mark-cell")) return;
+        closePopover();
+      });
+
+      function wireMarkCellPicker(panel, data) {
+        panel.querySelectorAll("tbody tr").forEach((tr) => {
+          const rowIdx = Number(tr.dataset.row);
+          if (!rowIdx) return;
+          const row = data.rows.find(r => r.rowIdx === rowIdx);
+          if (!row) return;
+          const addr = row.endParaIdx !== undefined
+            ? { paraIdx: row.endParaIdx }
+            : { tableIdx: row.tableIdx, tableRowIdx: row.tableRowIdx, markCellIdx: row.markCellIdx };
+          const markCell = tr.querySelector(".mark-cell");
+          if (!markCell) return;
+          markCell.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            openColorPickerFor(markCell, rowIdx, addr);
+          });
+        });
+      }
+
+      function openColorPickerFor(anchor, rowIdx, addr) {
+        closePopover();
+        const pop = document.createElement("div");
+        pop.className = "color-popover";
+        pop.innerHTML = `
+          <button class="green"  data-act="confirm" title="Grün — bestätigt">✓</button>
+          <button class="yellow" data-act="yellow"  title="Gelb — pending">●</button>
+          <button class="red"    data-act="expire"  title="Rot — abgelaufen">✗</button>
+          <button class="blue"   data-act="blue"    title="Blau — wiederprüfen">●</button>
+          <button class="update" data-act="update"  title="Update mit neuem Datum">↻</button>
+          <input class="new-date" type="text" placeholder="neues Datum" style="display:none">
+          <button class="clear-btn" data-act="clear" title="Markierung entfernen">×</button>
+        `;
+        document.body.appendChild(pop);
+        const r = anchor.getBoundingClientRect();
+        pop.style.left = `${window.scrollX + r.right + 6}px`;
+        pop.style.top  = `${window.scrollY + r.top}px`;
+        // Keep within viewport horizontally
+        const popRect = pop.getBoundingClientRect();
+        if (popRect.right > window.innerWidth - 8) {
+          pop.style.left = `${window.scrollX + r.left - popRect.width - 6}px`;
+        }
+        openPopover = pop;
+
+        // Pre-fill existing staged action if any
+        const cur = staged.get(rowIdx);
+        if (cur && cur.action === "update") {
+          pop.querySelector(".new-date").style.display = "inline-block";
+          pop.querySelector(".new-date").value = cur.newDate || "";
+        }
+
+        pop.addEventListener("click", (ev) => ev.stopPropagation());
+        pop.querySelectorAll("button[data-act]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const act = btn.dataset.act;
+            if (act === "clear") {
+              staged.delete(rowIdx);
+              anchor.closest("tr").classList.remove("staged");
+              renderSaveBar();
+              closePopover();
+              return;
+            }
+            if (act === "update") {
+              const inp = pop.querySelector(".new-date");
+              inp.style.display = "inline-block";
+              inp.focus();
+              staged.set(rowIdx, { action: "update", addr, newDate: inp.value.trim() });
+              anchor.closest("tr").classList.add("staged");
+              renderSaveBar();
+              return;
+            }
+            staged.set(rowIdx, { action: act, addr, newDate: undefined });
+            anchor.closest("tr").classList.add("staged");
+            renderSaveBar();
+            closePopover();
+          });
+        });
+        pop.querySelector(".new-date").addEventListener("input", (e) => {
+          const cur2 = staged.get(rowIdx);
+          if (cur2 && cur2.action === "update") {
+            cur2.newDate = e.target.value.trim();
+            renderSaveBar();
+          }
+        });
+      }
+
+      function wireActionButtons(panel) {
+        panel.querySelectorAll(".action-cell").forEach((cell) => {
+          const rowIdx = Number(cell.dataset.row);
+          const addr = cell.dataset.para !== undefined && cell.dataset.para !== ""
+            ? { paraIdx: Number(cell.dataset.para) }
+            : { tableIdx: Number(cell.dataset.table), tableRowIdx: Number(cell.dataset.tableRow), markCellIdx: Number(cell.dataset.markCell) };
+          const newDateInput = cell.querySelector(".new-date");
+          const stagingButtons = ["confirm", "expire", "update"];
+
+          cell.querySelectorAll("button").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const act = btn.dataset.act;
+
+              if (act === "vde-lookup") {
+                runVdeLookup(rowIdx, btn.dataset.vde, addr);
+                return;
+              }
+
+              if (!stagingButtons.includes(act)) return;
+              const current = staged.get(rowIdx);
+              if (current && current.action === act && act !== "update") {
+                staged.delete(rowIdx);
+                cell.querySelectorAll("button").forEach(b => stagingButtons.includes(b.dataset.act) && b.classList.remove("active"));
+                if (newDateInput) newDateInput.style.display = "none";
+                cell.closest("tr").classList.remove("staged");
+              } else {
+                cell.querySelectorAll("button").forEach(b => stagingButtons.includes(b.dataset.act) && b.classList.remove("active"));
+                btn.classList.add("active");
+                cell.closest("tr").classList.add("staged");
+                if (newDateInput) newDateInput.style.display = (act === "update") ? "inline-block" : "none";
+                staged.set(rowIdx, { action: act, addr, newDate: act === "update" && newDateInput ? newDateInput.value.trim() : undefined });
+              }
+              renderSaveBar();
+            });
+          });
+          if (newDateInput) {
+            newDateInput.addEventListener("input", () => {
+              const cur = staged.get(rowIdx);
+              if (cur && cur.action === "update") {
+                cur.newDate = newDateInput.value.trim();
+                renderSaveBar();
+              }
+            });
+          }
+        });
+      }
+
+      async function runVdeLookup(rowIdx, certNumber, addr) {
+        const row = currentData.rows.find(r => r.rowIdx === rowIdx);
+        const drawer = document.querySelector(`tr.vde-drawer[data-for-row="${rowIdx}"]`);
+        if (!drawer) return;
+        const host = drawer.querySelector(".vde-result-host");
+        drawer.style.display = "";
+        host.innerHTML = `<div class="vde-spinner">⏳ VDE ${certNumber} wird geprüft… (kann 5-15 Sekunden dauern)</div>`;
+
+        const currentDate = extractLatestIsoDate(row.markOfConformity);
+
+        try {
+          const r = await fetch("/api/tabelle24/vde-lookup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ certNumber, currentDate }),
+          });
+          const data = await r.json();
+          if (!r.ok) {
+            host.innerHTML = `<div class="vde-result"><span class="verdict not-found">Fehler</span> ${escapeHtml(data.error || r.statusText)}</div>`;
+            return;
+          }
+          renderVdeResult(host, data, rowIdx, addr, currentDate);
+        } catch (e) {
+          host.innerHTML = `<div class="vde-result"><span class="verdict not-found">Fehler</span> ${escapeHtml(e.message)}</div>`;
+        }
+      }
+
+      function renderVdeResult(host, data, rowIdx, addr, currentDate) {
+        if (!data.found) {
+          host.innerHTML = `<div class="vde-result">
+            <span class="verdict not-found">Nicht gefunden</span>
+            VDE ${data.certNumber} existiert nicht (mehr) in der VDE-Datenbank.
+            Wahrscheinlich abgelaufen → <button class="expire" style="background:#b53030;color:white" data-suggest-action="expire">→ Als Expire markieren</button>
+          </div>`;
+          host.querySelector("[data-suggest-action]").addEventListener("click", () => applyVdeAction(rowIdx, addr, "expire"));
+          return;
+        }
+        if (!data.pdfList.length) {
+          host.innerHTML = `<div class="vde-result">
+            <span class="verdict unknown">Keine PDFs</span>
+            Cert VDE ${data.certNumber} existiert, aber kein PDF öffentlich verfügbar (typisch für alte Certs).
+            Datum aus Word-Datei: ${escapeHtml(currentDate || "—")}
+          </div>`;
+          return;
+        }
+        const verdictClass = data.comparison || "unknown";
+        const verdictLabel = {
+          current: "Aktuell",
+          newer: "VDE hat neueres Datum",
+          older: "Word-Datei hat neueres Datum",
+          unknown: "Datum unbekannt",
+        }[verdictClass] || "Unbekannt";
+
+        const pdfListHtml = data.pdfList.map(p => {
+          const isChosen = data.chosen && p.url === data.chosen.url;
+          return `<li>${isChosen ? "<strong>" : ""}<a href="${escapeHtml(p.url)}" target="_blank">${escapeHtml((p.label || "PDF").split("\n")[0])}</a>${isChosen ? " (ausgewählt)</strong>" : ""}</li>`;
+        }).join("");
+
+        const pdfLocalLink = data.downloadedPdf
+          ? `<a href="/api/tabelle24/vde-pdf?path=${encodeURIComponent(data.downloadedPdf)}" target="_blank">📄 Heruntergeladenes PDF öffnen</a>`
+          : "";
+
+        let suggest = "";
+        if (verdictClass === "current") {
+          suggest = `<button class="confirm" style="background:#2a9646;color:white" data-suggest-action="confirm">→ Als Confirm markieren</button>`;
+        } else if (verdictClass === "newer") {
+          suggest = `<button class="update" style="background:#c89800" data-suggest-action="update" data-new-date="${escapeHtml(data.onlineDate)}">→ Als Update markieren mit ${escapeHtml(data.onlineDate)}</button>`;
+        }
+
+        host.innerHTML = `<div class="vde-result">
+          <span class="verdict ${verdictClass}">${verdictLabel}</span>
+          Word-Datum: <strong>${escapeHtml(currentDate || "—")}</strong> |
+          VDE-Datum: <strong>${escapeHtml(data.onlineDate || "—")}</strong>
+          <ul class="vde-pdf-list">${pdfListHtml}</ul>
+          ${pdfLocalLink}
+          <div class="apply-bar">${suggest}</div>
+        </div>`;
+
+        host.querySelectorAll("[data-suggest-action]").forEach(btn => {
+          btn.addEventListener("click", () => {
+            const act = btn.dataset.suggestAction;
+            const newDate = btn.dataset.newDate;
+            applyVdeAction(rowIdx, addr, act, newDate);
+          });
+        });
+      }
+
+      function applyVdeAction(rowIdx, addr, action, newDate) {
+        // Stage the action and reflect in the action-cell buttons + save bar.
+        staged.set(rowIdx, { action, addr, newDate });
+        const cell = document.querySelector(`.action-cell[data-row="${rowIdx}"]`);
+        if (cell) {
+          cell.querySelectorAll("button").forEach(b => b.classList.remove("active"));
+          const btn = cell.querySelector(`button[data-act="${action}"]`);
+          if (btn) btn.classList.add("active");
+          const inp = cell.querySelector(".new-date");
+          if (inp && action === "update") {
+            inp.style.display = "inline-block";
+            if (newDate) inp.value = newDate;
+          }
+          cell.closest("tr").classList.add("staged");
+        }
+        renderSaveBar();
+      }
+
+      function renderSaveBar() {
+        const area = $("save-area");
+        const n = staged.size;
+        if (!n) { area.innerHTML = ""; return; }
+        const missingDate = [...staged.entries()].filter(([_, c]) => c.action === "update" && !c.newDate);
+        const ready = !missingDate.length;
+        area.innerHTML = `
+          <div class="save-bar">
+            <span class="pending">${n} Zeile(n) markiert</span>
+            ${missingDate.length ? `<span style="color:#ffd6d6">⚠ ${missingDate.length} Update-Zeile(n) ohne Datum</span>` : ""}
+            <span style="flex:1"></span>
+            <button id="save-btn" ${ready ? "" : "disabled"}>Word-Datei speichern</button>
+          </div>`;
+        $("save-btn").addEventListener("click", saveChanges);
+      }
+
+      async function saveChanges() {
+        const changes = [...staged.values()].map(c => ({
+          ...c.addr,
+          action: c.action,
+          ...(c.action === "update" ? { newDate: c.newDate } : {}),
+        }));
+        const r = await fetch("/api/tabelle24/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sourceFile: currentData.sourceFile, changes }),
+        });
+        const area = $("save-area");
+        if (!r.ok) {
+          const { error } = await r.json().catch(() => ({ error: r.statusText }));
+          area.innerHTML = `<div class="err">Speichern fehlgeschlagen: ${escapeHtml(error)}</div>`;
+          return;
+        }
+        const data = await r.json();
+        area.innerHTML = `<div class="save-result">
+          ✓ Gespeichert: <strong>${escapeHtml(data.outputFile)}</strong> &mdash; ${data.applied} Änderung(en) übernommen
+          ${data.skipped?.length ? `<br><span style="color:#a06000">Skipped: ${data.skipped.length}</span>` : ""}
+        </div>`;
+        staged.clear();
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      }
+
+      function renderTextWithPartNumbers(text) {
+        return escapeHtml(text).replace(/\\b(\\d{6,7})\\b/g, '<span class="part-number">$1</span>');
+      }
+
+      // Build a small folder-info badge for the Ordner column.
+      // Shows PDF count, file count, missing-folder warning, Archiv presence, and inline PDF thumbnails.
+      function renderFolderBadge(info) {
+        if (!info) return '<span class="folder-badge none" title="Kein Ordner zugeordnet">–</span>';
+        if (!info.targetExists) {
+          return `<span class="folder-badge missing" title="${escapeHtml(info.targetFolder || "")}">Ordner fehlt</span>`;
+        }
+        const pdfPart = info.pdfCount > 0
+          ? `<span class="folder-badge ok" title="${escapeHtml(info.targetFolder)}">${info.pdfCount} PDF</span>`
+          : `<span class="folder-badge empty" title="${escapeHtml(info.targetFolder)}">0 PDF</span>`;
+        const arch = info.hasArchiv ? `<span class="folder-badge archiv" title="Archiv-Unterordner vorhanden">Archiv</span>` : "";
+        const thumbs = renderFolderThumbs(info);
+        return `${pdfPart}${arch}${thumbs}`;
+      }
+
+      // Render up to 4 PDF thumbnails for the row's component folder.
+      function renderFolderThumbs(info) {
+        const pdfs = (info?.oldPdfs || []).slice(0, 4);
+        if (!pdfs.length) return "";
+        return `<div class="folder-thumbs">${pdfs.map(p => {
+          const href = `/api/tabelle24/file?path=${encodeURIComponent(p.path)}`;
+          return `<canvas class="row-pdf-thumb file-thumb-pdf" data-pdf-href="${href}" title="${escapeHtml(p.name)}" onclick="window.open('${href}','_blank')"></canvas>`;
+        }).join("")}</div>`;
+      }
+
+      // PDF.js lazy thumbnail rendering (mirrors the main dashboard's setup).
+      let _pdfThumbObs = null;
+      function observePdfThumbs() {
+        if (typeof window.pdfjsLib === "undefined") return;
+        if (!_pdfThumbObs) {
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+            "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+          _pdfThumbObs = new IntersectionObserver((entries) => {
+            for (const e of entries) {
+              if (!e.isIntersecting) continue;
+              _pdfThumbObs.unobserve(e.target);
+              renderPdfThumb(e.target);
+            }
+          }, { rootMargin: "200px" });
+        }
+        document.querySelectorAll("canvas.file-thumb-pdf:not([data-pdf-done])").forEach(c => _pdfThumbObs.observe(c));
+      }
+      async function renderPdfThumb(canvas) {
+        canvas.dataset.pdfDone = "1";
+        try {
+          const pdf = await pdfjsLib.getDocument({ url: canvas.dataset.pdfHref }).promise;
+          const page = await pdf.getPage(1);
+          const TARGET_H = 40;
+          const vp0 = page.getViewport({ scale: 1 });
+          const scale = TARGET_H / vp0.height;
+          const vp = page.getViewport({ scale });
+          canvas.width = vp.width;
+          canvas.height = vp.height;
+          await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+        } catch {
+          const ctx = canvas.getContext("2d");
+          canvas.width = 32; canvas.height = 40;
+          ctx.fillStyle = "#fee2e2"; ctx.fillRect(0, 0, 32, 40);
+          ctx.fillStyle = "#dc2626"; ctx.font = "bold 8px sans-serif";
+          ctx.textAlign = "center"; ctx.textBaseline = "middle";
+          ctx.fillText("PDF", 16, 20);
+        }
+      }
+
+      // Extract the first VDE certificate number from a mark-of-conformity text.
+      function extractVdeNumber(text) {
+        if (!text) return null;
+        const m = String(text).match(/VDE\s*(\d{5,})/i);
+        return m ? m[1] : null;
+      }
+
+      // Extract the latest (max) ISO date from text. Accepts YYYY-MM-DD and DD.MM.YYYY.
+      function extractLatestIsoDate(text) {
+        if (!text) return null;
+        const re = /(20\d{2})[-.](\d{2})[-.](\d{2})|(\d{2})\.(\d{2})\.(20\d{2})/g;
+        const norms = [];
+        let m;
+        while ((m = re.exec(text))) {
+          if (m[1]) norms.push(`${m[1]}-${m[2]}-${m[3]}`);
+          else norms.push(`${m[6]}-${m[5]}-${m[4]}`);
+        }
+        if (!norms.length) return null;
+        norms.sort();
+        return norms[norms.length - 1];
+      }
+
+      // Render an array of {text, color, highlight, strike} run objects as styled spans.
+      // Falls back to plain text if runs are missing (older parser output).
+      function renderRuns(runs, fallback) {
+        if (!Array.isArray(runs) || !runs.length) return renderTextWithPartNumbers(fallback || "");
+        return runs.map((run) => {
+          const classes = [];
+          if (run.color === "00B050") classes.push("run-green");
+          else if (run.color === "FF0000") classes.push("run-red");
+          else if (run.color === "002060") classes.push("run-blue");
+          else if (run.color === "1F3864") classes.push("run-blue2");
+          if (run.highlight === "yellow") classes.push("run-yellow-hl");
+          if (run.highlight === "cyan") classes.push("run-cyan-hl");
+          if (run.strike) classes.push("run-strike");
+          return `<span class="${classes.join(" ")}">${renderTextWithPartNumbers(run.text)}</span>`;
+        }).join("");
+      }
+
+      if (rootParam) $("project-root").value = rootParam;
+      if (projectId) {
+        document.querySelector("h1").textContent = `Tabelle 24 Scanner — ${projectId}`;
+        meta.textContent = `Projekt ${projectId} wird geladen...`;
+      }
+      $("list-btn").addEventListener("click", fetchFiles);
+      $("parse-btn").addEventListener("click", parseFile);
+      $("analyze-btn").addEventListener("click", analyzeFile);
+      // Auto-load on page open
+      fetchFiles();
+    </script>
+  </body>
+</html>

@@ -13,3 +13,4 @@ files/
 # macOS/editor noise
 .DS_Store
 *.swp
+.fuse_hidden*

@@ -20,7 +20,8 @@ const { db } = require("./db");
 const { trackerConfig } = require("./config");
 
 // ── Config ──────────────────────────────────────────────────
-const PCS_ROOT = process.env.PCS_ROOT || trackerConfig.pcsRoot || path.join(os.homedir(), "Desktop");
+const CONFIG_PCS_ROOT = process.platform === "win32" ? trackerConfig.pcsRoot : null;
+const PCS_ROOT = process.env.PCS_ROOT || CONFIG_PCS_ROOT || path.join(os.homedir(), "Desktop");
 const PROJECT_PREFIX = process.env.PROJECT_PREFIX || "EF";
 const CONCURRENCY = 8;
 
@@ -125,58 +126,20 @@ function inferDocProject(filename) {
   return null;
 }
 
-// Returns array of { path, label } — one entry per market/standard root.
-// Handles these structures:
-//   TA/IEC/...                    → single IEC root, no label
-//   TA/EU, CH/... TA/UL/...       → one root per market
-//   TA/Zulassungen/IEC/...        → Zulassungen as container
-//   TA/Zulassungen/IEC + UL/...   → Zulassungen contains multiple roots
-async function findIecRootsAsync(projectDir) {
-  const taPath = path.join(projectDir, "Technische Approbation");
-
-  async function resolveRoots(dirPath) {
-    let entries;
-    try {
-      entries = (await fsp.readdir(dirPath, { withFileTypes: true }))
-        .filter(e => e.isDirectory() && !isLockFile(e.name));
-    } catch { return []; }
-
-    // Direct IEC folder — only treat as single no-label root if it's the only subfolder
-    const iec = entries.find(e => e.name === "IEC");
-    if (iec && entries.length === 1) return [{ path: path.join(dirPath, "IEC"), label: "" }];
-
-    // Container folders (Zulassungen, Zulassung) → recurse one level
-    const container = entries.find(e => /^Zulassung/i.test(e.name));
-    if (container) {
-      const inner = await resolveRoots(path.join(dirPath, container.name));
-      if (inner.length > 0) return inner;
-    }
-
-    // Otherwise each subfolder is its own market root
-    return entries.map(e => ({ path: path.join(dirPath, e.name), label: e.name }));
-  }
-
-  // Try Technische Approbation first
-  try {
-    await fsp.stat(taPath);
-    const roots = await resolveRoots(taPath);
-    if (roots.length > 0) return roots;
-  } catch { /* fall through */ }
-
-  // Fallback for projects without Technische Approbation
-  const fallbacks = [
-    { p: path.join(projectDir, "Zulassungen", "IEC"), label: "" },
-    { p: path.join(projectDir, "Zulassung", "IEC"), label: "" },
-    { p: path.join(projectDir, "Zulassungen"), label: "" },
-    { p: path.join(projectDir, "IEC"), label: "" }
+async function findIecFolderAsync(projectDir) {
+  const candidates = [
+    path.join(projectDir, "Zulassungen", "IEC"),
+    path.join(projectDir, "Zulassung", "IEC"),
+    path.join(projectDir, "Zulassungen"),
+    path.join(projectDir, "IEC")
   ];
-  for (const { p, label } of fallbacks) {
+  for (const c of candidates) {
     try {
-      const st = await fsp.stat(p);
-      if (st.isDirectory()) return [{ path: p, label }];
+      const st = await fsp.stat(c);
+      if (st.isDirectory()) return c;
     } catch { /* try next */ }
   }
-  return [];
+  return null;
 }
 
 function encodePathSegment(value) {
@@ -184,7 +147,7 @@ function encodePathSegment(value) {
 }
 
 function isProjectFolderName(name) {
-  return /^\d/.test(name) || /^EF[\s_-]?\d/i.test(name);
+  return /^\d/.test(name) || new RegExp(`^${PROJECT_PREFIX}[\\s_-]*\\d`, "i").test(name);
 }
 
 // Extract all EF numbers from a folder name.
@@ -216,117 +179,109 @@ async function scanProject(projectNumber, projectDir, storedMtimes, allNumbers =
   const allProjectIds = allNumbers.length > 0
     ? allNumbers.map((n) => `${PROJECT_PREFIX}${n}`)
     : [projectId];
-  const iecRoots = await findIecRootsAsync(projectDir);
+  const iecFolder = await findIecFolderAsync(projectDir);
   const projectFolderName = path.basename(projectDir);
   const webPrefix = getWebPrefix(projectNumber, projectFolderName);
   const now = new Date().toISOString();
   const errors = [];
 
-  if (iecRoots.length === 0) {
+  if (!iecFolder) {
     errors.push(`Kein IEC-Ordner gefunden in ${projectDir}`);
     return { projectId, allProjectIds, documentGroups: [], reportVersions: [], errors, skipped: 0, scanned: 0 };
   }
 
-  const multiRoot = iecRoots.length > 1 || iecRoots[0].label !== "";
+  let iecEntries = [];
+  try {
+    iecEntries = (await fsp.readdir(iecFolder, { withFileTypes: true }))
+      .filter((e) => e.isDirectory() && !isLockFile(e.name));
+  } catch (err) {
+    errors.push(`Fehler beim Lesen von ${iecFolder}: ${err.message}`);
+    return { projectId, documentGroups: [], reportVersions: [], errors, skipped: 0, scanned: 0 };
+  }
+
   let skipped = 0;
   let scanned = 0;
   const documentGroups = [];
   const skippedAreas = [];
-  const reportVersions = [];
-  let reportsScanned = false;
 
-  for (const { path: iecFolder, label } of iecRoots) {
-    let iecEntries = [];
+  // Process all IEC areas in parallel, with mtime-based skip
+  await Promise.all(iecEntries.map(async (entry) => {
+    const numMatch = entry.name.match(/^(\d+)/);
+    if (!numMatch) return;
+
+    const num = numMatch[1].padStart(2, "0");
+    const area = IEC_FOLDER_MAP[num] || entry.name;
+    const folderPath = path.join(iecFolder, entry.name);
+
+    let currentMtime = null;
     try {
-      iecEntries = (await fsp.readdir(iecFolder, { withFileTypes: true }))
-        .filter((e) => e.isDirectory() && !isLockFile(e.name));
-    } catch (err) {
-      errors.push(`Fehler beim Lesen von ${iecFolder}: ${err.message}`);
-      continue;
+      const st = await fsp.stat(folderPath);
+      currentMtime = st.mtime.toISOString();
+    } catch { return; }
+
+    if (storedMtimes.has(area) && storedMtimes.get(area) === currentMtime) {
+      skippedAreas.push(area);
+      skipped++;
+      return;
     }
 
-    // Process all area folders in parallel, with mtime-based skip
-    await Promise.all(iecEntries.map(async (entry) => {
-      const numMatch = entry.name.match(/^(\d+)/);
-      if (!numMatch) return;
+    scanned++;
+    const count = await countFilesAsync(folderPath);
+    const status = count === 0
+      ? (CRITICAL_FOLDERS.has(num) ? "Blocked" : "Open")
+      : (num === "12" ? "Current" : "Available");
 
-      const num = numMatch[1].padStart(2, "0");
-      // Use IEC_FOLDER_MAP only for classic single-root IEC structure
-      const baseName = (!multiRoot && IEC_FOLDER_MAP[num]) ? IEC_FOLDER_MAP[num] : entry.name;
-      const area = label ? `${label} / ${baseName}` : baseName;
-      const folderPath = path.join(iecFolder, entry.name);
+    const relPathFromProject = path.relative(projectDir, folderPath).split(path.sep).join("/");
+    const href = `${webPrefix}${relPathFromProject}/`;
 
-      let currentMtime = null;
-      try {
-        const st = await fsp.stat(folderPath);
-        currentMtime = st.mtime.toISOString();
-      } catch { return; }
+    documentGroups.push({
+      area,
+      status,
+      count: `${count} ${count === 1 ? "Datei" : "Dateien"}`,
+      summary: `${entry.name} — ${count} Datei${count !== 1 ? "en" : ""} gefunden`,
+      primary_doc: entry.name,
+      href,
+      last_scanned: now,
+      folder_mtime: currentMtime
+    });
+  }));
 
-      if (storedMtimes.has(area) && storedMtimes.get(area) === currentMtime) {
-        skippedAreas.push(area);
-        skipped++;
-        return;
+  // Report versions from folder 12 Untersuchungen
+  const reportVersions = [];
+  let reportsScanned = false;
+  const unterEntry = iecEntries.find((e) => e.name.match(/^12/));
+  if (unterEntry) {
+    reportsScanned = true;
+    const unterFolder = path.join(iecFolder, unterEntry.name);
+    const wordDocs = await findWordDocsAsync(unterFolder, iecFolder);
+    wordDocs.sort((a, b) => b.stats.mtime - a.stats.mtime);
+    const seenBuild = new Map();
+
+    for (const doc of wordDocs) {
+      const relFrom12 = path.relative(unterFolder, doc.fullPath);
+      const build = inferBuild(relFrom12);
+      let state = inferReportState(doc.relFromIec);
+
+      if (state === "Current") {
+        if (seenBuild.has(build)) state = "Archived";
+        else seenBuild.set(build, true);
       }
 
-      scanned++;
-      const count = await countFilesAsync(folderPath);
-      const isReportFolder = num === "12" || entry.name.match(/untersuchung|prüfergebnis|rapport|report/i);
-      const status = count === 0
-        ? (CRITICAL_FOLDERS.has(num) ? "Blocked" : "Open")
-        : (isReportFolder ? "Current" : "Available");
+      const docProject = inferDocProject(doc.file) || projectId;
+      const relFromProjectDir = path.relative(projectDir, doc.fullPath).split(path.sep).join("/");
+      const href = `${webPrefix}${relFromProjectDir}`;
 
-      const relPathFromProject = path.relative(projectDir, folderPath).split(path.sep).map(encodeURIComponent).join("/");
-      const href = `${webPrefix}${relPathFromProject}/`;
-
-      documentGroups.push({
-        area,
-        status,
-        count: `${count} ${count === 1 ? "Datei" : "Dateien"}`,
-        summary: `${entry.name} — ${count} Datei${count !== 1 ? "en" : ""} gefunden`,
-        primary_doc: entry.name,
+      reportVersions.push({
+        project: docProject,
+        build,
+        version: fmtDate(doc.stats.mtime),
+        modified: fmtDate(doc.stats.mtime),
+        size: fmtSize(doc.stats.size),
+        state,
+        file: doc.file,
         href,
-        last_scanned: now,
-        folder_mtime: currentMtime
+        last_scanned: now
       });
-    }));
-
-    // Report versions from investigation/report folders
-    const reportEntries = iecEntries.filter(e =>
-      e.name.match(/^12/) || e.name.match(/untersuchung|prüfergebnis|rapport|report/i)
-    );
-    for (const unterEntry of reportEntries) {
-      reportsScanned = true;
-      const unterFolder = path.join(iecFolder, unterEntry.name);
-      const wordDocs = await findWordDocsAsync(unterFolder, iecFolder);
-      wordDocs.sort((a, b) => b.stats.mtime - a.stats.mtime);
-      const seenBuild = new Map();
-
-      for (const doc of wordDocs) {
-        const relFrom12 = path.relative(unterFolder, doc.fullPath);
-        const build = inferBuild(relFrom12);
-        let state = inferReportState(doc.relFromIec);
-
-        if (state === "Current") {
-          if (seenBuild.has(build)) state = "Archived";
-          else seenBuild.set(build, true);
-        }
-
-        const docProject = inferDocProject(doc.file) || projectId;
-        const relFromProjectDir = path.relative(projectDir, doc.fullPath).split(path.sep).map(encodeURIComponent).join("/");
-        const href = `${webPrefix}${relFromProjectDir}`;
-
-        reportVersions.push({
-          project: docProject,
-          build,
-          version: fmtDate(doc.stats.mtime),
-          modified: fmtDate(doc.stats.mtime),
-          size: fmtSize(doc.stats.size),
-          state,
-          file: doc.file,
-          href,
-          last_scanned: now
-        });
-      }
     }
   }
 
@@ -356,12 +311,6 @@ const stmts = {
   ),
   getStoredMtimes: db.prepare(
     "SELECT area, folder_mtime FROM document_groups WHERE project_id = ? AND folder_mtime IS NOT NULL"
-  ),
-  getExistingAreas: db.prepare(
-    "SELECT DISTINCT area FROM document_groups WHERE project_id = ?"
-  ),
-  deleteStaleArea: db.prepare(
-    "DELETE FROM document_groups WHERE project_id = ? AND area = ?"
   ),
   insertScanLog: db.prepare(
     `INSERT INTO scan_log (scanned_at, projects_found, files_found, notes) VALUES (?, ?, ?, ?)`
@@ -406,22 +355,6 @@ function writeProjectToDB(res, now) {
         id, g.area, g.status, g.count, g.summary,
         g.primary_doc, g.href, g.last_scanned, g.folder_mtime || null
       );
-    }
-  }
-
-  // Prune areas that no longer exist (e.g. after IEC root structure changes)
-  const activeAreas = new Set([
-    ...(skippedAreas || []),
-    ...documentGroups.map(g => g.area),
-  ]);
-  if (activeAreas.size > 0) {
-    for (const id of ids) {
-      const existingAreas = stmts.getExistingAreas.all(id).map(r => r.area);
-      for (const area of existingAreas) {
-        if (!activeAreas.has(area)) {
-          stmts.deleteStaleArea.run(id, area);
-        }
-      }
     }
   }
 
@@ -515,52 +448,7 @@ async function scan(customRoot, onProgress) {
   return result;
 }
 
-// ── Single-project scan ──────────────────────────────────────
-async function scanSingle(projectId, root) {
-  root = root || PCS_ROOT;
-  const now = new Date().toISOString();
-
-  // Find the folder in PCS_ROOT that contains this project
-  let rootEntries = [];
-  try {
-    rootEntries = (await fsp.readdir(root, { withFileTypes: true }))
-      .filter(e => e.isDirectory() && isProjectFolderName(e.name));
-  } catch (err) {
-    return { error: `Kann PCS-Root nicht lesen: ${err.message}` };
-  }
-
-  const targetNumber = projectId.replace(/^EF/i, "");
-  const entry = rootEntries.find(e => {
-    const nums = extractProjectNumbers(e.name);
-    return nums.includes(targetNumber);
-  });
-
-  if (!entry) return { error: `Ordner für ${projectId} nicht gefunden` };
-
-  const numbers = extractProjectNumbers(entry.name);
-  const primaryNumber = numbers[0];
-  const primaryId = `${PROJECT_PREFIX}${primaryNumber}`;
-  const projectDir = path.join(root, entry.name);
-
-  const storedMtimes = new Map(
-    stmts.getStoredMtimes.all(primaryId).map(r => [r.area, r.folder_mtime])
-  );
-
-  const res = await scanProject(primaryNumber, projectDir, storedMtimes, numbers);
-
-  db.transaction(() => { writeProjectToDB(res, now); })();
-
-  return {
-    projectId,
-    folder: entry.name,
-    documentGroups: res.documentGroups.length,
-    skipped: res.skipped,
-    scanned: res.scanned,
-    errors: res.errors,
-  };
-}
-
-module.exports = { scan, scanSingle, PCS_ROOT };
+module.exports = { scan, PCS_ROOT };
 
 // ── Run standalone ───────────────────────────────────────────
 if (require.main === module) {

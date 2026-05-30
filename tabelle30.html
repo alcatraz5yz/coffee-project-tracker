@@ -1,0 +1,770 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tabelle 30 Scanner</title>
+    <style>
+      :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      body { margin: 0; background: #eef2f4; color: #172027; }
+      /* Embedded inside the dashboard iframe → blend with the parent's paper background */
+      html.embedded,
+      html:has(body.embedded),
+      body.embedded { background: transparent; }
+      html.embedded.theme-light,
+      html:has(body.embedded.theme-light),
+      body.embedded.theme-light {
+        background: #e8e2d8 !important;
+      }
+      html.embedded.theme-dark,
+      html:has(body.embedded.theme-dark),
+      body.embedded.theme-dark {
+        background: #0f171d !important;
+      }
+      body.embedded > main > header { display: none; }
+      body.embedded > main {
+        max-width: none;
+        width: 100%;
+        margin: 0;
+        padding: 0 0 26px;
+      }
+      body.embedded .controls,
+      body.embedded #results-panel {
+        background: transparent;
+        border: 0;
+        box-shadow: none;
+        padding-left: 0;
+        padding-right: 0;
+      }
+      body.embedded .controls { padding-top: 8px; padding-bottom: 8px; }
+      body.embedded .row-controls input[type="text"],
+      body.embedded .row-controls select {
+        backdrop-filter: blur(8px);
+      }
+      body.embedded.theme-light { color: #172027; }
+      body.embedded.theme-light .meta,
+      body.embedded.theme-light .empty { color: #63707a; }
+      body.embedded.theme-light .row-controls label { color: #172027; }
+      body.embedded.theme-light .row-controls input[type="text"],
+      body.embedded.theme-light .row-controls select {
+        background: rgba(255, 255, 255, 0.58);
+        color: #172027;
+        border-color: rgba(197, 205, 211, 0.92);
+      }
+      /* No layout overflow when filename is long */
+      .controls { grid-template-columns: minmax(0, 1fr); }
+      .row-controls { min-width: 0; }
+      .row-controls input[type="text"],
+      .row-controls select { min-width: 0; width: 0; }
+      .row-controls select { text-overflow: ellipsis; }
+      body.embedded.theme-dark { color: #d6dde2; }
+      body.embedded.theme-dark .meta, body.embedded.theme-dark .empty { color: #99a4ab; }
+      body.embedded.theme-dark .row-controls label { color: #d6dde2; }
+      body.embedded.theme-dark .row-controls input[type="text"],
+      body.embedded.theme-dark .row-controls select {
+        background: rgba(20, 28, 38, 0.52); color: #eef2f4; border-color: #3a4856;
+      }
+      body.embedded.theme-dark .controls,
+      body.embedded.theme-dark #results-panel {
+        background: rgba(20,28,38,0.18);
+        border-color: transparent;
+        box-shadow: none;
+      }
+      body.embedded.theme-dark .controls {
+        background: transparent;
+      }
+      body.embedded.theme-light .controls,
+      body.embedded.theme-light #results-panel {
+        background: transparent;
+        border-color: transparent;
+        box-shadow: none;
+      }
+      body.embedded.theme-light .controls { background: transparent; }
+      body.embedded.theme-light #results-panel table { background: rgba(250,247,242,0.44); }
+      body.embedded.theme-light #results-panel > .empty { background: transparent; }
+      body.embedded.theme-light #results-panel th { background: rgba(238,242,244,0.82); color: #52606b; }
+      body.embedded.theme-light #results-panel td { color: #172027; border-bottom-color: rgba(214,221,226,0.82); }
+      body.embedded.theme-light tbody tr:nth-child(even) td { background: rgba(0,0,0,0.018); }
+      body.embedded.theme-light tbody tr:hover td { background: rgba(31,111,139,0.06); }
+      body.embedded.theme-dark #results-panel table { background: rgba(20,28,38,0.35); }
+      body.embedded.theme-dark #results-panel > .empty {
+        background: rgba(20,28,38,0.18);
+      }
+      body.embedded.theme-dark #results-panel th { background: rgba(20,28,38,0.65); color: #d6dde2; }
+      body.embedded.theme-dark #results-panel td { color: #d6dde2; border-bottom-color: #2a3340; }
+      body.embedded.theme-dark .run-blue,
+      body.embedded.theme-dark .run-blue2 { color: #c3d4e8 !important; }
+      body.embedded.theme-dark .run-green { color: #6ee093 !important; }
+      body.embedded.theme-dark .run-red   { color: #ff8a8a !important; }
+      body.embedded.theme-dark .run-yellow-hl {
+        background: rgba(255,212,90,0.28) !important; color: #ffe07a !important;
+      }
+
+      main { max-width: 1400px; margin: 0 auto; padding: 26px; }
+      header { display: flex; justify-content: space-between; gap: 16px; align-items: end; margin-bottom: 16px; }
+      h1 { margin: 0; font-size: 24px; }
+      p { margin: 5px 0 0; color: #63707a; }
+      a { color: #1f6f8b; font-weight: 750; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      button, input, select { font: inherit; }
+      button { border: 0; border-radius: 7px; padding: 9px 12px; background: #1f6f8b; color: white; font-weight: 800; cursor: pointer; }
+      button:hover { background: #185b73; }
+      button:disabled { background: #a8b2b9; cursor: not-allowed; }
+      .controls { background: white; border: 1px solid #d6dde2; border-radius: 8px; padding: 16px; margin-bottom: 16px; display: grid; gap: 10px; }
+      .controls input[type="text"], .controls select { padding: 8px 10px; border: 1px solid #c5cdd3; border-radius: 6px; }
+      .row-controls { display: flex; gap: 10px; align-items: center; }
+      .row-controls label { font-weight: 700; min-width: 120px; }
+      .meta { color: #63707a; font-size: 13px; margin-top: 6px; }
+
+      #results-panel {
+        background: white; border: 1px solid #d6dde2; border-radius: 8px;
+        box-shadow: 0 16px 34px rgba(20, 32, 42, 0.08); overflow-x: auto;
+      }
+      /* Table layout: auto sizing with minimums so narrow numeric columns don't get squeezed
+         to character-width while text columns hog space. The body wrapper allows horizontal
+         scroll for narrow viewports. */
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12px;
+        table-layout: fixed;
+      }
+      th, td {
+        padding: 8px 10px;
+        text-align: left;
+        border-bottom: 1px solid #e5ebef;
+        vertical-align: top;
+        line-height: 1.45;
+        /* No word-break — keep words intact. Long words just stretch their column. */
+        white-space: pre-line;
+        min-width: 60px;
+      }
+      th {
+        background: #eef2f4;
+        color: #52606b;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-weight: 800;
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+      }
+      thead tr:not(:last-child) th { border-bottom: 1px solid #d6dde2; background: #f7f9fa; }
+      tbody tr:nth-child(even) td { background: rgba(0,0,0,0.018); }
+      tbody tr:hover td { background: rgba(31, 111, 139, 0.06); }
+      body.embedded.theme-dark tbody tr:nth-child(even) td { background: rgba(255,255,255,0.025); }
+      body.embedded.theme-dark tbody tr:hover td { background: rgba(255,255,255,0.05); }
+      tbody tr.excel-preview td {
+        background: #dff7c7 !important;
+        border-top: 2px solid #58b84f;
+        border-bottom-color: rgba(88,184,79,0.45);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.55);
+        color: #12361a;
+      }
+      body.embedded.theme-dark tbody tr.excel-preview td {
+        background: rgba(68, 176, 85, 0.34) !important;
+        border-top-color: #58d46f;
+        border-bottom-color: rgba(88,212,111,0.46);
+        color: #effff2;
+      }
+      tbody tr.excel-preview td:first-child {
+        border-left: 5px solid #2e9e44;
+        color: #12361a;
+      }
+      body.embedded.theme-dark tbody tr.excel-preview td:first-child {
+        border-left-color: #58d46f;
+        color: #effff2;
+      }
+      .preview-label {
+        display: inline-block;
+        padding: 2px 7px;
+        border-radius: 4px;
+        background: #1f8f3d;
+        color: #ffffff;
+        font-size: 10px;
+        font-weight: 900;
+        margin-right: 6px;
+        letter-spacing: 0;
+      }
+      body.embedded.theme-dark .preview-label {
+        color: #06240e;
+        background: #7df08d;
+      }
+      /* Non-blocking review note on a new row that partially overlaps an existing row */
+      .preview-warn {
+        margin-top: 4px;
+        font-size: 11px;
+        font-weight: 600;
+        color: #8a5a00;
+        line-height: 1.35;
+      }
+      body.embedded.theme-dark .preview-warn { color: #ffd27a; }
+      tbody tr.excel-preview-warn td { background: #fbf3d0 !important; border-top-color: #e0b94a; }
+      tbody tr.excel-preview-warn td:first-child { border-left-color: #c79214; }
+      body.embedded.theme-dark tbody tr.excel-preview-warn td {
+        background: rgba(190, 150, 40, 0.32) !important;
+        border-top-color: #e6c266;
+      }
+      body.embedded.theme-dark tbody tr.excel-preview-warn td:first-child { border-left-color: #e6c266; }
+      /* First column is the row number — narrow, monospace, muted */
+      td:first-child, th:first-child {
+        width: 36px;
+        min-width: 36px;
+        color: #99a4ab;
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 11px;
+      }
+      td:first-child strong { font-weight: 700; color: #52606b; }
+      /* Only 4 data columns now (Object / Manufacturer / Type / Reference). Roomy widths. */
+      td:nth-child(2), th:nth-child(2) { width: 28%; min-width: 200px; }  /* Object/Part */
+      td:nth-child(3), th:nth-child(3) { width: 22%; min-width: 160px; }  /* Manufacturer */
+      td:nth-child(4), th:nth-child(4) { width: 20%; min-width: 140px; }  /* Type/model */
+      td:nth-child(5), th:nth-child(5) { width: 25%; min-width: 160px; }  /* Reference */
+      .empty { padding: 40px; text-align: center; color: #63707a; }
+      .err { padding: 16px; background: #ffe2e2; color: #a01616; border-radius: 8px; }
+      /* Original Word colors (preserved for Light mode; mapped to bright in dark) */
+      .run-green { color: #00B050; font-weight: 700; }
+      .run-red { color: #FF0000; font-weight: 700; }
+      .run-blue { color: #002060; }
+      .run-blue2 { color: #1F3864; }
+      /* Suppress yellow + cyan highlights entirely. The Tabelle-30 source has yellow on
+         essentially every word (someone marked the whole file during review) — preserving
+         it would be visual noise. Original colors still render via .run-green / .run-red. */
+      .run-yellow-hl, .run-cyan-hl { background: transparent; padding: 0; }
+      .run-strike { text-decoration: line-through; }
+      /* ── Ergänzungen aus Excel ──────────────────────────────── */
+      #ergaenzungs-panel {
+        background: white;
+        border: 1px solid #d6dde2;
+        border-radius: 8px;
+        box-shadow: 0 12px 28px rgba(20,32,42,0.07);
+        overflow: hidden;
+      }
+      body.embedded #ergaenzungs-panel {
+        background: transparent; border: 0; box-shadow: none; padding: 0;
+      }
+      .erg-header {
+        padding: 8px 10px; background: #fff7e0; border-bottom: 1px solid #d6dde2;
+        display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+      }
+      body.embedded.theme-dark .erg-header { background: rgba(255,212,90,0.10); border-bottom-color: #3a4856; }
+      .erg-header strong { color: #5a4a00; font-size: 13px; }
+      body.embedded.theme-dark .erg-header strong { color: #ffe07a; }
+      .erg-source {
+        margin-left: auto;
+        color: #63707a;
+        font-size: 10px;
+        font-weight: 800;
+        max-width: 420px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      body.embedded.theme-dark .erg-source { color: #99a4ab; }
+      .erg-pill {
+        display: inline-block; padding: 1px 7px; border-radius: 999px;
+        font-size: 10px; font-weight: 800;
+      }
+      .erg-pill.new      { background: #d9f5e2; color: #1a6d36; }
+      .erg-pill.matched  { background: #e9eef2; color: #52606b; }
+      .erg-pill.skipped  { background: #f0f0f0; color: #99a4ab; }
+      body.embedded.theme-dark .erg-pill.new      { background: rgba(74,208,123,0.20); color: #6ee093; }
+      body.embedded.theme-dark .erg-pill.matched  { background: rgba(255,255,255,0.08); color: #c3d4e8; }
+      body.embedded.theme-dark .erg-pill.skipped  { background: rgba(255,255,255,0.06); color: #99a4ab; }
+      .erg-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 11px;
+        table-layout: fixed;
+      }
+      .erg-table th, .erg-table td {
+        padding: 4px 8px;
+        text-align: left;
+        border-bottom: 1px solid #e5ebef;
+        vertical-align: middle;
+        line-height: 1.2;
+        min-width: 0;
+        white-space: normal;
+      }
+      .erg-table th {
+        background: #eef2f4;
+        color: #52606b;
+        font-size: 9px;
+        text-transform: uppercase;
+        font-weight: 800;
+        letter-spacing: 0.03em;
+        white-space: nowrap;
+      }
+      .erg-table th:nth-child(1), .erg-table td:nth-child(1) { width: 26px; }
+      .erg-table th:nth-child(2), .erg-table td:nth-child(2) { width: 36px; color: #99a4ab; }
+      .erg-table th:nth-child(3), .erg-table td:nth-child(3) { width: 28%; }
+      .erg-table th:nth-child(4), .erg-table td:nth-child(4) { width: 22%; }
+      .erg-table th:nth-child(5), .erg-table td:nth-child(5) { width: 22%; }
+      .erg-table th:nth-child(6), .erg-table td:nth-child(6) { width: 24%; }
+      .erg-table strong { font-weight: 800; }
+      .erg-material,
+      .erg-supplier {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .erg-supplier { -webkit-line-clamp: 1; }
+      .erg-ref {
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      body.embedded.theme-dark .erg-table th { background: rgba(20,28,38,0.65); color: #d6dde2; }
+      body.embedded.theme-dark .erg-table td { color: #d6dde2; border-bottom-color: #2a3340; }
+      .erg-table tr.new td { background: rgba(74,208,123,0.07); }
+      body.embedded.theme-dark .erg-table tr.new td { background: rgba(74,208,123,0.10); }
+      .erg-row-check { width: 26px; }
+      .erg-row-check input { width: 14px; height: 14px; }
+      .erg-footer-actions {
+        padding: 8px 10px; display: flex; gap: 10px; align-items: center; justify-content: flex-end;
+        background: #f7f9fa; border-top: 1px solid #d6dde2;
+      }
+      body.embedded.theme-dark .erg-footer-actions {
+        background: rgba(20,28,38,0.5); border-top-color: #3a4856;
+      }
+      .erg-footer-actions .pending { flex: 1; color: #52606b; font-size: 12px; }
+      body.embedded.theme-dark .erg-footer-actions .pending { color: #99a4ab; }
+      /* Footnote rows (Supplementary information at the bottom) — full-width, subdued */
+      tbody tr.footnote-row td {
+        background: rgba(31,111,139,0.04);
+        font-size: 11px;
+        color: #52606b;
+        border-top: 1px solid #d6dde2;
+      }
+      body.embedded.theme-dark tbody tr.footnote-row td {
+        background: rgba(255,255,255,0.04);
+        color: #99a4ab;
+        border-top-color: #3a4856;
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      try {
+        if (window.top !== window.self) {
+          document.documentElement.classList.add("embedded");
+          document.body.classList.add("embedded");
+        }
+      } catch {
+        document.documentElement.classList.add("embedded");
+        document.body.classList.add("embedded");
+      }
+      (function applyTheme() {
+        const t = new URLSearchParams(location.search).get("theme") || "light";
+        const cls = t === "dark" ? "theme-dark" : "theme-light";
+        document.documentElement.classList.remove("theme-light", "theme-dark");
+        document.body.classList.remove("theme-light", "theme-dark");
+        document.documentElement.classList.add(cls);
+        document.body.classList.add(cls);
+      })();
+      window.addEventListener("message", (ev) => {
+        if (ev.origin !== window.location.origin) return;
+        if (ev.data?.type === "theme") {
+          document.documentElement.classList.remove("theme-light", "theme-dark");
+          document.body.classList.remove("theme-light", "theme-dark");
+          document.documentElement.classList.add(ev.data.theme === "dark" ? "theme-dark" : "theme-light");
+          document.body.classList.add(ev.data.theme === "dark" ? "theme-dark" : "theme-light");
+        }
+      });
+    </script>
+    <main>
+      <header>
+        <div>
+          <h1>Tabelle 30 Scanner</h1>
+          <p>Resistance to heat and fire — aus dem VDE Typenprüfung-Bericht.</p>
+        </div>
+        <div><a href="/">← Dashboard</a></div>
+      </header>
+
+      <section class="controls">
+        <input id="project-root" type="hidden" value="/Users/allan/Desktop/1175">
+        <div class="row-controls">
+          <label for="file-select">Typenprüfung-Bericht</label>
+          <select id="file-select" style="flex:1"><option value="">(noch nichts geladen)</option></select>
+          <button id="parse-btn" type="button" disabled>Parsen</button>
+        </div>
+        <div class="row-controls">
+          <label for="excel-select">Ergänzungs-Excel</label>
+          <select id="excel-select" style="flex:1"><option value="">(optional — für Vergleich)</option></select>
+          <button id="excel-all-btn" type="button">Alle Excel</button>
+          <button id="compare-btn" type="button" disabled>Vergleichen</button>
+        </div>
+        <div class="meta" id="meta"></div>
+      </section>
+
+      <section id="results-panel">
+        <div class="empty">Noch keine Daten — Datei wählen und "Parsen" klicken.</div>
+      </section>
+
+      <section id="ergaenzungs-panel" style="display:none; margin-top:16px;"></section>
+    </main>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const meta = $("meta");
+      let currentTableData = null;
+      let currentComparisonData = null;
+
+      async function fetchFiles() {
+        const root = $("project-root").value.trim();
+        if (!root) return;
+        meta.textContent = "Suche...";
+        const r = await fetch(`/api/tabelle30/files?root=${encodeURIComponent(root)}`);
+        if (!r.ok) {
+          const { error } = await r.json().catch(() => ({ error: r.statusText }));
+          meta.textContent = `Fehler: ${error}`;
+          return;
+        }
+        const { files } = await r.json();
+        const sel = $("file-select");
+        sel.innerHTML = "";
+        if (!files.length) {
+          sel.innerHTML = '<option value="">(keine Typenprüfung-Datei gefunden)</option>';
+          meta.textContent = "Keine Datei mit 'typenpruf' oder 'vde' im Namen gefunden.";
+          $("parse-btn").disabled = true;
+          updateCompareButton();
+          return;
+        }
+        for (const f of files) {
+          const opt = document.createElement("option");
+          opt.value = f.path;
+          opt.textContent = `${f.name}  (${(f.size/1024).toFixed(0)} KB, ${f.mtime.slice(0,10)})`;
+          sel.appendChild(opt);
+        }
+        meta.textContent = `${files.length} Datei(en) gefunden. Neueste oben.`;
+        $("parse-btn").disabled = false;
+        updateCompareButton();
+      }
+
+      async function parseFile() {
+        const file = $("file-select").value;
+        if (!file) return;
+        const panel = $("results-panel");
+        panel.innerHTML = '<div class="empty">Parse läuft...</div>';
+        $("parse-btn").disabled = true;
+        const r = await fetch("/api/tabelle30/parse", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ file }),
+        });
+        $("parse-btn").disabled = false;
+        if (!r.ok) {
+          const { error } = await r.json().catch(() => ({ error: r.statusText }));
+          panel.innerHTML = `<div class="err">Fehler: ${escapeHtml(error)}</div>`;
+          return;
+        }
+        const data = await r.json();
+        currentTableData = data;
+        renderTable(panel, data);
+      }
+
+      function renderTable(panel, data, comparisonData = null) {
+        // Pick only the four useful columns: Object/Part, Manufacturer, Type/Model, Reference.
+        // - Object/Part   = cells[0]
+        // - Manufacturer  = cells[1]
+        // - Type/Model    = cells[2]
+        // - Reference     = LAST cell (Anmerkungen / Report-no. — index varies because
+        //                  some rows have fewer test-result columns)
+        const headerHtml = `<tr>
+          <th>#</th>
+          <th>Object / Part No.</th>
+          <th>Manufacturer / Trademark</th>
+          <th>Type / Model</th>
+          <th>Reference</th>
+        </tr>`;
+
+        // Inline-mixing of Excel previews into the main table was disabled — when most
+        // entries had no anchor match they all clustered at the bottom, indistinguishable
+        // from the existing rows. The Excel additions now live exclusively in the separate
+        // "NEU AUS EXCEL" panel below the main table (much clearer left=existing, below=new).
+        const previewBeforeRow = new Map();
+        const previewAfterRow = new Map();
+        const addToMap = (map, rowIdx, preview) => {
+          const key = Number(rowIdx);
+          if (!Number.isFinite(key)) return;
+          const list = map.get(key) || [];
+          list.push(preview);
+          map.set(key, list);
+        };
+        if (comparisonData?.new?.length) {
+          const anchors = (comparisonData.matched || [])
+            .map((m) => ({
+              excelRow: Number(m.excelRow?.excelRow),
+              wordRow: Number(m.wordRowIdx),
+            }))
+            .filter((a) => Number.isFinite(a.excelRow) && Number.isFinite(a.wordRow))
+            .sort((a, b) => a.excelRow - b.excelRow);
+
+          comparisonData.new.forEach((entry, idx) => {
+            const preview = { entry, idx };
+            const excelRow = Number(entry.excelRow?.excelRow);
+            const prev = anchors.filter((a) => a.excelRow < excelRow).pop();
+            const next = anchors.find((a) => a.excelRow > excelRow);
+
+            if (prev) addToMap(previewAfterRow, prev.wordRow, preview);
+            else if (next) addToMap(previewBeforeRow, next.wordRow, preview);
+            else {
+              const candidates = entry.candidatePartMatches || [];
+              if (candidates.length) {
+                addToMap(previewAfterRow, Number(candidates[0].rowIdx), preview);
+              } else {
+                addToMap(previewBeforeRow, Number(data.rows[0]?.rowIdx), preview);
+              }
+            }
+          });
+        }
+
+        const previewRowHtml = ({ entry, idx }) => {
+          const r = entry.excelRow;
+          const reference = r.reference || r.drwNo || "";
+          const warnHtml = entry.warning
+            ? `<div class="preview-warn">⚠ ${escapeHtml(entry.warning)}</div>`
+            : "";
+          return `<tr class="excel-preview${entry.warning ? " excel-preview-warn" : ""}" data-preview-excel-row="${r.excelRow}">
+            <td><span class="preview-label">NEU</span>${idx + 1}</td>
+            <td><strong>${escapeHtml(r.partName || "")}</strong>${warnHtml}</td>
+            <td>${escapeHtml(r.supplier || "")}</td>
+            <td><strong>${escapeHtml(r.changeTo || "")}</strong></td>
+            <td>${escapeHtml(reference)}</td>
+          </tr>`;
+        };
+
+        const footnoteRows = [];
+        const normalRows = [];
+        data.rows.forEach((r) => {
+          const beforePreviews = previewBeforeRow.get(Number(r.rowIdx)) || [];
+          beforePreviews.forEach((p) => normalRows.push(previewRowHtml(p)));
+
+          // Footnote rows ("Supplementary information: …") have one populated cell — span all
+          // four data columns with a subdued style.
+          const populated = r.cells.filter((c) => c && c.trim()).length;
+          const isFootnote = populated === 1 && (r.cells[0] || "").length > 80;
+          if (isFootnote) {
+            footnoteRows.push(`<tr class="footnote-row">
+              <td><strong>${r.rowIdx}</strong></td>
+              <td colspan="4">${renderRuns(r.cellRuns?.[0], r.cells[0])}</td>
+            </tr>`);
+            // Still flush any green preview rows anchored here, otherwise new entries
+            // that fall back to the last row (a footnote) get silently dropped.
+            const fnPreviews = previewAfterRow.get(Number(r.rowIdx)) || [];
+            fnPreviews.forEach((p) => normalRows.push(previewRowHtml(p)));
+            return;
+          }
+          const lastIdx = r.cells.length - 1;
+          const refIdx = lastIdx >= 3 ? lastIdx : 3;  // if very short row, still try index 3
+          const cell = (i) => `<td>${renderRuns(r.cellRuns?.[i], r.cells[i] || "")}</td>`;
+          normalRows.push(`<tr>
+            <td><strong>${r.rowIdx}</strong></td>
+            ${cell(0)}
+            ${cell(1)}
+            ${cell(2)}
+            ${cell(refIdx)}
+          </tr>`);
+          const previews = previewAfterRow.get(Number(r.rowIdx)) || [];
+          previews.forEach((p) => normalRows.push(previewRowHtml(p)));
+        });
+        const bodyHtml = [...normalRows, ...footnoteRows].join("");
+
+        // Header note: this table = AKTUELLE Tabelle 30 only. Anything new from the Excel
+        // is shown in the separate "NEU AUS EXCEL" panel directly below.
+        const totalNew = comparisonData?.summary?.new || 0;
+        const previewNote = comparisonData
+          ? ` · <strong>${totalNew}</strong> neue Excel-Ergänzung(en) — siehe Block <a href="#" id="erg-jump-link" style="color:#1f8f3d;font-weight:800">↓ NEU AUS EXCEL</a> unten`
+          : "";
+        const note = `<div class="meta" style="padding:10px 12px"><strong>Aktuell in Tabelle 30:</strong> ${data.rowCount} Bauteile aus <strong>Table ${data.tableIdx}</strong> (Resistance to heat and fire)${previewNote}.</div>`;
+        panel.innerHTML = `${note}<table><thead>${headerHtml}</thead><tbody>${bodyHtml}</tbody></table>`;
+
+        const jumpLink = panel.querySelector("#erg-jump-link");
+        if (jumpLink) {
+          jumpLink.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            document.getElementById("ergaenzungs-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+        }
+      }
+
+      function renderRuns(runs, fallback) {
+        if (!Array.isArray(runs) || !runs.length) return escapeHtml(fallback || "");
+        return runs.map((run) => {
+          const classes = [];
+          if (run.color === "00B050") classes.push("run-green");
+          else if (run.color === "FF0000") classes.push("run-red");
+          else if (run.color === "002060") classes.push("run-blue");
+          else if (run.color === "1F3864") classes.push("run-blue2");
+          if (run.highlight === "yellow") classes.push("run-yellow-hl");
+          if (run.highlight === "cyan") classes.push("run-cyan-hl");
+          if (run.strike) classes.push("run-strike");
+          return `<span class="${classes.join(" ")}">${escapeHtml(run.text)}</span>`;
+        }).join("");
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+      }
+
+      $("parse-btn").addEventListener("click", parseFile);
+      $("compare-btn").addEventListener("click", compareWithExcel);
+      $("file-select").addEventListener("change", () => { clearComparison(); updateCompareButton(); });
+      $("excel-select").addEventListener("change", () => { clearComparison(); updateCompareButton(); });
+      $("excel-all-btn").addEventListener("click", () => fetchExcels(true));
+
+      function getExcelFile() {
+        return $("excel-select").value;
+      }
+
+      function updateCompareButton() {
+        $("compare-btn").disabled = !$("file-select").value || !getExcelFile();
+      }
+
+      function clearComparison() {
+        const panel = $("ergaenzungs-panel");
+        panel.style.display = "none";
+        panel.innerHTML = "";
+      }
+
+      async function fetchExcels(showAll = false, options = {}) {
+        const root = $("project-root").value.trim();
+        if (!root) return;
+        const r = await fetch(`/api/tabelle30/excels?root=${encodeURIComponent(root)}${showAll ? "&all=1" : ""}`);
+        if (!r.ok) {
+          const { error } = await r.json().catch(() => ({ error: r.statusText }));
+          $("excel-select").innerHTML = '<option value="">(Excel-Suche fehlgeschlagen)</option>';
+          updateCompareButton();
+          meta.textContent = `Fehler Excel-Suche: ${error}`;
+          return;
+        }
+        const { files } = await r.json();
+        const sel = $("excel-select");
+        sel.innerHTML = files.length
+          ? files.map((f) => `<option value="${escapeHtml(f.path)}">${escapeHtml(f.name)}  (${(f.size/1024).toFixed(0)} KB, ${f.mtime.slice(0,10)})</option>`).join("")
+          : '<option value="">(keine Ergänzungs-Excel gefunden)</option>';
+        if (!options.keepComparison) clearComparison();
+        updateCompareButton();
+        return files;
+      }
+
+      async function compareWithExcel() {
+        const wordFile = $("file-select").value;
+        const excelFile = getExcelFile();
+        if (!wordFile || !excelFile) return;
+        const panel = $("ergaenzungs-panel");
+        panel.style.display = "block";
+        panel.innerHTML = '<div class="empty" style="padding:30px">Vergleich läuft…</div>';
+        $("compare-btn").disabled = true;
+        const r = await fetch("/api/tabelle30/compare", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ wordFile, excelFile }),
+        });
+        $("compare-btn").disabled = false;
+        if (!r.ok) {
+          const { error } = await r.json().catch(() => ({ error: r.statusText }));
+          panel.innerHTML = `<div class="err">Vergleich fehlgeschlagen: ${escapeHtml(error)}</div>`;
+          return;
+        }
+        const data = await r.json();
+        currentComparisonData = data;
+        if (!currentTableData || currentTableData.sourceFile !== data.wordFile) {
+          await parseFile();
+        }
+        if (currentTableData) {
+          renderTable($("results-panel"), currentTableData, data);
+        }
+        renderErgaenzungen(panel, data);
+      }
+
+      function renderErgaenzungen(panel, data) {
+        const { summary, new: news, matched, skipped } = data;
+        const excelName = data.excelFile ? data.excelFile.split(/[\\/]/).pop() : "";
+        const header = `<div class="erg-header" style="background:#dff7c7;border-bottom:3px solid #2e9e44">
+          <strong style="font-size:16px;color:#0f5520">🆕 NEU AUS EXCEL — noch nicht in Tabelle 30</strong>
+          <span class="erg-pill new">${summary.new} neu</span>
+          <span class="erg-pill matched">${summary.matched} bereits drin</span>
+          <span class="erg-pill skipped">${summary.skipped} ignoriert</span>
+          ${excelName ? `<span class="erg-source">${escapeHtml(excelName)}</span>` : ""}
+        </div>`;
+
+        if (!news.length) {
+          panel.innerHTML = `${header}<div class="empty" style="padding:30px">Keine neuen Ergänzungen — die Excel-Materialien sind alle schon in Tabelle 30 enthalten.</div>`;
+          return;
+        }
+
+        panel.innerHTML = `${header}<div class="erg-footer-actions">
+          <span class="pending"><strong>${news.length}</strong> Excel-Ergänzung(en) sind oben als grüne Vorschau direkt in Tabelle 30 einsortiert.</span>
+        </div>`;
+        panel.dataset.wordFile = data.wordFile;
+      }
+
+      async function applyErgaenzungen(panel, data) {
+        // Collect the selected new entries
+        const selected = [];
+        panel.querySelectorAll("tr[data-erg-idx]").forEach((tr) => {
+          const cb = tr.querySelector(".erg-row-include");
+          if (!cb || !cb.checked) return;
+          const i = Number(tr.dataset.ergIdx);
+          const entry = data.new[i];
+          if (!entry) return;
+          selected.push({
+            partName:  entry.excelRow.partName,
+            supplier:  entry.excelRow.supplier,
+            material:  entry.excelRow.changeTo,
+            reference: entry.excelRow.reference || entry.excelRow.drwNo || "",
+          });
+        });
+        if (!selected.length) return;
+
+        const confirmMsg = `${selected.length} neue Zeile(n) werden in den Word-Bericht eingefügt:\n\n${selected.slice(0, 8).map((e) => `  • ${e.partName} — ${e.material}`).join("\n")}${selected.length > 8 ? `\n  … und ${selected.length - 8} weitere` : ""}\n\nEs wird eine NEUE .docx-Datei erstellt (Original bleibt unverändert).\n\nFortfahren?`;
+        if (!confirm(confirmMsg)) return;
+
+        const applyBtn = panel.querySelector("#erg-apply-btn");
+        applyBtn.disabled = true;
+        applyBtn.textContent = "Schreibe Word-Datei…";
+
+        const r = await fetch("/api/tabelle30/apply", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sourceFile: data.wordFile, entries: selected }),
+        });
+        const res = await r.json().catch(() => ({}));
+        applyBtn.disabled = false;
+        applyBtn.textContent = "In Bericht einfügen";
+
+        const area = panel.querySelector(".erg-footer-actions");
+        if (!r.ok || res.error) {
+          area.insertAdjacentHTML("afterbegin", `<div class="err" style="margin-bottom:10px">Fehler: ${escapeHtml(res.error || r.statusText)}</div>`);
+          return;
+        }
+        area.insertAdjacentHTML("afterbegin", `<div class="save-result" style="margin-bottom:10px">
+          ✓ ${res.applied} Zeile(n) gespeichert in:<br><strong>${escapeHtml(res.outputFile)}</strong>
+          ${res.warnings?.length ? `<br><small>Warnungen: ${res.warnings.length}</small>` : ""}
+        </div>`);
+      }
+
+      // For the success message styling (mirror tabelle24 .save-result if not already inherited)
+      const styleNode = document.createElement("style");
+      styleNode.textContent = `.save-result { padding: 12px; background: #d9f5e2; color: #1a6d36; border-radius: 8px; word-break: break-all; }
+      body.embedded.theme-dark .save-result { background: rgba(74,208,123,0.20); color: #6ee093; }
+      .err { padding: 12px; background: #ffe2e2; color: #a01616; border-radius: 8px; }
+      body.embedded.theme-dark .err { background: rgba(255,116,116,0.20); color: #ff8a8a; }`;
+      document.head.appendChild(styleNode);
+
+      // If a projectId was passed in the URL by the dashboard, prefill the root.
+      const params = new URLSearchParams(location.search);
+      const pid = params.get("projectId");
+      if (pid) {
+        const m = pid.match(/EF\s*(\d+)/i);
+        if (m) $("project-root").value = `/Users/allan/Desktop/${m[1]}`;
+      }
+      fetchFiles();
+      fetchExcels(false);
+    </script>
+  </body>
+</html>

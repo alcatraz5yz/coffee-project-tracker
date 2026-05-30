@@ -7,5 +7,4 @@ const trackerConfig = {
   archiveExcel: "M:\\EFS\\Abt_EW\\Abt_EW_EFE\\Abteilung Allgemein\\500 Archiv\\Datenbank Archivgeräte.xlsx"
 };
 
-// Node.js usage (scanner, server)
 if (typeof module !== "undefined") module.exports = { trackerConfig };

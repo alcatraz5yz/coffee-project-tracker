@@ -7,6 +7,9 @@ const views = {
   subtopic: document.querySelector("#subtopic-view"),
   tasks: document.querySelector("#tasks-view"),
   docs: document.querySelector("#docs-view"),
+  calculations: document.querySelector("#calculations-view"),
+  tabelle24: document.querySelector("#tabelle24-view"),
+  tabelle30: document.querySelector("#tabelle30-view"),
   freigabe: document.querySelector("#freigabe-view"),
   packaging: document.querySelector("#packaging-view")
 };
@@ -15,31 +18,27 @@ const buttons = {
   subtopic: document.querySelector("#view-subtopic"),
   tasks: document.querySelector("#view-tasks"),
   docs: document.querySelector("#view-docs"),
+  calculations: document.querySelector("#view-calculations"),
+  tabelle24: document.querySelector("#tabelle24-link"),
+  tabelle30: document.querySelector("#tabelle30-link"),
   freigabe: document.querySelector("#view-freigabe"),
   packaging: document.querySelector("#view-packaging")
 };
+const tabelle24Link = document.querySelector("#tabelle24-link");
+const tabelle24Frame = document.querySelector("#tabelle24-frame");
+const tabelle30Link = document.querySelector("#tabelle30-link");
+const tabelle30Frame = document.querySelector("#tabelle30-frame");
 const taskFilter = document.querySelector("#task-filter");
 const subtopicFilter = document.querySelector("#subtopic-filter");
 const zifferTable = document.querySelector("#ziffer-table");
+const calculationsContainer = document.querySelector("#calculations-container");
+const calcReset = document.querySelector("#calc-reset");
 const themeToggle = document.querySelector("#theme-toggle");
 const dashboardLink = document.querySelector("#dashboard-link");
 
-// ── Recent projects (localStorage) ──────────────────────────
-const RECENT_KEY = "pcs-recent";
-const RECENT_MAX = 6;
-
-function getRecentProjects() {
-  try { return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]"); } catch { return []; }
-}
-
-function recordRecent(projectId) {
-  const recent = getRecentProjects().filter((r) => r.id !== projectId);
-  recent.unshift({ id: projectId });
-  if (recent.length > RECENT_MAX) recent.length = RECENT_MAX;
-  localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
-}
-
 // ── PDF thumbnail rendering ───────────────────────────────────
+// Lazy: an IntersectionObserver triggers PDF.js render only when the canvas scrolls into view.
+// On failure (corrupt PDF, network issue), draws a red "PDF" badge so the row stays visible.
 let _pdfThumbObserver = null;
 
 function getPdfThumbObserver() {
@@ -85,19 +84,48 @@ window._observePdfThumbs = () => {
   document.querySelectorAll("canvas.file-thumb-pdf:not([data-pdf-done])").forEach(c => io.observe(c));
 };
 
+function fileThumbHtml(entry) {
+  const name = entry.name || "";
+  const href = entry.href || "";
+  if (/\.(jpe?g|png|gif|webp|svg|bmp)$/i.test(name)) {
+    return `<img src="${href}" loading="lazy" class="file-thumb-img" alt="">`;
+  }
+  if (/\.pdf$/i.test(name)) {
+    return `<canvas class="file-thumb-img file-thumb-pdf" data-pdf-href="${href}"></canvas>`;
+  }
+  if (isExcelFile?.(name)) return `<span class="file-thumb-icon file-thumb-icon--excel">XLS</span>`;
+  if (isWordFile?.(name))  return `<span class="file-thumb-icon file-thumb-icon--word">DOC</span>`;
+  return `<span class="file-thumb-icon file-thumb-icon--file">FILE</span>`;
+}
+
+// ── Recent projects (localStorage) ──────────────────────────
+const RECENT_KEY = "pcs-recent";
+const RECENT_MAX = 6;
+
+function getRecentProjects() {
+  try { return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]"); } catch { return []; }
+}
+
+function recordRecent(projectId) {
+  const recent = getRecentProjects().filter((r) => r.id !== projectId);
+  recent.unshift({ id: projectId });
+  if (recent.length > RECENT_MAX) recent.length = RECENT_MAX;
+  localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
+}
+
 // ── State ────────────────────────────────────────────────────
 let projectList = [];
 let activeProject = null;
-let IS_WIN = false;
-let FILE_MANAGER_LABEL = "Finder";
-apiFetch("/api/platform").then(d => { IS_WIN = d.isWin; FILE_MANAGER_LABEL = d.isWin ? "Explorer" : "Finder"; }).catch(() => {});
 let activeSubtopic = "Approbation";
 let activeBuild = "Alle";
 let activeView = "overview";
 let activeEvidenceGroup = null;
-let activeMarketFilter = null;
 const evidenceEntries = new Map();
 const evidencePathEntries = new Map();
+let selectedEvidenceHref = null;
+let selectedEvidenceHrefs = new Set();
+let evidenceSelectionAnchor = null;
+let evidenceClipboard = null;
 
 // ── Labels / helpers ─────────────────────────────────────────
 const statusFlow = ["Open", "Done", "Not needed"];
@@ -263,7 +291,7 @@ async function loadEvidenceEntries(group, browseHref) {
     evidenceEntries.set(key, next);
   } catch (err) {
     evidencePathEntries.delete(pathKey);
-    evidenceEntries.set(key, { loading: false, error: true, entries: [], browseHref: href, rootHref });
+    evidenceEntries.set(key, { loading: false, error: true, errorMessage: err.message, entries: [], browseHref: href, rootHref });
     console.error("Evidence list error:", err);
   }
   renderDocs(activeProject);
@@ -304,21 +332,6 @@ function renderMachines() {
       .join(" ").toLowerCase().includes(q);
   });
 
-  // On dashboard: sort so variant groups are together.
-  // Each project gets a sort key = EF number of its group primary.
-  // Within a group: primary first, then variants by EF number.
-  const efNum = (id) => parseInt((id || "").replace(/^EF/i, ""), 10) || 0;
-  const sorted = activeView === "dashboard" ? [...filtered].sort((a, b) => {
-    const aPrimary = efNum(a.variant_of || a.id);
-    const bPrimary = efNum(b.variant_of || b.id);
-    if (aPrimary !== bPrimary) return aPrimary - bPrimary;
-    // Within group: primary (no variant_of) first
-    const aIsVariant = a.variant_of ? 1 : 0;
-    const bIsVariant = b.variant_of ? 1 : 0;
-    if (aIsVariant !== bIsVariant) return aIsVariant - bIsVariant;
-    return efNum(a.id) - efNum(b.id);
-  }) : filtered;
-
   const IEC_STAGES = new Set(["PT1", "OOT", "TS1", "TS2", "TS3"]);
   const renderStages = (stages, p) =>
     stages.map((b) => `<span data-build-select="${b}" class="${b === activeBuild && p.id === activeProject?.id ? "active" : ""}">${b}</span>`).join("");
@@ -328,13 +341,12 @@ function renderMachines() {
     const ul  = (p.buildStages || []).filter((b) => !IEC_STAGES.has(b));
     const buildsHTML = (iec.length || ul.length) ? `
       <div class="sidebar-builds">
-        ${renderStages(iec, p)}
+        ${iec.length ? `<span class="build-type-label">IEC</span>${renderStages(iec, p)}` : ""}
         ${iec.length && ul.length ? `<hr class="build-type-divider">` : ""}
         ${ul.length  ? `<span class="build-type-label">UL</span>${renderStages(ul, p)}` : ""}
       </div>` : "";
-    const isVariant = activeView === "dashboard" && p.variant_of;
     return `
-    <button class="${p.id === activeProject?.id ? "active" : ""}${isVariant ? " sidebar-variant" : ""}" data-id="${p.id}" type="button">
+    <button class="${p.id === activeProject?.id ? "active" : ""}" data-id="${p.id}" type="button">
       <strong>${p.id}</strong>
       <em class="${statusClass(p.health)}">${statusLabel(p.health)}</em>
       <span>${p.market ? `${termLabel(p.market)} / ` : ""}${p.phase}</span>
@@ -342,7 +354,7 @@ function renderMachines() {
     </button>`;
   };
 
-  machineList.innerHTML = sorted.map((p) => renderBtn(p)).join("");
+  machineList.innerHTML = filtered.map((p) => renderBtn(p)).join("");
 }
 
 const dashboardSearch = document.querySelector("#dashboard-search");
@@ -592,7 +604,7 @@ function evidenceRelativePath(link) {
 function evidenceHref(link) {
   const rel = evidenceRelativePath(link);
   if (!rel) return "";
-  if (/^(evidence-\d+|files)\//.test(rel)) return rel;
+  if (/^(evidence-\d+|files)\//.test(rel)) return encodeURI(rel);
   if (trackerConfig.documentMode === "sharepoint") {
     return trackerConfig.sharePointRoot + rel.split("/").map(encodeURIComponent).join("/");
   }
@@ -610,19 +622,6 @@ function officeEditHref(link) {
 }
 function shouldOpenOfficeLocally(link) {
   return trackerConfig.documentMode === "local" && isOfficeFile(evidenceHref(link));
-}
-function fileThumbHtml(entry) {
-  const name = entry.name || "";
-  const href = entry.href || "";
-  if (/\.(jpe?g|png|gif|webp|svg|bmp)$/i.test(name)) {
-    return `<img src="${href}" loading="lazy" class="file-thumb-img" alt="">`;
-  }
-  if (/\.pdf$/i.test(name)) {
-    return `<canvas class="file-thumb-img file-thumb-pdf" data-pdf-href="${href}"></canvas>`;
-  }
-  if (isExcelFile(name)) return `<span class="file-thumb-icon file-thumb-icon--excel">XLS</span>`;
-  if (isWordFile(name)) return `<span class="file-thumb-icon file-thumb-icon--word">DOC</span>`;
-  return `<span class="file-thumb-icon file-thumb-icon--file">FILE</span>`;
 }
 function renderEvidenceCell(item) {
   if (!item.evidenceLinks?.length) return item.evidence || "";
@@ -730,68 +729,65 @@ function renderSubtopic(project) {
 
 // ── Docs / Evidence ───────────────────────────────────────────
 function renderDocs(project) {
-  const allGroups = (project.documentGroups || [])
+  const groups = (project.documentGroups || [])
     .slice()
     .sort((a, b) => String(a.primary || "").localeCompare(String(b.primary || "")));
-
-  // Detect unique markets (prefix before " / " in area name).
-  // Only treat a prefix as a real market if it looks like a market code (IEC, UL, EU, US, etc.)
-  // — not IEC_FOLDER_MAP values like "Standards / Changes" or "Manual / Labels".
-  function isMarketCode(s) {
-    return /^(IEC|UL|EU|US|JP|CN|AU|IN|MX|TW|BR|KR|CH|DE|FR)([\s,]|$)/.test(s);
-  }
-  const markets = [...new Set(
-    allGroups.map(g => {
-      if (!g.area?.includes(" / ")) return null;
-      const prefix = g.area.split(" / ")[0];
-      return isMarketCode(prefix) ? prefix : null;
-    }).filter(Boolean)
-  )];
-
-  // Auto-select first market if none active and markets exist
-  if (markets.length > 0 && (!activeMarketFilter || !markets.includes(activeMarketFilter))) {
-    activeMarketFilter = markets[0];
-  }
-
-  const groups = activeMarketFilter
-    ? allGroups.filter(g => {
-        if (!g.area?.includes(" / ")) return true;
-        const prefix = g.area.split(" / ")[0];
-        if (!isMarketCode(prefix)) return true; // IEC_FOLDER_MAP area — always show
-        return g.area.startsWith(activeMarketFilter + " / ");
-      })
-    : allGroups;
   const groupDetailMarkup = (group) => {
     const key = evidenceCacheKey(project.id, group.primary);
     const cached = evidenceEntries.get(key);
     const entries = cached?.entries || [];
     const isSubfolder = cached?.browseHref && cached.browseHref !== cached?.rootHref;
+    const currentHref = cached?.browseHref || evidenceHref(group);
+    const relPath = currentHref
+      .replace(evidenceHref(group), "")
+      .replace(/\/$/, "");
+    const pathParts = relPath
+      ? relPath.split("/").filter(Boolean).map((part) => decodeURIComponent(part))
+      : [];
+    const locationTitle = pathParts.length ? pathParts[pathParts.length - 1] : group.primary;
+    const selectedInThisFolder = entries.some((entry) => selectedEvidenceHrefs.has(entry.href));
+    const pasteDisabled = evidenceClipboard ? "" : "disabled";
+    const selectedDisabled = selectedInThisFolder ? "" : "disabled";
     const backBtn = isSubfolder
       ? `<button class="evidence-back-btn" type="button" data-evidence-back="${group.primary}">← Zurück</button>` : "";
     const fileListMarkup = cached?.loading
       ? `${backBtn}<p class="empty-state">Ordnerinhalt wird geladen...</p>`
       : cached?.error
-        ? `${backBtn}<p class="empty-state">Ordnerinhalt konnte nicht gelesen werden.</p>`
+        ? `${backBtn}<p class="empty-state">Ordnerinhalt konnte nicht gelesen werden.
+            <button class="finder-action" type="button" data-evidence-retry="${group.primary}">Erneut laden</button>
+            ${cached.errorMessage ? `<small>${escapeHtml(cached.errorMessage)}</small>` : ""}
+          </p>`
         : entries.length ? `
-          ${backBtn}
+          <div class="evidence-location-bar">
+            ${backBtn}
+            <strong>${escapeHtml(locationTitle)}</strong>
+            <span class="evidence-toolbar-spacer"></span>
+            <button class="finder-action" type="button" data-file-action="mkdir" data-current-href="${escapeHtml(currentHref)}">Neuer Ordner</button>
+            <button class="finder-action" type="button" data-file-action="copy" ${selectedDisabled}>Kopieren</button>
+            <button class="finder-action" type="button" data-file-action="cut" ${selectedDisabled}>Ausschneiden</button>
+            <button class="finder-action" type="button" data-file-action="paste" data-current-href="${escapeHtml(currentHref)}" ${pasteDisabled}>Einfügen</button>
+            <button class="finder-action danger" type="button" data-file-action="delete" ${selectedDisabled}>Löschen</button>
+          </div>
           <div class="evidence-file-row head">
             <span>Name</span><span>Typ</span><span>Geändert</span><span>Aktion</span>
           </div>
           ${entries.map((entry) => `
-            <div class="evidence-file-row${entry.type === "Ordner" ? " evidence-file-row--folder" : isWordFile(entry.name) ? " evidence-file-row--word" : isExcelFile(entry.name) ? " evidence-file-row--excel" : ""}">
+            <div class="evidence-file-row${entry.type === "Ordner" ? " evidence-file-row--folder" : ""}${selectedEvidenceHrefs.has(entry.href) ? " explorer-selected" : ""}"
+              data-evidence-entry-href="${entry.href}"
+              data-evidence-entry-name="${escapeHtml(entry.name)}"
+              data-evidence-entry-type="${entry.type}"
+              data-evidence-entry-group="${group.primary}">
               ${entry.type === "Ordner"
                 ? entry.empty
                   ? `<span class="evidence-folder-btn evidence-folder-empty">📁 ${entry.name} <em>leer</em></span>`
-                  : `<button class="evidence-folder-btn" type="button" data-browse-subfolder="${entry.href}" data-browse-group="${group.primary}">📂 ${entry.name} <em class="folder-count">${entry.childCount} Dateien</em></button>`
-                : `<div class="file-name-cell">${fileThumbHtml(entry)}${
-                    isOfficeFile(entry.name)
-                      ? `<button class="word-action word-action--name" type="button" data-open-office-href="${entry.href}">${entry.name}</button>`
-                      : `<a href="${entry.href}" target="_blank" rel="noreferrer">${entry.name}</a>`
-                  }</div>`}
+                  : `<span class="evidence-folder-btn">📂 ${entry.name} <em class="folder-count">${entry.childCount} Dateien</em></span>`
+                : `<div class="file-name-cell">${fileThumbHtml(entry)}${entry.type === "Datei" && isOfficeFile(entry.name)
+                    ? `<span class="word-action word-action--name">${entry.name}</span>`
+                    : `<span class="evidence-file-name">${entry.name}</span>`}</div>`}
               <span>${entry.size || entry.type}</span>
               <span>${entry.modified}</span>
               <span class="evidence-file-actions">
-                ${entry.type !== "Ordner" ? `<button class="finder-action" type="button" data-open-href="${entry.href}">Öffnen</button>` : `<button class="finder-action" type="button" data-open-href="${entry.href}">${FILE_MANAGER_LABEL}</button>`}
+                ${entry.type !== "Ordner" ? `<button class="finder-action" type="button" data-open-href="${entry.href}">Öffnen</button>` : `<button class="finder-action" type="button" data-open-href="${entry.href}">Finder</button>`}
               </span>
             </div>
           `).join("")}
@@ -803,20 +799,6 @@ function renderDocs(project) {
       </section>
     `;
   };
-
-  // Market filter bar
-  const filterBar = document.querySelector("#market-filter-bar");
-  if (filterBar) {
-    if (markets.length > 1) {
-      filterBar.innerHTML = markets.map(m =>
-        `<button class="market-filter-btn ${activeMarketFilter === m ? "active" : ""}" data-market="${m}">${m}</button>`
-      ).join("");
-      filterBar.style.display = "flex";
-    } else {
-      filterBar.innerHTML = "";
-      filterBar.style.display = "none";
-    }
-  }
 
   document.querySelector("#document-group-grid").innerHTML = groups.length
     ? groups.map((group) => {
@@ -838,7 +820,7 @@ function renderDocs(project) {
             <div class="dgc-actions">
               <button class="finder-action" type="button" data-evidence-group="${group.primary}">${isSelected ? "Details ausblenden" : "Details anzeigen"}</button>
               <a class="dgc-link" href="${evidenceHref(group)}" target="_blank" rel="noreferrer">Ordner anzeigen →</a>
-              <button class="finder-action" type="button" data-open-href="${evidenceHref(group)}">Im ${FILE_MANAGER_LABEL} öffnen</button>
+              <button class="finder-action" type="button" data-open-href="${evidenceHref(group)}">Im Finder öffnen</button>
             </div>`}
           </article>
           ${isSelected ? groupDetailMarkup(group) : ""}`;
@@ -847,6 +829,93 @@ function renderDocs(project) {
 
   document.querySelector("#reports-panel")?.classList.add("hidden");
   window._observePdfThumbs?.();
+}
+
+function currentEvidenceContext() {
+  if (!activeProject || !activeEvidenceGroup) return null;
+  const group = activeProject.documentGroups?.find((item) => item.primary === activeEvidenceGroup);
+  if (!group) return null;
+  const key = evidenceCacheKey(activeProject.id, group.primary);
+  const cached = evidenceEntries.get(key);
+  return {
+    group,
+    key,
+    currentHref: cached?.browseHref || evidenceHref(group),
+    selectedHref: selectedEvidenceHref,
+    selectedHrefs: [...selectedEvidenceHrefs],
+  };
+}
+
+function clearEvidenceFolderCache(group, href) {
+  const key = evidenceCacheKey(activeProject.id, group.primary);
+  for (const cacheKey of [...evidencePathEntries.keys()]) {
+    if (cacheKey.startsWith(`${key}:`)) evidencePathEntries.delete(cacheKey);
+  }
+  evidenceEntries.delete(key);
+}
+
+async function refreshEvidenceFolder(group, href) {
+  selectedEvidenceHref = null;
+  selectedEvidenceHrefs = new Set();
+  evidenceSelectionAnchor = null;
+  clearEvidenceFolderCache(group, href);
+  await loadEvidenceEntries(group, href);
+}
+
+async function runFileAction(action, currentHref) {
+  const ctx = currentEvidenceContext();
+  if (!ctx) return;
+  const folderHref = currentHref || ctx.currentHref;
+  const selected = ctx.selectedHrefs || [];
+
+  try {
+    if (action === "copy" || action === "cut") {
+      if (!selected.length) return;
+      evidenceClipboard = { mode: action, hrefs: selected };
+      renderDocs(activeProject);
+      return;
+    }
+
+    if (action === "mkdir") {
+      const name = prompt("Name für neuen Ordner:");
+      if (!name) return;
+      await apiFetch("/api/files/mkdir", {
+        method: "POST",
+        body: JSON.stringify({ parentHref: folderHref, name })
+      });
+      await refreshEvidenceFolder(ctx.group, folderHref);
+      return;
+    }
+
+    if (action === "paste") {
+      if (!evidenceClipboard) return;
+      const endpoint = evidenceClipboard.mode === "cut" ? "/api/files/move" : "/api/files/copy";
+      for (const href of evidenceClipboard.hrefs || []) {
+        await apiFetch(endpoint, {
+          method: "POST",
+          body: JSON.stringify({ sourceHref: href, destHref: folderHref })
+        });
+      }
+      if (evidenceClipboard.mode === "cut") evidenceClipboard = null;
+      await refreshEvidenceFolder(ctx.group, folderHref);
+      return;
+    }
+
+    if (action === "delete") {
+      if (!selected.length) return;
+      if (!confirm(`${selected.length} Element(e) in den Papierkorb verschieben?`)) return;
+      for (const href of selected) {
+        await apiFetch("/api/files/delete", {
+          method: "POST",
+          body: JSON.stringify({ href })
+        });
+      }
+      await refreshEvidenceFolder(ctx.group, folderHref);
+    }
+  } catch (err) {
+    alert(`Dateiaktion fehlgeschlagen: ${err.message}`);
+    console.error("File action error:", err);
+  }
 }
 
 // ── Fachfreigabe ──────────────────────────────────────────────
@@ -904,6 +973,444 @@ function renderFachfreigabe(project) {
   `;
 }
 
+// ── Calculations ─────────────────────────────────────────────
+const calcColumns = "ABCDEFGHIJKLMNOP".split("");
+const calcStorageKey = "pcs-calculation-overrides";
+const warmthStorageKey = "pcs-warmth-overrides";
+const calculationWorkbooks = [
+  {
+    id: "ls",
+    title: "Berechnung LS-Aufnahme",
+    source: "berechnung_ls-aufnahme.xlsx",
+    sheets: [{
+      id: "uebersicht",
+      title: "Übersicht",
+      cols: 11,
+      rows: {
+        1: [null, null, "Messung 1", null, "Messung 2", null, "Messung 3", null, "Messung 4"],
+        2: ["Abs. 10 ", "Leistungsaufnahme"],
+        3: [null, "einzustellende Spannung : ", "=(C4+C5)/2", "Volt", "=(E4+E5)/2", "Volt", "=(G4+G5)/2", "Volt", "=(I4+I5)/2", "Volt"],
+        4: [null, "Min. Bemessungsspannung: ", 220, "Volt", null, "Volt", null, "Volt", null, "Volt"],
+        5: [null, "Max. Bemessungsspannung: ", 240, "Volt", null, "Volt", null, "Volt", null, "Volt"],
+        6: [null, "Bemessungsaufnahme: ", 1380, "Watt", null, "Watt", null, "Watt", null, "Watt"],
+        7: [null, "Messwert Leistungsaufnahme: ", 1380, "Watt", null, "Watt", null, "Watt", null, "Watt"],
+        9: [null, "Abweichung:", "=100/C6*C7-100", "%", "=100/E6*E7-100", "%", "=100/G6*G7-100", "%", "=100/I6*I7-100", "%"],
+        10: ["Abs. 11.8", "Erwärmung"],
+        11: [null, "1,15-fache Bemessungsaufnahme: ", "=1.15*C6*((C5/C3)*(C5/C3))", "Watt", "=1.15*E6*((E5/E3)*(E5/E3))", "Watt", "=1.15*G6*((G5/G3)*(G5/G3))", "Watt", "=1.15*I6*((I5/I3)*(I5/I3))", "Watt"],
+        12: [null, null, "=SQRT(((C3*C3)/C7)*C11)", "Volt", "=SQRT(((E3*E3)/E7)*E11)", "Volt", "=SQRT(((G3*G3)/G7)*G11)", "Volt", "=SQRT(((I3*I3)/I7)*I11)", "Volt"],
+        13: ["Abs. 11.Zxx", "Berührbare Oberflächen"],
+        14: [null, "1,0-fache Bemessungsaufnahme: ", "=C6*((C5/C3)*(C5/C3))", "Watt", "=E6*((E5/E3)*(E5/E3))", "Watt", "=G6*((G5/G3)*(G5/G3))", "Watt", "=I6*((I5/I3)*(I5/I3))", "Watt"],
+        15: [null, null, "=SQRT(((C3*C3)/C7)*C14)", "Volt", "=SQRT(((E3*E3)/E7)*E14)", "Volt", "=SQRT(((G3*G3)/G7)*G14)", "Volt", "=SQRT(((I3*I3)/I7)*I14)", "Volt"],
+        16: ["Abs. 16", "Ableitstrom"],
+        17: [null, "1,06-fache Bemessungsspannung: ", "=C5*1.06", "Volt", "=E5*1.06", "Volt", "=G5*1.06", "Volt", "=I5*1.06", "Volt"],
+        18: ["Abs. 19", "Unsachgemäßer Gebrauch"],
+        19: [null, "0,85-fache Bemessungsaufnahme: ", "=0.85*C6*((C4/C3)*(C4/C3))", "Watt", "=0.85*E6*((E4/E3)*(E4/E3))", "Watt", "=0.85*G6*((G4/G3)*(G4/G3))", "Watt", "=0.85*I6*((I4/I3)*(I4/I3))", "Watt"],
+        20: [null, "bei: ", "=SQRT(((C3*C3)/C7)*C19)", "Volt", "=SQRT(((E3*E3)/E7)*E19)", "Volt", "=SQRT(((G3*G3)/G7)*G19)", "Volt", "=SQRT(((I3*I3)/I7)*I19)", "Volt"],
+        22: [null, "1,24-fache Bemessungsaufnahme: ", "=1.24*C6*((C5/C3)*(C5/C3))", "Watt", "=1.24*E6*((E5/E3)*(E5/E3))", "Watt", "=1.24*G6*((G5/G3)*(G5/G3))", "Watt", "=1.24*I6*((I5/I3)*(I5/I3))", "Watt"],
+        23: [null, "bei: ", "=SQRT(((C3*C3)/C7)*C22)", "Volt", "=SQRT(((E3*E3)/E7)*E22)", "Volt", "=SQRT(((G3*G3)/G7)*G22)", "Volt", "=SQRT(((I3*I3)/I7)*I22)", "Volt"],
+        24: ["Abs. 25", "Netzanschluß"],
+        25: [null, "Berechneter Bemessungsstrom :", "=C6/C3+0.045", "Ampere", "=E6/E3+0.045", "Ampere", "=G6/G3+0.045", "Ampere", "=I6/I3+0.045", "Ampere"],
+        27: ["Berechnung der 1,15-fachen Bemessungsaufnahme und die dafür benötigte Spannung:"],
+        28: ["Annahme: min. Bemessungsspannung = 220V; max. Bemessungsspannung = 240V; einzustellende Spannung = 230V\nDer Widerstandswert für die Berechnung der 1,15-fachen Bemessungsaufnahme ist ein theoretischer Wert, der über die Bemessungsaufnahme bzw. -spannung berechnet wird!\nDer Widerstandswert für die Berechnung der Spannung, die für die 1,15-fache Bemessungsaufnahme benötigt wird, bezieht sich auf die tatsächlich aufgenommene Leistung des Gerätes."],
+        38: [null, null, null, null, null, null, null, null, null, "Version 20150730"]
+      }
+    }]
+  },
+  {
+    id: "ziff",
+    title: "Formeln Ziffer 11 / 19",
+    source: "formeln__ziff_11_19.xls",
+    sheets: [
+      {
+        id: "tabelle1",
+        title: "Tabelle1",
+        cols: 16,
+        rows: {
+          3: [null, "Spannung", "Nennleistung", "gemessene Leistung", "Toleranz", "Pumpe"],
+          4: [null, 220, 1450, 1310, "=ROUND(D4*100/C4,1)"],
+          5: [null, 230, 1450, 1435, "=ROUND(D5*100/C5,1)"],
+          6: [null, 240, 1450, 1562, "=ROUND(D6*100/C6,1)"],
+          9: ["0026", null, null, 1210],
+          10: ["0028", null, null, 1244],
+          11: ["0029", null, null, 1223],
+          12: ["0030", null, null, 1200],
+          13: [null, null, null, "=SUM(D9:D12)"],
+          14: [null, null, null, "=D13/4"],
+          16: [null, "Spannung", "Nennleistung", "gemessene Leistung", "Toleranz", "Pumpe", "x 1,15", "effektiv", "x1,24", "x0,85", "Spannung x1,06"],
+          17: [null, 220, 1299, 1134, "=(D17*100/C17)-100", null, "=C17*1.15", null, "=C17*1.24", "=C17*0.85", "=B17*1.06"],
+          18: [null, 230, 1415, 1280, "=D18*100/C18-100", null, "=C18*1.15", null, "=C18*1.24", "=C18*0.85", "=B18*1.06"],
+          19: [null, 240, 1300, 1360, "=D19*100/C19-100", null, "=C19*1.15", null, "=C19*1.24", "=C19*0.85", "=B19*1.06"],
+          23: [null, null, "Runden"],
+          24: [null, "Berechnung Erwärmung Kupferwindungen"],
+          25: [null, "Temperatur Anfang", 23, null, 22.8],
+          26: [null, "Temperatur Ende", 24.3, null, 23.4],
+          27: [null, "Ohmwert Anfang", 179, null, 200.9],
+          28: [null, "Ohmwert Ende", 331, null, 283.7],
+          29: [null, "Konstante Kupfer", 234.5, null, 234.5],
+          30: ["Ziff11.8", "Erwärmung in K", "=ROUND((C28-C27)/C27*(C29+C25)-(C26-C25),1)", null, "=MMULT((E28-E27)/E27*(E29+E25)-(E26-E25),1)"],
+          31: ["Ziff19", "Absolut", "=C30+C26", null, "=E30+E26"],
+          38: [null, "Berechnung Prüfspannung für CSA"],
+          39: [null, "Wc = Wm x (125/Vm)2", null, "m=marked", "c=compensated"],
+          40: [null, "Nennleistung", 1350],
+          41: [null, "Nennspannung", 120],
+          42: [null, "Gemessene Leistung", 1350],
+          44: [null, "errechnet für CSA", "=C40*(125/C41)*(125/C41)"],
+          45: [null, "Geprüft wird bei der Spannung, bei der die Leistung Wc erreicht wird"],
+          48: [null, "Berechnung Prüfleistung AU wenn auf dem Typenschild die spannung als Bereich angegeben wird, jedoch die Leistung bezieht sich auf die 230V"],
+          49: [null, "Nennleistung P", 1455, null, 220, 230, 240],
+          50: [null, "unterer Bereichswert", 230],
+          51: [null, "oberer Bereichswert", 240, null, "Ziff10 Watt (230)", "M.Bereich 220V", "(220/230)² *0.85*Pn="],
+          52: [null, "Resultat (Prüfleistung)", "=C49*((C51/230)*(C51/230))*1.15", null, 1409, "=SUM(G52*H52*(E49/F49)*(E49/F49))", 0.85, 1455],
+          53: [null, null, null, null, "Ziff10 Amp. (230)", "=SUM(H52*H53)", 1.24, 1.24],
+          54: [null, "Resultat mal 0,85", "=C52*0.85", null, 6.12],
+          55: [null, "Multipliziert mit 1,24", "=C56*1.24", null, "Result Mess.Span", "Result R Ohm"],
+          56: [null, "Zurückgerechnet (geteilt durch 1,15)", "=C52/1.15", null, "=SUM(E52/E54)", "=SUM(E56/E54)", "=SQRT(F56*F52)"],
+          59: ["Musster Formel", null, null, null, null, null, null, null, null, null, null, null, null, null, "Formel: P="],
+          60: ["Sp.Bereich", "Ziff10 Pmax (W)", "Ziff10 Imax (A)", "Calc U=Ziff10", "R=Ziff10", "Pn(W)", "Bemessungsaufnahme", null, null, "V", "V", "V", "Prüfleistung", "Prüf=U"],
+          61: ["220", 1409, 6.12, "=SUM(B61/C61)", "=SUM(D61/C61)", 1455, 0.85, 1.15, 1.24, 220, 230, 240, "=SUM(J61/K61*J61/K61*G61*F61)", "=SQRT(M61*E61)", "(220/230)² *0.85*Pn="],
+          62: ["230", null, null, null, null, null, null, null, null, null, null, null, "=SUM(L61/K61*L61/K61*H61*F61)", null, "(240/230)² *1.15*Pn="],
+          63: ["240", null, null, null, null, null, null, null, null, null, null, null, "=SUM(K61/J61*K61/J61*G61*F61)", "=SQRT(M63*E61)", "(230/220)² *0.85*Pn="],
+          66: ["To Calc.", "bitte eingeben", "bitte eingeben", null, null, "bitte eingeben"],
+          67: [null, 1296, 5.8902, "=SUM(B67/C67)", "=SUM(D67/C67)", 1300, 0.85, 1.15, 1.24, 220, 230, 240, "=SUM(J67/K67*J67/K67*G67*F67)", "=SQRT(M67*E67)", "(220/230)² *0.85*Pn="],
+          68: [null, null, null, null, null, null, null, null, null, null, null, null, "=SUM(L67/K67*L67/K67*H67*F67)", null, "(240/230)² *1.15*Pn="],
+          69: [null, null, null, null, null, null, null, null, null, null, null, null, "=SUM(K67/J67*K67/J67*G67*F67)", "=SQRT(M69*E67)", "(230/220)² *0.85*Pn="]
+        }
+      },
+      { id: "tabelle2", title: "Tabelle2", cols: 6, rows: { 3: [null, "R2", "R1", "T1", "T2", "delta"], 4: [null, 200.2, 153, 23.9, 23.9, "=(((B4-C4)/C4)*(234.5+D4))-(E4-D4)"], 5: [null, 262.3, 153, 23.9, 23.9, "=(((B5-C5)/C5)*(234.5+D5))-(E5-D5)"], 8: [null, "=60*130/400"] } },
+      { id: "tabelle3", title: "Tabelle3", cols: 1, rows: {} }
+    ]
+  }
+];
+
+function loadCalcOverrides() {
+  try { return JSON.parse(localStorage.getItem(calcStorageKey) || "{}"); } catch { return {}; }
+}
+function saveCalcOverrides(overrides) { localStorage.setItem(calcStorageKey, JSON.stringify(overrides)); }
+function loadWarmthOverrides() {
+  try { return JSON.parse(localStorage.getItem(warmthStorageKey) || "{}"); } catch { return {}; }
+}
+function saveWarmthOverrides(overrides) {
+  localStorage.setItem(warmthStorageKey, JSON.stringify(overrides));
+}
+function cellName(colIndex, rowNum) { return `${calcColumns[colIndex]}${rowNum}`; }
+function isCalcFormula(value) { return typeof value === "string" && value.startsWith("="); }
+function calcParseInput(value) {
+  const trimmed = String(value ?? "").trim().replace(",", ".");
+  if (trimmed === "") return "";
+  const num = Number(trimmed);
+  return Number.isFinite(num) ? num : value;
+}
+function calcFormat(value) {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value !== "number") return value;
+  if (!Number.isFinite(value)) return "";
+  return Number.isInteger(value) ? String(value) : String(Math.round(value * 1000) / 1000);
+}
+function formatWarmth(value) {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value !== "number" || !Number.isFinite(value)) return "";
+  return String(Math.round(value * 1000) / 1000);
+}
+function parseWarmthValue(value) {
+  const trimmed = String(value ?? "").trim().replace(",", ".");
+  if (trimmed === "") return "";
+  const num = Number(trimmed);
+  return Number.isFinite(num) ? num : "";
+}
+
+function makeCalcEvaluator(sheet, overrides) {
+  const memo = {};
+  const rawValue = (ref) => {
+    const key = `${sheet.id}:${ref}`;
+    if (Object.prototype.hasOwnProperty.call(overrides, key)) return overrides[key];
+    const col = calcColumns.indexOf(ref.match(/[A-Z]+/)[0]);
+    const row = Number(ref.match(/\d+/)[0]);
+    return sheet.rows[row]?.[col] ?? "";
+  };
+  const evaluateRef = (ref) => {
+    if (memo[ref] !== undefined) return memo[ref];
+    const value = rawValue(ref);
+    if (isCalcFormula(value)) {
+      memo[ref] = evaluateFormula(value);
+      return memo[ref];
+    }
+    const parsed = calcParseInput(value);
+    return typeof parsed === "number" ? parsed : 0;
+  };
+  const rangeValues = (range) => {
+    const [start, end] = range.split(":");
+    const startCol = calcColumns.indexOf(start.match(/[A-Z]+/)[0]);
+    const endCol = calcColumns.indexOf(end.match(/[A-Z]+/)[0]);
+    const startRow = Number(start.match(/\d+/)[0]);
+    const endRow = Number(end.match(/\d+/)[0]);
+    const values = [];
+    for (let row = startRow; row <= endRow; row += 1) {
+      for (let col = startCol; col <= endCol; col += 1) values.push(evaluateRef(cellName(col, row)));
+    }
+    return values;
+  };
+  const evaluateFormula = (formula) => {
+    const ranges = [];
+    let expr = formula.slice(1).replace(/\^/g, "**");
+    expr = expr.replace(/\b([A-Z]{1,3}\d+:[A-Z]{1,3}\d+)\b/g, (_, range) => {
+      const token = `__RANGE_${ranges.length}__`;
+      ranges.push(range);
+      return `"${token}"`;
+    });
+    expr = expr.replace(/\b([A-Z]{1,3}\d+)\b/g, (_, ref) => `CELL("${ref}")`);
+    expr = expr.replace(/"__RANGE_(\d+)__"/g, (_, index) => `"${ranges[Number(index)]}"`);
+    const CELL = evaluateRef;
+    const RANGE = rangeValues;
+    const SUM = (...args) => args.flatMap((arg) => typeof arg === "string" && arg.includes(":") ? RANGE(arg) : [arg]).reduce((sum, value) => sum + (Number(value) || 0), 0);
+    const ROUND = (value, digits = 0) => {
+      const factor = 10 ** Number(digits);
+      return Math.round((Number(value) || 0) * factor) / factor;
+    };
+    const SQRT = (value) => Math.sqrt(Number(value) || 0);
+    const MMULT = (a, b) => (Number(a) || 0) * (Number(b) || 0);
+    try {
+      return Function("CELL", "SUM", "ROUND", "SQRT", "MMULT", `"use strict"; return (${expr});`)(CELL, SUM, ROUND, SQRT, MMULT);
+    } catch (err) {
+      console.warn("Calculation formula failed", formula, err);
+      return "";
+    }
+  };
+  return { evaluateFormula };
+}
+function warmthKey(setIndex, field) {
+  return `set${setIndex}:${field}`;
+}
+function warmthSet(overrides, setIndex, fallback) {
+  return {
+    tempStart: parseWarmthValue(overrides[warmthKey(setIndex, "tempStart")] ?? fallback.tempStart),
+    tempEnd: parseWarmthValue(overrides[warmthKey(setIndex, "tempEnd")] ?? fallback.tempEnd),
+    ohmStart: parseWarmthValue(overrides[warmthKey(setIndex, "ohmStart")] ?? fallback.ohmStart),
+    ohmEnd: parseWarmthValue(overrides[warmthKey(setIndex, "ohmEnd")] ?? fallback.ohmEnd),
+    kConst: parseWarmthValue(overrides[warmthKey(setIndex, "kConst")] ?? fallback.kConst),
+  };
+}
+function warmthResult(set) {
+  const values = [set.tempStart, set.tempEnd, set.ohmStart, set.ohmEnd, set.kConst];
+  if (values.some((v) => v === "")) return { ziff118: "", ziff19: "" };
+  const tempStart = Number(set.tempStart);
+  const tempEnd = Number(set.tempEnd);
+  const ohmStart = Number(set.ohmStart);
+  const ohmEnd = Number(set.ohmEnd);
+  const kConst = Number(set.kConst);
+  const ziff118 = Math.round((((ohmEnd - ohmStart) / ohmStart) * (kConst + tempStart) - (tempEnd - tempStart)) * 10) / 10;
+  return { ziff118, ziff19: ziff118 + tempEnd };
+}
+function renderCalculations() {
+  const overrides = loadCalcOverrides();
+  const warmthOverrides = loadWarmthOverrides();
+  const value = (key, fallback) => Number(overrides[`simple:${key}`] ?? fallback);
+  const minV = value("minV", 220);
+  const maxV = value("maxV", 240);
+  const ratedW = value("ratedW", 1380);
+  const measuredW = value("measuredW", 1380);
+  const setV = (minV + maxV) / 2;
+  const powerAtMax = ratedW * ((maxV / setV) ** 2);
+  const powerAtMin = ratedW * ((minV / setV) ** 2);
+  const voltageForPower = (power) => Math.sqrt(((setV * setV) / measuredW) * power);
+  const groups = [
+    {
+      ziffer: "Abs. 10",
+      title: "Leistungsaufnahme",
+      rows: [
+        ["einzustellende Spannung", setV, "Volt"],
+        ["Abweichung", (100 / ratedW * measuredW) - 100, "%"]
+      ]
+    },
+    {
+      ziffer: "Abs. 11.8",
+      title: "Erwärmung",
+      rows: [
+        ["1,15-fache Bemessungsaufnahme", 1.15 * powerAtMax, "Watt"],
+        ["Prüfspannung für 1,15-fach", voltageForPower(1.15 * powerAtMax), "Volt"]
+      ]
+    },
+    {
+      ziffer: "Abs. 11.Zxx",
+      title: "Berührbare Oberflächen",
+      rows: [
+        ["1,0-fache Bemessungsaufnahme", powerAtMax, "Watt"],
+        ["Prüfspannung für 1,0-fach", voltageForPower(powerAtMax), "Volt"]
+      ]
+    },
+    {
+      ziffer: "Abs. 16",
+      title: "Ableitstrom",
+      rows: [["1,06-fache Bemessungsspannung", maxV * 1.06, "Volt"]]
+    },
+    {
+      ziffer: "Abs. 19",
+      title: "Unsachgemäßer Gebrauch",
+      rows: [
+        ["0,85-fache Bemessungsaufnahme", 0.85 * powerAtMin, "Watt"],
+        ["Prüfspannung für 0,85-fach", voltageForPower(0.85 * powerAtMin), "Volt"],
+        ["1,24-fache Bemessungsaufnahme", 1.24 * powerAtMax, "Watt"],
+        ["Prüfspannung für 1,24-fach", voltageForPower(1.24 * powerAtMax), "Volt"]
+      ]
+    },
+    {
+      ziffer: "Abs. 25",
+      title: "Netzanschluß",
+      rows: [["Berechneter Bemessungsstrom", ratedW / setV + 0.045, "Ampere"]]
+    }
+  ];
+  const input = (key, label, unit, fallback) => `
+    <label class="simple-calc-field">
+      <span>${label}</span>
+      <input data-simple-calc="${key}" type="number" step="0.01" value="${escapeHtml(value(key, fallback))}">
+      <em>${unit}</em>
+    </label>`;
+
+  calculationsContainer.innerHTML = `
+    <section class="simple-calc">
+      <header class="simple-calc-header">
+        <div>
+          <h3>Leistungsaufnahme</h3>
+          <p>Nur diese vier Werte eingeben. Alle Resultate darunter kommen aus den Excel-Formeln.</p>
+        </div>
+      </header>
+      <div class="simple-calc-inputs">
+        ${input("minV", "Min. Bemessungsspannung", "Volt", 220)}
+        ${input("maxV", "Max. Bemessungsspannung", "Volt", 240)}
+        ${input("ratedW", "Bemessungsaufnahme", "Watt", 1380)}
+        ${input("measuredW", "Messwert Leistungsaufnahme", "Watt", 1380)}
+      </div>
+      <div class="simple-calc-results">
+      ${groups.map((group) => `
+          <section class="simple-calc-group">
+            <header>
+              <b>${group.ziffer}</b>
+              <span>${group.title}</span>
+            </header>
+            ${group.rows.map(([label, result, unit]) => `
+              <div class="simple-calc-result">
+                <span>${label}</span>
+                <strong>${escapeHtml(calcFormat(result))}</strong>
+                <em>${unit}</em>
+              </div>
+            `).join("")}
+          </section>
+        `).join("")}
+      </div>
+      <div class="simple-calc-formula">
+        <p><strong>Berechnung der 1,15-fachen Bemessungsaufnahme und die dafür benötigte Spannung:</strong></p>
+        <p>Annahme: min. Bemessungsspannung = ${escapeHtml(calcFormat(minV))}V; max. Bemessungsspannung = ${escapeHtml(calcFormat(maxV))}V; einzustellende Spannung = ${escapeHtml(calcFormat(setV))}V</p>
+        <p>Der Widerstandswert für die Berechnung der 1,15-fachen Bemessungsaufnahme ist ein theoretischer Wert, der über die Bemessungsaufnahme bzw. -spannung berechnet wird!</p>
+        <p>Der Widerstandswert für die Berechnung der Spannung, die für die 1,15-fache Bemessungsaufnahme benötigt wird, bezieht sich auf die tatsächlich aufgenommene Leistung des Gerätes.</p>
+        <img class="formula-image" src="assets/ls-formula.png" alt="Formelbereich aus dem Excel-Sheet">
+      </div>
+    </section>
+    <section class="warmth-calc">
+      <div class="warmth-title">Runden</div>
+      <div class="warmth-sheet">
+        <h3>Berechnung Erwärmung Kupferwindungen</h3>
+        <table class="warmth-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Set 1</th>
+              <th>Set 2</th>
+              <th>Set 3</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${[
+              ["Temperatur Anfang", "tempStart", 1, 23, "°C"],
+              ["Temperatur Ende", "tempEnd", 1, 24.3, "°C"],
+              ["Ohmwert Anfang", "ohmStart", 1, 179, "Ω"],
+              ["Ohmwert Ende", "ohmEnd", 1, 331, "Ω"],
+              ["Konstante Kupfer", "kConst", 1, 234.5, ""]
+            ].map(([label, field, step, fallback, unit]) => `
+              <tr>
+                <th>${label}</th>
+                ${[1,2,3].map((setIndex) => {
+                  const fallbackValues = [
+                    { tempStart: 23, tempEnd: 24.3, ohmStart: 179, ohmEnd: 331, kConst: 234.5 },
+                    { tempStart: 22.8, tempEnd: 23.4, ohmStart: 200.9, ohmEnd: 283.7, kConst: 234.5 },
+                    { tempStart: 22.8, tempEnd: 23.4, ohmStart: 200.9, ohmEnd: 283.7, kConst: 234.5 }
+                  ][setIndex - 1];
+                  const set = warmthSet(warmthOverrides, setIndex, fallbackValues);
+                  const val = set[field];
+                  const locked = field === "kConst" && setIndex !== 0;
+                  return `
+                    <td>
+                      <input type="number" step="${step}" data-warmth-set="${setIndex}" data-warmth-field="${field}" value="${escapeHtml(val)}" ${field === "kConst" ? "readonly" : ""}>
+                      ${unit ? `<span>${unit}</span>` : ""}
+                    </td>
+                  `;
+                }).join("")}
+              </tr>
+            `).join("")}
+            <tr class="warmth-result-row">
+              <th>Erwärmung in Kelvin</th>
+              ${[1,2,3].map((setIndex) => {
+                const fallbackValues = [
+                  { tempStart: 23, tempEnd: 24.3, ohmStart: 179, ohmEnd: 331, kConst: 234.5 },
+                  { tempStart: 22.8, tempEnd: 23.4, ohmStart: 200.9, ohmEnd: 283.7, kConst: 234.5 },
+                  { tempStart: 22.8, tempEnd: 23.4, ohmStart: 200.9, ohmEnd: 283.7, kConst: 234.5 }
+                ][setIndex - 1];
+                const set = warmthSet(warmthOverrides, setIndex, fallbackValues);
+                const result = warmthResult(set);
+                return `<td class="warmth-result">${escapeHtml(formatWarmth(result.ziff118))}</td>`;
+              }).join("")}
+            </tr>
+            <tr class="warmth-result-row">
+              <th>Absolut</th>
+              ${[1,2,3].map((setIndex) => {
+                const fallbackValues = [
+                  { tempStart: 23, tempEnd: 24.3, ohmStart: 179, ohmEnd: 331, kConst: 234.5 },
+                  { tempStart: 22.8, tempEnd: 23.4, ohmStart: 200.9, ohmEnd: 283.7, kConst: 234.5 },
+                  { tempStart: 22.8, tempEnd: 23.4, ohmStart: 200.9, ohmEnd: 283.7, kConst: 234.5 }
+                ][setIndex - 1];
+                const set = warmthSet(warmthOverrides, setIndex, fallbackValues);
+                const result = warmthResult(set);
+                return `<td class="warmth-result">${escapeHtml(formatWarmth(result.ziff19))}</td>`;
+              }).join("")}
+            </tr>
+          </tbody>
+        </table>
+        <div class="warmth-notes">
+          <p><strong>Bemerkung:</strong></p>
+          <p><strong>Annahme:</strong></p>
+          <p>mit k = 225 für Aluminiumwicklungen und Kupfer/Aluminiumwicklungen mit einem Aluminiumanteil ≥ 85%</p>
+          <p>mit k = 229,75 für Kupfer/Aluminiumwicklungen mit einem Kupferanteil &gt; 15% und &lt; 85%</p>
+          <p>mit k = 234.5 für Kupferwicklungen</p>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderTabelle24View() {
+  if (!tabelle24Frame) return;
+  if (!activeProject) {
+    tabelle24Frame.removeAttribute("src");
+    return;
+  }
+  const theme = document.body.dataset.theme || "light";
+  const url = `/tabelle24.html?projectId=${encodeURIComponent(activeProject.id)}&theme=${theme}`;
+  if (tabelle24Frame.getAttribute("src") !== url) {
+    tabelle24Frame.setAttribute("src", url);
+  }
+}
+
+function renderTabelle30View() {
+  if (!tabelle30Frame) return;
+  if (!activeProject) {
+    tabelle30Frame.removeAttribute("src");
+    return;
+  }
+  const theme = document.body.dataset.theme || "light";
+  const url = `/tabelle30.html?projectId=${encodeURIComponent(activeProject.id)}&theme=${theme}`;
+  if (tabelle30Frame.getAttribute("src") !== url) {
+    tabelle30Frame.setAttribute("src", url);
+  }
+}
+
 // ── Full render ───────────────────────────────────────────────
 function renderAll() {
   if (!activeProject) return;
@@ -915,10 +1422,12 @@ function renderAll() {
   renderTasks(activeProject);
   renderDocs(activeProject);
   renderFachfreigabe(activeProject);
+  renderCalculations();
+  renderTabelle24View();
+  renderTabelle30View();
 }
 
 async function openProject(projectId, view = "overview", pushHistory = true) {
-  activeMarketFilter = null;
   recordRecent(projectId);
   activeProject = await apiFetch(`/api/projects/${projectId}`);
   activeSubtopic = "Approbation";
@@ -966,6 +1475,14 @@ window.addEventListener("popstate", async (e) => {
     activeEvidenceGroup = null;
     setView("docs");
     renderDocs(activeProject);
+  } else if (e.state?.projectId && e.state?.view === "tabelle24") {
+    await ensureProjectData(e.state.projectId);
+    setView("tabelle24");
+    renderTabelle24View();
+  } else if (e.state?.projectId && e.state?.view === "tabelle30") {
+    await ensureProjectData(e.state.projectId);
+    setView("tabelle30");
+    renderTabelle30View();
   } else if (e.state?.projectId) {
     openProject(e.state.projectId, e.state.view || "overview", false);
   } else {
@@ -1017,6 +1534,20 @@ dashboardLink.addEventListener("click", () => {
   dashboardSearch.value = "";
   goToDashboard();
   renderMachines();
+});
+
+tabelle24Link.addEventListener("click", () => {
+  if (!activeProject) return;
+  setView("tabelle24");
+  renderTabelle24View();
+  history.pushState({ projectId: activeProject.id, view: "tabelle24" }, "", `#${activeProject.id}/tabelle24`);
+});
+
+tabelle30Link?.addEventListener("click", () => {
+  if (!activeProject) return;
+  setView("tabelle30");
+  renderTabelle30View();
+  history.pushState({ projectId: activeProject.id, view: "tabelle30" }, "", `#${activeProject.id}/tabelle30`);
 });
 
 document.querySelector("#dashboard-grid").addEventListener("click", (event) => {
@@ -1265,6 +1796,78 @@ document.querySelector("#task-table").addEventListener("focusout", (event) => {
 
 // Open local folder in Finder/Explorer via local backend
 document.querySelector("#docs-view").addEventListener("click", async (event) => {
+  const fileActionBtn = event.target.closest("[data-file-action]");
+  if (fileActionBtn) {
+    await runFileAction(fileActionBtn.dataset.fileAction, fileActionBtn.dataset.currentHref);
+    return;
+  }
+
+  const entryRow = event.target.closest("[data-evidence-entry-href]");
+  if (entryRow && !event.target.closest("[data-open-href]")) {
+    const href = entryRow.dataset.evidenceEntryHref;
+    const type = entryRow.dataset.evidenceEntryType;
+    const group = activeProject.documentGroups?.find((g) => g.primary === entryRow.dataset.evidenceEntryGroup);
+    const rows = [...document.querySelectorAll(`.evidence-file-row[data-evidence-entry-group="${CSS.escape(entryRow.dataset.evidenceEntryGroup)}"]`)];
+    const alreadySelected = selectedEvidenceHrefs.has(href) && selectedEvidenceHrefs.size === 1;
+
+    if (event.shiftKey && evidenceSelectionAnchor) {
+      const start = rows.findIndex((row) => row.dataset.evidenceEntryHref === evidenceSelectionAnchor);
+      const end = rows.indexOf(entryRow);
+      selectedEvidenceHrefs = new Set();
+      if (start >= 0 && end >= 0) {
+        const [from, to] = start < end ? [start, end] : [end, start];
+        rows.slice(from, to + 1).forEach((row) => selectedEvidenceHrefs.add(row.dataset.evidenceEntryHref));
+      } else {
+        selectedEvidenceHrefs.add(href);
+        evidenceSelectionAnchor = href;
+      }
+    } else {
+      selectedEvidenceHrefs = new Set([href]);
+      evidenceSelectionAnchor = href;
+    }
+    selectedEvidenceHref = href;
+    renderDocs(activeProject);
+
+    if (type === "Ordner") {
+      if (!group) return;
+      if (!alreadySelected || event.shiftKey) return;
+      history.pushState({ projectId: activeProject.id, view: "docs", openGroup: group.primary, subfolderGroup: group.primary, subfolderHref: href }, "", `#${activeProject.id}`);
+      selectedEvidenceHref = null;
+      selectedEvidenceHrefs = new Set();
+      evidenceSelectionAnchor = null;
+      loadEvidenceEntries(group, href);
+      return;
+    }
+
+    // If the preview panel is already open, a single click on a different file should swap
+    // the preview to that file (no need to click twice). Without preview, keep "click-twice"
+    // behaviour so the first click only selects.
+    const previewActive = document.querySelector("#file-preview-panel")?.classList.contains("active");
+    if (event.shiftKey || !group) return;
+    if (!alreadySelected && !previewActive) return;
+
+    if (isOfficeFile(entryRow.dataset.evidenceEntryName)) {
+      try {
+        await apiFetch("/api/open-path", {
+          method: "POST",
+          body: JSON.stringify({ href: new URL(href, window.location.href).pathname, app: "word" })
+        });
+      } catch (err) {
+        console.error("Open office file error:", err);
+      }
+      return;
+    }
+
+    if (/\.(jpe?g|png|gif|webp|svg|bmp|pdf)$/i.test(href)) {
+      const previewRow = document.querySelector(`[data-evidence-entry-href="${CSS.escape(href)}"]`);
+      if (previewRow) previewRow.dispatchEvent(new CustomEvent("evidence-preview-open", { bubbles: true, detail: { href, name: entryRow.dataset.evidenceEntryName } }));
+      return;
+    }
+
+    window.open(href, "_blank", "noreferrer");
+    return;
+  }
+
   // Subfolder navigation
   const subfolderBtn = event.target.closest("[data-browse-subfolder]");
   if (subfolderBtn) {
@@ -1297,6 +1900,18 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     return;
   }
 
+  const retryBtn = event.target.closest("[data-evidence-retry]");
+  if (retryBtn) {
+    const group = activeProject.documentGroups?.find((item) => item.primary === retryBtn.dataset.evidenceRetry);
+    if (!group) return;
+    const key = evidenceCacheKey(activeProject.id, group.primary);
+    const cached = evidenceEntries.get(key);
+    const href = cached?.browseHref || evidenceHref(group);
+    evidencePathEntries.delete(`${key}:${href}`);
+    loadEvidenceEntries(group, href);
+    return;
+  }
+
   const groupCard = event.target.closest("[data-evidence-group-card]");
   if (groupCard && !event.target.closest("a, button")) {
     const wasOpen = activeEvidenceGroup === groupCard.dataset.evidenceGroupCard;
@@ -1323,6 +1938,30 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     console.error("Open path error:", err);
   } finally {
     btn.disabled = false;
+  }
+});
+
+document.addEventListener("keydown", async (event) => {
+  if (activeView !== "docs") return;
+  if (event.target.closest("input, textarea, select, [contenteditable='true']")) return;
+  const isMod = event.metaKey || event.ctrlKey;
+  const key = event.key.toLowerCase();
+
+  if (isMod && key === "c") {
+    event.preventDefault();
+    await runFileAction("copy");
+  } else if (isMod && key === "x") {
+    event.preventDefault();
+    await runFileAction("cut");
+  } else if (isMod && key === "v") {
+    event.preventDefault();
+    await runFileAction("paste");
+  } else if (isMod && event.shiftKey && key === "n") {
+    event.preventDefault();
+    await runFileAction("mkdir");
+  } else if (event.key === "Delete" || event.key === "Backspace") {
+    event.preventDefault();
+    await runFileAction("delete");
   }
 });
 
@@ -1447,13 +2086,21 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     hoveredRow = row || null;
   });
 
+  document.querySelector("#docs-view").addEventListener("evidence-preview-open", (e) => {
+    const row = e.target.closest(".evidence-file-row:not(.head)");
+    const { href, name } = e.detail || {};
+    if (row && href && canPreview(href)) openPreview(row, href, name || row.textContent.trim());
+  });
+
   window.addEventListener("keydown", (e) => {
     if (e.key === " ") {
       if (panel.classList.contains("active")) { e.preventDefault(); closePreview(); return; }
-      if (hoveredRow) {
+      const selectedRow = document.querySelector(".evidence-file-row.explorer-selected:not(.head)") || hoveredRow;
+      if (selectedRow) {
         e.preventDefault();
-        const link = hoveredRow.querySelector("a[href]");
-        if (link && canPreview(link.href)) openPreview(hoveredRow, link.href, link.textContent.trim());
+        const href = selectedRow.dataset.evidenceEntryHref;
+        const name = selectedRow.dataset.evidenceEntryName;
+        if (href && canPreview(href)) openPreview(selectedRow, href, name);
         return;
       }
     }
@@ -1465,28 +2112,14 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
       e.preventDefault();
       const rows = [...document.querySelectorAll(".evidence-file-row:not(.evidence-file-row--folder):not(.head)")];
       const idx = rows.indexOf(selectedRow);
-      const step = e.key === "ArrowDown" ? 1 : -1;
-      for (let i = idx + step; i >= 0 && i < rows.length; i += step) {
-        const link = rows[i].querySelector("a[href]");
-        if (link && canPreview(link.href)) {
-          rows[i].scrollIntoView({ block: "nearest" });
-          openPreview(rows[i], link.href, link.textContent.trim());
-          break;
-        }
+      const next = e.key === "ArrowDown" ? rows[idx + 1] : rows[idx - 1];
+      if (next) {
+        const link = next.querySelector("a[href]");
+        if (link && canPreview(link.href)) { next.scrollIntoView({ block: "nearest" }); openPreview(next, link.href, link.textContent.trim()); }
       }
     }
   }, true);
 })();
-
-document.querySelector("#docs-view").addEventListener("click", (event) => {
-  const btn = event.target.closest("[data-market]");
-  if (!btn) return;
-  const market = btn.dataset.market;
-  if (!market || activeMarketFilter === market) return;
-  activeMarketFilter = market;
-  activeEvidenceGroup = null;
-  renderDocs(activeProject);
-});
 
 document.querySelector("#docs-view").addEventListener("keydown", (event) => {
   if (!["Enter", " "].includes(event.key)) return;
@@ -1803,14 +2436,70 @@ buttons.overview.addEventListener("click", () => setView("overview"));
 buttons.subtopic.addEventListener("click", () => setView("subtopic"));
 buttons.tasks.addEventListener("click", () => setView("tasks"));
 buttons.docs.addEventListener("click", () => setView("docs"));
+buttons.calculations.addEventListener("click", () => {
+  setView("calculations");
+  renderCalculations();
+});
 buttons.freigabe.addEventListener("click", () => setView("freigabe"));
 buttons.packaging.addEventListener("click", async () => {
   setView("packaging");
   await loadPackagingData();
   renderPackaging();
 });
+function saveSimpleCalcInput(input) {
+  if (!input) return;
+  const overrides = loadCalcOverrides();
+  overrides[`simple:${input.dataset.simpleCalc}`] = calcParseInput(input.value);
+  saveCalcOverrides(overrides);
+  renderCalculations();
+}
+
+function saveWarmthInput(input) {
+  if (!input) return;
+  const overrides = loadWarmthOverrides();
+  overrides[warmthKey(Number(input.dataset.warmthSet), input.dataset.warmthField)] = parseWarmthValue(input.value);
+  saveWarmthOverrides(overrides);
+  renderCalculations();
+}
+
+calculationsContainer.addEventListener("change", (event) => {
+  const input = event.target.closest("[data-simple-calc]");
+  if (!input) return;
+  saveSimpleCalcInput(input);
+});
+calculationsContainer.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter") return;
+  const input = event.target.closest("[data-simple-calc]");
+  if (!input) return;
+  event.preventDefault();
+  saveSimpleCalcInput(input);
+});
+calcReset.addEventListener("click", () => {
+  if (!confirm("Alle Berechnungs-Eingaben zurücksetzen?")) return;
+  localStorage.removeItem(calcStorageKey);
+  renderCalculations();
+});
+calculationsContainer.addEventListener("change", (event) => {
+  const warmthInput = event.target.closest("[data-warmth-set][data-warmth-field]");
+  if (warmthInput) {
+    saveWarmthInput(warmthInput);
+  }
+});
+calculationsContainer.addEventListener("keydown", (event) => {
+  const warmthInput = event.target.closest("[data-warmth-set][data-warmth-field]");
+  if (!warmthInput || event.key !== "Enter") return;
+  event.preventDefault();
+  saveWarmthInput(warmthInput);
+});
 themeToggle.addEventListener("click", () => {
   applyTheme(document.body.dataset.theme === "dark" ? "light" : "dark");
+  // Push the new theme to the Tabelle 24/30 iframes so they repaint without losing state.
+  const msg = { type: "theme", theme: document.body.dataset.theme };
+  for (const frame of [tabelle24Frame, tabelle30Frame]) {
+    if (frame?.contentWindow) {
+      try { frame.contentWindow.postMessage(msg, window.location.origin); } catch {}
+    }
+  }
 });
 
 // ── Scanner UI ────────────────────────────────────────────────
@@ -1868,24 +2557,6 @@ function showScanDone(s) {
 }
 
 async function startScanStream() {
-  // If a project is open, scan only that project
-  if (activeProject) {
-    scanBtn.disabled = true;
-    scanStatus.textContent = "Scanne…";
-    try {
-      await apiFetch(`/api/scan/project/${activeProject.id}`, { method: "POST" });
-      activeProject = await apiFetch(`/api/projects/${activeProject.id}`);
-      projectList = await apiFetch("/api/projects");
-      renderAll();
-      scanStatus.textContent = `${activeProject.id} ✓`;
-    } catch (e) {
-      scanStatus.textContent = "Fehler";
-    }
-    scanBtn.disabled = false;
-    return;
-  }
-
-  // Full scan when on dashboard
   scanBtn.disabled = true;
   scanStatus.textContent = "Scanne…";
   await apiFetch("/api/scan/start", { method: "POST" });
@@ -1900,6 +2571,7 @@ async function startScanStream() {
       showScanDone(s);
       scanBtn.disabled = false;
       projectList = await apiFetch("/api/projects");
+      if (activeProject) activeProject = await apiFetch(`/api/projects/${activeProject.id}`);
       if (activeView === "dashboard") { renderMachines(); renderDashboard(); } else renderAll();
       break;
     }
@@ -1914,12 +2586,10 @@ const archiveSyncBtn = document.querySelector("#archive-sync-btn");
 async function runArchiveSync() {
   archiveSyncBtn.disabled = true;
   archiveSyncBtn.textContent = "Sync…";
-  const url = activeProject
-    ? `/api/scan-archive/${activeProject.id}`
-    : "/api/scan-archive";
   try {
-    const result = await apiFetch(url, { method: "POST" });
+    const result = await apiFetch("/api/scan-archive", { method: "POST" });
     archiveSyncBtn.textContent = `✓ ${result.updated} Einträge`;
+    // Reload current project to pick up new archive_location
     if (activeProject) {
       activeProject = await apiFetch(`/api/projects/${activeProject.id}`);
       renderSummary(activeProject);
