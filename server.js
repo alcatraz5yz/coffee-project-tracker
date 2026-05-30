@@ -1214,7 +1214,7 @@ app.get("/api/tabelle24/files", (req, res) => {
       if (e.isDirectory()) {
         if (/^archiv$/i.test(e.name)) continue;
         walk(full, depth + 1);
-      } else if (/\.docx?$/i.test(e.name) && /intern/i.test(e.name) && !/^~\$/.test(e.name)) {
+      } else if (/\.(docx?|docm)$/i.test(e.name) && /intern/i.test(e.name) && !/^~\$/.test(e.name)) {
         const stat = fs.statSync(full);
         candidates.push({ path: full, name: e.name, size: stat.size, mtime: stat.mtime.toISOString() });
       }
@@ -1365,7 +1365,7 @@ app.get("/api/tabelle30/files", (req, res) => {
       const full = path.join(dir, e.name);
       if (e.isDirectory()) {
         walk(full, depth + 1);
-      } else if (/\.docx?$/i.test(e.name) && !/^~\$/.test(e.name) && /(typenpr[uü]f|vde[_ ])/i.test(e.name)) {
+      } else if (/\.(docx?|docm)$/i.test(e.name) && !/^~\$/.test(e.name) && /(typenpr[uü]f|vde[_ ])/i.test(e.name)) {
         const stat = fs.statSync(full);
         candidates.push({ path: full, name: e.name, size: stat.size, mtime: stat.mtime.toISOString() });
       }
