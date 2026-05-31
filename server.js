@@ -1425,11 +1425,39 @@ function fileContainsTabelle30(filePath) {
 // section. Two-stage: walk → collect all .doc/.docx/.docm → pipe paths through
 // a pure-Node marker scan (fast zip read for .docx/.docm, raw-byte search for
 // .doc — no Python or LibreOffice needed for the file picker).
+// Resolve the project root folder for Tabelle 30 file discovery. Accepts an explicit
+// ?root= (back-compat) or a ?projectId= that we resolve under PCS_ROOT (P:\PCS on
+// Windows, ~/Desktop in Mac dev). This keeps the frontend free of any hardcoded OS
+// path, so the same build finds the report/Excel on both macOS and Windows.
+function resolveTabelle30Root(query) {
+  if (query.root && typeof query.root === "string" && query.root.trim()) {
+    const r = path.resolve(query.root);
+    return fs.existsSync(r) ? r : null;
+  }
+  const projectId = typeof query.projectId === "string" ? query.projectId.trim() : "";
+  if (!projectId) return null;
+  const numeric = projectId.replace(/^EF/i, "").trim();
+  const direct = [
+    path.join(PCS_ROOT, projectId),
+    path.join(PCS_ROOT, numeric),
+    path.join(PCS_ROOT, `EF${numeric}`),
+    path.join(PCS_ROOT, `EF ${numeric}`),
+  ];
+  for (const c of direct) { try { if (fs.statSync(c).isDirectory()) return c; } catch {} }
+  // Fall back to scanning PCS_ROOT for a folder beginning with the project number
+  // (handles names like "1157 EF1157 CoffeeB Pluto" or "EF1157 …").
+  try {
+    const re = new RegExp(`^(ef[\\s_-]*)?0*${numeric}(\\D|$)`, "i");
+    for (const e of fs.readdirSync(PCS_ROOT, { withFileTypes: true })) {
+      if (e.isDirectory() && re.test(e.name)) return path.join(PCS_ROOT, e.name);
+    }
+  } catch {}
+  return null;
+}
+
 app.get("/api/tabelle30/files", (req, res) => {
-  const root = req.query.root;
-  if (!root || typeof root !== "string") return res.status(400).json({ error: "missing ?root=<absolute path to EF project>" });
-  const resolved = path.resolve(root);
-  if (!fs.existsSync(resolved)) return res.status(404).json({ error: `not found: ${resolved}` });
+  const resolved = resolveTabelle30Root(req.query);
+  if (!resolved) return res.status(400).json({ error: "missing/unresolved ?root= or ?projectId=" });
 
   const allCandidates = [];
   function walk(dir, depth) {
@@ -1459,11 +1487,9 @@ app.get("/api/tabelle30/files", (req, res) => {
 // List candidate "Ergänzung" Excel files under the project root — typically in
 // "02 Änderungen/" with "ergänzung" or "ergaenzung" in the filename.
 app.get("/api/tabelle30/excels", (req, res) => {
-  const root = req.query.root;
   const showAll = req.query.all === "1" || req.query.all === "true";
-  if (!root || typeof root !== "string") return res.status(400).json({ error: "missing ?root=" });
-  const resolved = path.resolve(root);
-  if (!fs.existsSync(resolved)) return res.status(404).json({ error: `not found: ${resolved}` });
+  const resolved = resolveTabelle30Root(req.query);
+  if (!resolved) return res.status(400).json({ error: "missing/unresolved ?root= or ?projectId=" });
 
   const found = [];
   function walk(dir, depth) {

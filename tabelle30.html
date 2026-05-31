@@ -385,7 +385,7 @@
       </header>
 
       <section class="controls">
-        <input id="project-root" type="hidden" value="/Users/allan/Desktop/1175">
+        <input id="project-root" type="hidden" value="">
         <div class="row-controls">
           <label for="file-select">Typenprüfung-Bericht</label>
           <select id="file-select" style="flex:1"><option value="">(noch nichts geladen)</option></select>
@@ -413,11 +413,21 @@
       let currentTableData = null;
       let currentComparisonData = null;
 
-      async function fetchFiles() {
+      // Build the file-discovery query: an explicit project-root path if one was
+      // typed, otherwise the projectId so the server resolves it under PCS_ROOT
+      // (P:\PCS on Windows, ~/Desktop in Mac dev). No OS path is hardcoded here.
+      function projectRootQuery() {
         const root = $("project-root").value.trim();
-        if (!root) return;
+        if (root) return `root=${encodeURIComponent(root)}`;
+        const pid = new URLSearchParams(location.search).get("projectId");
+        return pid ? `projectId=${encodeURIComponent(pid)}` : "";
+      }
+
+      async function fetchFiles() {
+        const q = projectRootQuery();
+        if (!q) return;
         meta.textContent = "Suche...";
-        const r = await fetch(`/api/tabelle30/files?root=${encodeURIComponent(root)}`);
+        const r = await fetch(`/api/tabelle30/files?${q}`);
         if (!r.ok) {
           const { error } = await r.json().catch(() => ({ error: r.statusText }));
           meta.textContent = `Fehler: ${error}`;
@@ -631,9 +641,9 @@
       }
 
       async function fetchExcels(showAll = false, options = {}) {
-        const root = $("project-root").value.trim();
-        if (!root) return;
-        const r = await fetch(`/api/tabelle30/excels?root=${encodeURIComponent(root)}${showAll ? "&all=1" : ""}`);
+        const q = projectRootQuery();
+        if (!q) return;
+        const r = await fetch(`/api/tabelle30/excels?${q}${showAll ? "&all=1" : ""}`);
         if (!r.ok) {
           const { error } = await r.json().catch(() => ({ error: r.statusText }));
           $("excel-select").innerHTML = '<option value="">(Excel-Suche fehlgeschlagen)</option>';
@@ -756,13 +766,8 @@
       body.embedded.theme-dark .err { background: rgba(255,116,116,0.20); color: #ff8a8a; }`;
       document.head.appendChild(styleNode);
 
-      // If a projectId was passed in the URL by the dashboard, prefill the root.
-      const params = new URLSearchParams(location.search);
-      const pid = params.get("projectId");
-      if (pid) {
-        const m = pid.match(/EF\s*(\d+)/i);
-        if (m) $("project-root").value = `/Users/allan/Desktop/${m[1]}`;
-      }
+      // The dashboard passes ?projectId=…; the server resolves the actual folder
+      // under PCS_ROOT, so no OS-specific path is hardcoded here (works on Mac + Windows).
       fetchFiles();
       fetchExcels(false);
     </script>
