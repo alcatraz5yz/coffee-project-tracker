@@ -231,7 +231,7 @@ async function scanProject(projectNumber, projectDir, storedMtimes, allNumbers =
       ? (CRITICAL_FOLDERS.has(num) ? "Blocked" : "Open")
       : (num === "12" ? "Current" : "Available");
 
-    const relPathFromProject = path.relative(projectDir, folderPath).split(path.sep).join("/");
+    const relPathFromProject = path.relative(projectDir, folderPath).split(path.sep).map(encodeURIComponent).join("/");
     const href = `${webPrefix}${relPathFromProject}/`;
 
     documentGroups.push({
@@ -268,7 +268,7 @@ async function scanProject(projectNumber, projectDir, storedMtimes, allNumbers =
       }
 
       const docProject = inferDocProject(doc.file) || projectId;
-      const relFromProjectDir = path.relative(projectDir, doc.fullPath).split(path.sep).join("/");
+      const relFromProjectDir = path.relative(projectDir, doc.fullPath).split(path.sep).map(encodeURIComponent).join("/");
       const href = `${webPrefix}${relFromProjectDir}`;
 
       reportVersions.push({
