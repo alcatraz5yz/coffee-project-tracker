@@ -2,6 +2,7 @@ const express = require("express");
 const path = require("path");
 const os = require("os");
 const fs = require("fs");
+const fsp = fs.promises;
 const { spawn, spawnSync } = require("child_process");
 const XLSX = require("xlsx");
 const { trackerConfig } = require("./config");
@@ -42,6 +43,7 @@ const { lookupVde } = require("./vde-lookup-node");
 const app = express();
 const PORT = process.env.PORT || 8090;
 const HOST = process.env.HOST || "127.0.0.1";
+const FS_TIMEOUT_MS = Number(process.env.FS_TIMEOUT_MS || 6000);
 const evidenceRoots = new Map();
 
 app.disable("x-powered-by");
@@ -74,6 +76,65 @@ function isWithin(root, target) {
   return target === root || target.startsWith(root + path.sep);
 }
 
+class FsTimeoutError extends Error {
+  constructor(label) {
+    super(`${label}: Netzlaufwerk antwortet nicht innerhalb von ${FS_TIMEOUT_MS} ms`);
+    this.name = "FsTimeoutError";
+    this.status = 504;
+  }
+}
+
+function fsTimeout(promise, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new FsTimeoutError(label)), FS_TIMEOUT_MS);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+async function fsRealpath(p, label = `realpath ${p}`) {
+  return fsTimeout(fsp.realpath(p), label);
+}
+
+async function fsStat(p, label = `stat ${p}`) {
+  return fsTimeout(fsp.stat(p), label);
+}
+
+async function fsAccess(p, label = `access ${p}`) {
+  try {
+    await fsTimeout(fsp.access(p), label);
+    return true;
+  } catch (err) {
+    if (err?.code === "ENOENT" || err?.code === "ENOTDIR") return false;
+    throw err;
+  }
+}
+
+async function fsReaddir(p, options, label = `readdir ${p}`) {
+  return fsTimeout(fsp.readdir(p, options), label);
+}
+
+async function fsIsDirectory(p) {
+  try {
+    return (await fsStat(p)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+async function fsExists(p) {
+  return fsAccess(p);
+}
+
+const realpathCache = new Map();
+
+async function cachedRealpath(root) {
+  if (realpathCache.has(root)) return realpathCache.get(root);
+  const real = await fsRealpath(root, `realpath ${root}`);
+  realpathCache.set(root, real);
+  return real;
+}
+
 function boundedCacheGet(cache, key, producer, maxEntries = 250) {
   if (cache.has(key)) return cache.get(key);
   const value = producer();
@@ -100,21 +161,21 @@ function cachedParse(cache, filePath, producer) {
   return boundedCacheGet(cache, fileCacheKey(filePath), producer, 120);
 }
 
-function sendDirectoryListing(req, res, root, mountPath) {
+async function sendDirectoryListing(req, res, root, mountPath) {
   const mount = mountPath.endsWith("/") ? mountPath.slice(0, -1) : mountPath;
   const reqPath = decodeURIComponent(req.originalUrl.split("?")[0]);
   const relUrl = reqPath.startsWith(mount) ? reqPath.slice(mount.length) : reqPath;
   const relPath = relUrl.replace(/^\/+/, "");
-  const safeRoot = fs.realpathSync(root);
+  const safeRoot = await cachedRealpath(root);
   const target = path.resolve(safeRoot, relPath);
 
   if (!isWithin(safeRoot, target)) return res.status(403).send("Forbidden");
-  if (!fs.existsSync(target)) return false;
+  if (!await fsExists(target)) return false;
 
-  const stat = fs.statSync(target);
+  const stat = await fsStat(target);
   if (!stat.isDirectory()) return false;
 
-  const entries = fs.readdirSync(target, { withFileTypes: true })
+  const entries = (await fsReaddir(target, { withFileTypes: true }))
     .filter((entry) => !entry.name.startsWith(".") && !entry.name.startsWith("~$") && !/\.db$/i.test(entry.name) && !/\.tmp$/i.test(entry.name))
     .sort((a, b) => Number(b.isDirectory()) - Number(a.isDirectory()) || a.name.localeCompare(b.name, "de"));
 
@@ -165,9 +226,9 @@ function sendDirectoryListing(req, res, root, mountPath) {
       <section class="panel">
         <div class="row head"><span>Name</span><span>Typ</span><span>Geändert</span></div>
         ${parentHref ? `<div class="row"><a href="${escapeHtml(parentHref)}">..</a><span class="type">Ordner</span><span></span></div>` : ""}
-        ${entries.map((entry) => {
+        ${(await Promise.all(entries.map(async (entry) => {
           const full = path.join(target, entry.name);
-          const entryStat = fs.statSync(full);
+          const entryStat = await fsStat(full);
           const isDirectory = entry.isDirectory();
           const href = hrefJoin(reqPath, entry.name, isDirectory);
           return `<div class="row">
@@ -175,7 +236,7 @@ function sendDirectoryListing(req, res, root, mountPath) {
             <span class="type ${isDirectory ? "" : "file"}">${isDirectory ? "Ordner" : "Datei"}</span>
             <time>${entryStat.mtime.toLocaleString("de-CH", { dateStyle: "short", timeStyle: "short" })}</time>
           </div>`;
-        }).join("")}
+        }))).join("")}
       </section>
       <script>
         document.querySelector("#finder-btn").addEventListener("click", async () => {
@@ -206,7 +267,39 @@ function decodeHrefPath(href) {
   return value;
 }
 
-function resolveAllowedHref(href) {
+async function resolveAllowedHref(href) {
+  if (!href || typeof href !== "string") return null;
+  const rawPath = decodeHrefPath(href);
+  const urlPath = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
+
+  for (const [name, root] of evidenceRoots.entries()) {
+    const prefix = `/${name}/`;
+    if (!urlPath.startsWith(prefix)) continue;
+    const rel = urlPath.slice(prefix.length);
+    const safeRoot = await cachedRealpath(root);
+    const target = path.resolve(safeRoot, rel);
+    if (isWithin(safeRoot, target) && await fsExists(target)) return target;
+  }
+
+  if (urlPath.startsWith("/files/")) {
+    const safeRoot = await cachedRealpath(PCS_ROOT);
+    const rel = urlPath.slice("/files/".length);
+    const target = path.resolve(safeRoot, rel);
+    if (isWithin(safeRoot, target) && await fsExists(target)) return target;
+
+    const parts = rel.split("/");
+    const projectFolder = parts[0] || "";
+    const projectMatch = projectFolder.match(/^EF[\s_-]*(\d+)$/i);
+    if (projectMatch) {
+      const fallback = path.resolve(safeRoot, projectMatch[1], ...parts.slice(1));
+      if (isWithin(safeRoot, fallback) && await fsExists(fallback)) return fallback;
+    }
+  }
+
+  return null;
+}
+
+function resolveAllowedHrefSync(href) {
   if (!href || typeof href !== "string") return null;
   const rawPath = decodeHrefPath(href);
   const urlPath = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
@@ -238,7 +331,7 @@ function resolveAllowedHref(href) {
   return null;
 }
 
-function resolveAllowedParentHref(href) {
+async function resolveAllowedParentHref(href) {
   const rawPath = decodeHrefPath(href);
   const urlPath = rawPath.startsWith("/") ? rawPath : `/${rawPath}`;
   const parentUrl = path.posix.dirname(urlPath.replace(/\/$/, ""));
@@ -249,25 +342,17 @@ function invalidateListPathCache() {
   listPathCache.clear();
 }
 
-function copyRecursive(src, dst) {
-  const stat = fs.statSync(src);
-  if (stat.isDirectory()) {
-    fs.mkdirSync(dst, { recursive: true });
-    for (const entry of fs.readdirSync(src)) {
-      copyRecursive(path.join(src, entry), path.join(dst, entry));
-    }
-  } else {
-    fs.copyFileSync(src, dst);
-  }
+async function copyRecursiveAsync(src, dst) {
+  await fsTimeout(fsp.cp(src, dst, { recursive: true, errorOnExist: true }), `copy ${src}`);
 }
 
-function uniquePath(target) {
-  if (!fs.existsSync(target)) return target;
+async function uniquePathAsync(target) {
+  if (!await fsExists(target)) return target;
   const parsed = path.parse(target);
   let i = 2;
   while (true) {
     const candidate = path.join(parsed.dir, `${parsed.name} (${i})${parsed.ext}`);
-    if (!fs.existsSync(candidate)) return candidate;
+    if (!await fsExists(candidate)) return candidate;
     i += 1;
   }
 }
@@ -313,9 +398,9 @@ function formatFileSize(bytes) {
 }
 
 function directoryListingMiddleware(root, mountPath) {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     try {
-      if (sendDirectoryListing(req, res, root, mountPath)) return;
+      if (await sendDirectoryListing(req, res, root, mountPath)) return;
     } catch (err) {
       return next(err);
     }
@@ -371,23 +456,27 @@ try {
 } catch {}
 
 // Serve P:\PCS (or local equivalent) at /files/ so scanner hrefs work
-app.use("/files", (req, _res, next) => {
-  const safeRoot = fs.realpathSync(PCS_ROOT);
-  const rel = decodeHrefPath(req.path).replace(/^\/+/, "");
-  const target = path.resolve(safeRoot, rel);
-  if (isWithin(safeRoot, target) && fs.existsSync(target)) return next();
+app.use("/files", async (req, _res, next) => {
+  try {
+    const safeRoot = await cachedRealpath(PCS_ROOT);
+    const rel = decodeHrefPath(req.path).replace(/^\/+/, "");
+    const target = path.resolve(safeRoot, rel);
+    if (isWithin(safeRoot, target) && await fsExists(target)) return next();
 
-  const parts = rel.split("/");
-  const projectMatch = (parts[0] || "").match(/^EF[\s_-]*(\d+)$/i);
-  if (projectMatch) {
-    const fallbackParts = [projectMatch[1], ...parts.slice(1)];
-    const fallback = path.resolve(safeRoot, ...fallbackParts);
-    if (isWithin(safeRoot, fallback) && fs.existsSync(fallback)) {
-      const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
-      req.url = `/${fallbackParts.map(encodeURIComponent).join("/")}${query}`;
+    const parts = rel.split("/");
+    const projectMatch = (parts[0] || "").match(/^EF[\s_-]*(\d+)$/i);
+    if (projectMatch) {
+      const fallbackParts = [projectMatch[1], ...parts.slice(1)];
+      const fallback = path.resolve(safeRoot, ...fallbackParts);
+      if (isWithin(safeRoot, fallback) && await fsExists(fallback)) {
+        const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
+        req.url = `/${fallbackParts.map(encodeURIComponent).join("/")}${query}`;
+      }
     }
+    next();
+  } catch (err) {
+    next(err);
   }
-  next();
 });
 app.use("/files", directoryListingMiddleware(PCS_ROOT, "/files"));
 app.use("/files", denySensitiveFiles);
@@ -719,7 +808,7 @@ app.get("/api/scan/status", (_req, res) => {
 });
 
 // ── Excel file scan across all document groups ──────────────
-app.get("/api/projects/:id/excel-files", (req, res) => {
+app.get("/api/projects/:id/excel-files", async (req, res, next) => {
   const project = getProject(req.params.id);
   if (!project) return res.status(404).json({ error: "Projekt nicht gefunden" });
 
@@ -727,38 +816,45 @@ app.get("/api/projects/:id/excel-files", (req, res) => {
   const SKIP_RE = /^[.~]|\.tmp$/i;
   const results = [];
 
-  function scan(dir, urlBase) {
+  async function scan(dir, urlBase) {
     let entries;
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    try { entries = await fsReaddir(dir, { withFileTypes: true }); } catch { return; }
     for (const e of entries) {
       if (SKIP_RE.test(e.name)) continue;
       const fullPath = path.join(dir, e.name);
       const href = `${urlBase}${encodeURIComponent(e.name)}`;
       if (e.isDirectory()) {
-        scan(fullPath, `${href}/`);
+        await scan(fullPath, `${href}/`);
       } else if (EXCEL_RE.test(e.name)) {
         results.push({ name: e.name, href });
       }
     }
   }
 
-  for (const group of project.documentGroups || []) {
-    const resolved = resolveAllowedHref(group.href);
-    if (!resolved) continue;
-    const urlBase = group.href.endsWith("/") ? group.href : `${group.href}/`;
-    scan(resolved, urlBase);
+  try {
+    for (const group of project.documentGroups || []) {
+      const resolved = await resolveAllowedHref(group.href);
+      if (!resolved) continue;
+      const urlBase = group.href.endsWith("/") ? group.href : `${group.href}/`;
+      await scan(resolved, urlBase);
+    }
+    res.json(results);
+  } catch (err) {
+    next(err);
   }
-
-  res.json(results);
 });
 
 // ── File preview (Word / Excel → HTML) ─────────────────────
 // ── Local file manager opener ───────────────────────────────
-app.post("/api/open-path", (req, res) => {
-  const target = resolveAllowedHref(req.body?.href);
-  if (!target) return res.status(400).json({ error: "Pfad nicht erlaubt oder nicht gefunden" });
-  openInSystemFileManager(target, req.body?.app);
-  res.json({ ok: true });
+app.post("/api/open-path", async (req, res, next) => {
+  try {
+    const target = await resolveAllowedHref(req.body?.href);
+    if (!target) return res.status(400).json({ error: "Pfad nicht erlaubt oder nicht gefunden" });
+    openInSystemFileManager(target, req.body?.app);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Best-effort: ensure the user's write bit is set on `dir` before writing into it.
@@ -780,68 +876,72 @@ function handleFsError(res, err, label) {
   res.status(500).json({ error: msg });
 }
 
-app.post("/api/files/mkdir", (req, res) => {
-  const parent = resolveAllowedHref(req.body?.parentHref);
-  const name = String(req.body?.name || "").trim();
-  if (!parent || !fs.existsSync(parent) || !fs.statSync(parent).isDirectory()) return res.status(400).json({ error: "Zielordner nicht erlaubt" });
-  if (!name || /[\\/:*?"<>|]/.test(name)) return res.status(400).json({ error: "Ungültiger Ordnername" });
-  ensureWritable(parent);
-  const target = uniquePath(path.join(parent, name));
+app.post("/api/files/mkdir", async (req, res, next) => {
   try {
+    const parent = await resolveAllowedHref(req.body?.parentHref);
+    const name = String(req.body?.name || "").trim();
+    if (!parent || !await fsIsDirectory(parent)) return res.status(400).json({ error: "Zielordner nicht erlaubt" });
+    if (!name || /[\\/:*?"<>|]/.test(name)) return res.status(400).json({ error: "Ungültiger Ordnername" });
+    ensureWritable(parent);
+    const target = await uniquePathAsync(path.join(parent, name));
     fs.mkdirSync(target, { recursive: true });
     invalidateListPathCache();
     res.json({ ok: true, path: target });
   } catch (err) {
+    if (err instanceof FsTimeoutError) return next(err);
     handleFsError(res, err, "mkdir fehlgeschlagen");
   }
 });
 
-app.post("/api/files/copy", (req, res) => {
-  const source = resolveAllowedHref(req.body?.sourceHref);
-  const destDir = resolveAllowedHref(req.body?.destHref);
-  if (!source || !destDir || !fs.statSync(destDir).isDirectory()) return res.status(400).json({ error: "Quelle oder Ziel nicht erlaubt" });
-  ensureWritable(destDir);
-  const target = uniquePath(path.join(destDir, path.basename(source)));
+app.post("/api/files/copy", async (req, res, next) => {
   try {
-    copyRecursive(source, target);
+    const source = await resolveAllowedHref(req.body?.sourceHref);
+    const destDir = await resolveAllowedHref(req.body?.destHref);
+    if (!source || !destDir || !await fsIsDirectory(destDir)) return res.status(400).json({ error: "Quelle oder Ziel nicht erlaubt" });
+    ensureWritable(destDir);
+    const target = await uniquePathAsync(path.join(destDir, path.basename(source)));
+    await copyRecursiveAsync(source, target);
     invalidateListPathCache();
     res.json({ ok: true, path: target });
   } catch (err) {
+    if (err instanceof FsTimeoutError) return next(err);
     handleFsError(res, err, "copy fehlgeschlagen");
   }
 });
 
-app.post("/api/files/move", (req, res) => {
-  const source = resolveAllowedHref(req.body?.sourceHref);
-  const destDir = resolveAllowedHref(req.body?.destHref);
-  if (!source || !destDir || !fs.statSync(destDir).isDirectory()) return res.status(400).json({ error: "Quelle oder Ziel nicht erlaubt" });
-  ensureWritable(destDir);
-  ensureWritable(path.dirname(source));
-  const target = uniquePath(path.join(destDir, path.basename(source)));
+app.post("/api/files/move", async (req, res, next) => {
   try {
+    const source = await resolveAllowedHref(req.body?.sourceHref);
+    const destDir = await resolveAllowedHref(req.body?.destHref);
+    if (!source || !destDir || !await fsIsDirectory(destDir)) return res.status(400).json({ error: "Quelle oder Ziel nicht erlaubt" });
+    ensureWritable(destDir);
+    ensureWritable(path.dirname(source));
+    const target = await uniquePathAsync(path.join(destDir, path.basename(source)));
     try {
-      fs.renameSync(source, target);
+      await fsTimeout(fsp.rename(source, target), `move ${source}`);
     } catch (err) {
       if (err.code !== "EXDEV") throw err;
-      copyRecursive(source, target);
-      fs.rmSync(source, { recursive: true, force: true });
+      await copyRecursiveAsync(source, target);
+      await fsTimeout(fsp.rm(source, { recursive: true, force: true }), `remove ${source}`);
     }
     invalidateListPathCache();
     res.json({ ok: true, path: target });
   } catch (err) {
+    if (err instanceof FsTimeoutError) return next(err);
     handleFsError(res, err, "move fehlgeschlagen");
   }
 });
 
-app.post("/api/files/delete", (req, res) => {
-  const source = resolveAllowedHref(req.body?.href);
-  if (!source) return res.status(400).json({ error: "Pfad nicht erlaubt" });
-  ensureWritable(path.dirname(source));
+app.post("/api/files/delete", async (req, res, next) => {
   try {
+    const source = await resolveAllowedHref(req.body?.href);
+    if (!source) return res.status(400).json({ error: "Pfad nicht erlaubt" });
+    ensureWritable(path.dirname(source));
     sendToTrash(source);
     invalidateListPathCache();
     res.json({ ok: true });
   } catch (err) {
+    if (err instanceof FsTimeoutError) return next(err);
     handleFsError(res, err, "delete fehlgeschlagen");
   }
 });
@@ -858,6 +958,17 @@ function uniquePathInDir(parent, name) {
   let candidate = path.join(parent, name);
   let counter = 2;
   while (fs.existsSync(candidate)) {
+    candidate = path.join(parent, `${parsed.name} (${counter})${parsed.ext}`);
+    counter += 1;
+  }
+  return candidate;
+}
+
+async function uniquePathInDirAsync(parent, name) {
+  const parsed = path.parse(name);
+  let candidate = path.join(parent, name);
+  let counter = 2;
+  while (await fsExists(candidate)) {
     candidate = path.join(parent, `${parsed.name} (${counter})${parsed.ext}`);
     counter += 1;
   }
@@ -892,69 +1003,79 @@ function sendToTrash(target) {
   fs.renameSync(target, uniquePathInDir(trashDir, path.basename(target)));
 }
 
-app.get("/api/list-path", (req, res) => {
-  const href = req.query?.href;
-  const target = resolveAllowedHref(href);
-  if (!target) return res.status(400).json({ error: "Pfad nicht erlaubt oder nicht gefunden" });
+app.get("/api/list-path", async (req, res, next) => {
+  try {
+    const href = req.query?.href;
+    const target = await resolveAllowedHref(href);
+    if (!target) return res.status(400).json({ error: "Pfad nicht erlaubt oder nicht gefunden" });
 
-  const stat = fs.statSync(target);
-  if (!stat.isDirectory()) return res.status(400).json({ error: "Pfad ist kein Ordner" });
+    const stat = await fsStat(target);
+    if (!stat.isDirectory()) return res.status(400).json({ error: "Pfad ist kein Ordner" });
 
-  const urlPath = decodeHrefPath(href);
-  const cacheKey = `${target}:${stat.mtimeMs}`;
-  const cached = listPathCache.get(cacheKey);
-  if (cached && Date.now() - cached.createdAt < LIST_PATH_CACHE_MS) return res.json(cached.payload);
+    const urlPath = decodeHrefPath(href);
+    const cacheKey = `${target}:${stat.mtimeMs}`;
+    const cached = listPathCache.get(cacheKey);
+    if (cached && Date.now() - cached.createdAt < LIST_PATH_CACHE_MS) return res.json(cached.payload);
 
-  const entries = fs.readdirSync(target, { withFileTypes: true })
-    .filter((entry) => !entry.name.startsWith(".") && !entry.name.startsWith("~$") && !/\.db$/i.test(entry.name) && !/\.tmp$/i.test(entry.name))
-    .map((entry) => {
-      const full = path.join(target, entry.name);
-      const entryStat = fs.statSync(full);
-      const isDirectory = entry.isDirectory();
-      const HIDE = /^[.~]|\.tmp$|\.db$/i;
-      const childCount = isDirectory
-        ? (() => { try { return fs.readdirSync(full).filter(n => !HIDE.test(n)).length; } catch { return 0; } })()
-        : 0;
-      return {
-        name: entry.name,
-        type: isDirectory ? "Ordner" : "Datei",
-        href: hrefJoin(urlPath, entry.name, isDirectory),
-        modified: entryStat.mtime.toLocaleString("de-CH", { dateStyle: "short", timeStyle: "short" }),
-        mtime: entryStat.mtime.getTime(),
-        size: isDirectory ? "" : formatFileSize(entryStat.size),
-        empty: childCount === 0,
-        childCount: isDirectory ? childCount : null
-      };
-    })
-    .sort((a, b) => Number(b.type === "Ordner") - Number(a.type === "Ordner") || b.mtime - a.mtime)
-    .map(({ mtime, ...rest }) => rest);
+    const rawEntries = await fsReaddir(target, { withFileTypes: true });
+    const HIDE = /^[.~]|\.tmp$|\.db$/i;
+    const entries = (await Promise.all(rawEntries
+      .filter((entry) => !entry.name.startsWith(".") && !entry.name.startsWith("~$") && !/\.db$/i.test(entry.name) && !/\.tmp$/i.test(entry.name))
+      .map(async (entry) => {
+        const full = path.join(target, entry.name);
+        const entryStat = await fsStat(full);
+        const isDirectory = entry.isDirectory();
+        let childCount = 0;
+        if (isDirectory) {
+          try {
+            childCount = (await fsReaddir(full)).filter((n) => !HIDE.test(n)).length;
+          } catch {
+            childCount = 0;
+          }
+        }
+        return {
+          name: entry.name,
+          type: isDirectory ? "Ordner" : "Datei",
+          href: hrefJoin(urlPath, entry.name, isDirectory),
+          modified: entryStat.mtime.toLocaleString("de-CH", { dateStyle: "short", timeStyle: "short" }),
+          mtime: entryStat.mtime.getTime(),
+          size: isDirectory ? "" : formatFileSize(entryStat.size),
+          empty: childCount === 0,
+          childCount: isDirectory ? childCount : null
+        };
+      })))
+      .sort((a, b) => Number(b.type === "Ordner") - Number(a.type === "Ordner") || b.mtime - a.mtime)
+      .map(({ mtime, ...rest }) => rest);
 
-  const payload = { href: urlPath, entries };
-  listPathCache.set(cacheKey, { createdAt: Date.now(), payload });
-  if (listPathCache.size > 200) {
-    const firstKey = listPathCache.keys().next().value;
-    listPathCache.delete(firstKey);
+    const payload = { href: urlPath, entries };
+    listPathCache.set(cacheKey, { createdAt: Date.now(), payload });
+    if (listPathCache.size > 200) {
+      const firstKey = listPathCache.keys().next().value;
+      listPathCache.delete(firstKey);
+    }
+    res.json(payload);
+  } catch (err) {
+    next(err);
   }
-  res.json(payload);
 });
 
-app.post("/api/file-action", (req, res) => {
+app.post("/api/file-action", async (req, res, next) => {
   const { action, sourceHref, targetDirHref, name } = req.body || {};
-  const targetDir = targetDirHref ? resolveAllowedHref(targetDirHref) : null;
 
   try {
+    const targetDir = targetDirHref ? await resolveAllowedHref(targetDirHref) : null;
     if (action === "mkdir") {
-      if (!targetDir || !fs.statSync(targetDir).isDirectory()) return res.status(400).json({ error: "target folder invalid" });
+      if (!targetDir || !await fsIsDirectory(targetDir)) return res.status(400).json({ error: "target folder invalid" });
       const safeName = String(name || "").trim().replace(/[\\/:*?"<>|]/g, " ");
       if (!safeName) return res.status(400).json({ error: "folder name missing" });
-      const created = uniquePathInDir(targetDir, safeName);
-      fs.mkdirSync(created, { recursive: false });
+      const created = await uniquePathInDirAsync(targetDir, safeName);
+      await fsTimeout(fsp.mkdir(created, { recursive: false }), `mkdir ${created}`);
       clearListPathCache();
       return res.json({ ok: true, path: created });
     }
 
-    const source = sourceHref ? resolveAllowedHref(sourceHref) : null;
-    if (!source || !fs.existsSync(source)) return res.status(400).json({ error: "source invalid" });
+    const source = sourceHref ? await resolveAllowedHref(sourceHref) : null;
+    if (!source || !await fsExists(source)) return res.status(400).json({ error: "source invalid" });
 
     if (action === "delete") {
       sendToTrash(source);
@@ -962,25 +1083,25 @@ app.post("/api/file-action", (req, res) => {
       return res.json({ ok: true });
     }
 
-    if (!targetDir || !fs.statSync(targetDir).isDirectory()) return res.status(400).json({ error: "target folder invalid" });
-    const destination = uniquePathInDir(targetDir, path.basename(source));
+    if (!targetDir || !await fsIsDirectory(targetDir)) return res.status(400).json({ error: "target folder invalid" });
+    const destination = await uniquePathInDirAsync(targetDir, path.basename(source));
     if (path.resolve(destination).startsWith(path.resolve(source) + path.sep)) {
       return res.status(400).json({ error: "cannot move/copy folder into itself" });
     }
 
     if (action === "copy") {
-      fs.cpSync(source, destination, { recursive: true, errorOnExist: true });
+      await copyRecursiveAsync(source, destination);
       clearListPathCache();
       return res.json({ ok: true, path: destination });
     }
 
     if (action === "move") {
       try {
-        fs.renameSync(source, destination);
+        await fsTimeout(fsp.rename(source, destination), `move ${source}`);
       } catch (err) {
         if (err.code !== "EXDEV") throw err;
-        fs.cpSync(source, destination, { recursive: true, errorOnExist: true });
-        fs.rmSync(source, { recursive: true, force: true });
+        await copyRecursiveAsync(source, destination);
+        await fsTimeout(fsp.rm(source, { recursive: true, force: true }), `remove ${source}`);
       }
       clearListPathCache();
       return res.json({ ok: true, path: destination });
@@ -988,6 +1109,7 @@ app.post("/api/file-action", (req, res) => {
 
     res.status(400).json({ error: "unknown action" });
   } catch (err) {
+    if (err instanceof FsTimeoutError) return next(err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1001,7 +1123,7 @@ function resolveTabelle24Root(query) {
   }
 
   if (query.href && typeof query.href === "string") {
-    return resolveAllowedHref(query.href);
+    return resolveAllowedHrefSync(query.href);
   }
 
   const projectId = query.projectId;
@@ -1012,7 +1134,7 @@ function resolveTabelle24Root(query) {
     group.area === "Bautelliste" || /^09\b/.test(group.primary || "")
   );
   if (bautelliste?.href) {
-    const resolved = resolveAllowedHref(bautelliste.href);
+    const resolved = resolveAllowedHrefSync(bautelliste.href);
     if (resolved) return resolved;
   }
 
@@ -1804,11 +1926,28 @@ app.post("/api/tabelle24/analyze", async (req, res) => {
   }
 });
 
+app.use((err, _req, res, _next) => {
+  const status = err?.status || 500;
+  const message = err instanceof FsTimeoutError
+    ? "Netzlaufwerk antwortet nicht. Bitte P:/M: Verbindung prüfen oder später erneut versuchen."
+    : (err?.message || "Interner Serverfehler");
+  if (status >= 500) console.warn(`Request failed (${status}): ${err?.message || err}`);
+  res.status(status).json({ error: message });
+});
+
 // ── Start ──────────────────────────────────────────────────
-app.listen(PORT, HOST, () => {
+const server = app.listen(PORT, HOST, () => {
   console.log(`PCS Dashboard → http://${HOST}:${PORT}`);
   console.log(`Datenbank: pcs.db  |  Dokumente: evidence-1157/`);
-  runArchiveScan(ARCHIVE_EXCEL_PATH)
-    .then((n) => console.log(`Archiv-Excel: ${n} Einträge synchronisiert`))
-    .catch((e) => console.warn(`Archiv-Excel nicht geladen: ${e.message}`));
+  if (process.env.AUTO_ARCHIVE_SCAN === "1") {
+    setTimeout(() => {
+      runArchiveScan(ARCHIVE_EXCEL_PATH)
+        .then((n) => console.log(`Archiv-Excel: ${n} Einträge synchronisiert`))
+        .catch((e) => console.warn(`Archiv-Excel nicht geladen: ${e.message}`));
+    }, 100);
+  } else {
+    console.log("Archiv-Excel: Auto-Sync deaktiviert (bei Bedarf im UI starten)");
+  }
 });
+server.requestTimeout = FS_TIMEOUT_MS + 5000;
+server.headersTimeout = FS_TIMEOUT_MS + 7000;
