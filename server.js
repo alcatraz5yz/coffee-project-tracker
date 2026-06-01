@@ -1118,10 +1118,10 @@ app.post("/api/file-action", async (req, res, next) => {
 
 // ── Tabelle 24 (component-certificate table scanner) ──────────────
 
-function resolveTabelle24Root(query) {
+async function resolveTabelle24Root(query) {
   if (query.root && typeof query.root === "string") {
     const resolved = path.resolve(query.root);
-    return fs.existsSync(resolved) ? resolved : null;
+    return (await fsExists(resolved)) ? resolved : null;
   }
 
   if (query.href && typeof query.href === "string") {
@@ -1149,10 +1149,11 @@ function resolveTabelle24Root(query) {
     path.join(os.homedir(), "Desktop", projectId),
     path.join(os.homedir(), "Desktop", `EF ${numeric}`),
   ];
-  return candidates.find((candidate) => fs.existsSync(candidate)) || null;
+  for (const candidate of candidates) { if (await fsExists(candidate)) return candidate; }
+  return null;
 }
 
-function normalizeTabelle24SearchRoot(root) {
+async function normalizeTabelle24SearchRoot(root) {
   const base = path.basename(root).toLowerCase();
   if (/^09\b/.test(base) && base.includes("baut")) return root;
 
@@ -1163,7 +1164,7 @@ function normalizeTabelle24SearchRoot(root) {
   ];
   for (const iecRoot of candidates) {
     let entries;
-    try { entries = fs.readdirSync(iecRoot, { withFileTypes: true }); } catch { continue; }
+    try { entries = await fsReaddir(iecRoot, { withFileTypes: true }); } catch { continue; }
     const folder = entries.find((entry) =>
       entry.isDirectory() && /^09\b/i.test(entry.name) && /baut.*liste/i.test(entry.name)
     );
@@ -1389,34 +1390,42 @@ function analyzeTabelle24Rows(parsed, targetRoot) {
 // List Intern Bauteilliste files in a project that actually contain Tabelle 24.
 // Walk (skip Archiv subdirs, require "intern" in name per workflow rule — never
 // the customer VDE copies), then content-filter via pure Node marker scan.
-app.get("/api/tabelle24/files", (req, res) => {
-  const resolved = resolveTabelle24Root(req.query);
+app.get("/api/tabelle24/files", async (req, res, next) => {
+ try {
+  const resolved = await resolveTabelle24Root(req.query);
   if (!resolved) return res.status(400).json({ error: "missing or unresolved ?root=, ?href=, or ?projectId=" });
-  const searchRoot = normalizeTabelle24SearchRoot(resolved);
+  const searchRoot = await normalizeTabelle24SearchRoot(resolved);
 
   const allCandidates = [];
-  function walk(dir, depth) {
+  async function walk(dir, depth) {
     if (depth > 4) return;
     let entries;
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    try { entries = await fsReaddir(dir, { withFileTypes: true }); } catch { return; }
     for (const e of entries) {
       const full = path.join(dir, e.name);
       if (e.isDirectory()) {
         if (/^archiv$/i.test(e.name)) continue;
-        walk(full, depth + 1);
+        await walk(full, depth + 1);
       } else if (/\.(docx?|docm)$/i.test(e.name) && /intern/i.test(e.name) && !/^~\$/.test(e.name)) {
         allCandidates.push(full);
       }
     }
   }
-  walk(searchRoot, 0);
+  await walk(searchRoot, 0);
 
-  const hits = allCandidates.filter((p) => cachedMarker(p, "t24", () => fileContainsTabelle24(p)));
-  const files = hits.map((p) => {
-    const stat = fs.statSync(p);
-    return { path: p, name: path.basename(p), size: stat.size, mtime: stat.mtime.toISOString() };
-  }).sort((a, b) => b.mtime.localeCompare(a.mtime));
+  // Yield between per-file marker reads so a slow share stays responsive
+  // (fileContainsTabelle24 itself is unchanged / still synchronous).
+  const files = [];
+  for (const p of allCandidates) {
+    if (cachedMarker(p, "t24", () => fileContainsTabelle24(p))) {
+      const stat = await fsStat(p);
+      files.push({ path: p, name: path.basename(p), size: stat.size, mtime: stat.mtime.toISOString() });
+    }
+    await new Promise((r) => setImmediate(r));
+  }
+  files.sort((a, b) => b.mtime.localeCompare(a.mtime));
   res.json({ root: searchRoot, files });
+ } catch (e) { next(e); }
 });
 
 // Look up a VDE certificate, return PDF list + extracted date + comparison verdict.
@@ -1553,10 +1562,10 @@ function fileContainsTabelle30(filePath) {
 // ?root= (back-compat) or a ?projectId= that we resolve under PCS_ROOT (P:\PCS on
 // Windows, ~/Desktop in Mac dev). This keeps the frontend free of any hardcoded OS
 // path, so the same build finds the report/Excel on both macOS and Windows.
-function resolveTabelle30Root(query) {
+async function resolveTabelle30Root(query) {
   if (query.root && typeof query.root === "string" && query.root.trim()) {
     const r = path.resolve(query.root);
-    return fs.existsSync(r) ? r : null;
+    return (await fsExists(r)) ? r : null;
   }
   const projectId = typeof query.projectId === "string" ? query.projectId.trim() : "";
   if (!projectId) return null;
@@ -1567,70 +1576,79 @@ function resolveTabelle30Root(query) {
     path.join(PCS_ROOT, `EF${numeric}`),
     path.join(PCS_ROOT, `EF ${numeric}`),
   ];
-  for (const c of direct) { try { if (fs.statSync(c).isDirectory()) return c; } catch {} }
+  for (const c of direct) { if (await fsIsDirectory(c)) return c; }
   // Fall back to scanning PCS_ROOT for a folder beginning with the project number
   // (handles names like "1157 EF1157 CoffeeB Pluto" or "EF1157 …").
   try {
     const re = new RegExp(`^(ef[\\s_-]*)?0*${numeric}(\\D|$)`, "i");
-    for (const e of fs.readdirSync(PCS_ROOT, { withFileTypes: true })) {
+    for (const e of await fsReaddir(PCS_ROOT, { withFileTypes: true })) {
       if (e.isDirectory() && re.test(e.name)) return path.join(PCS_ROOT, e.name);
     }
   } catch {}
   return null;
 }
 
-app.get("/api/tabelle30/files", (req, res) => {
-  const resolved = resolveTabelle30Root(req.query);
+app.get("/api/tabelle30/files", async (req, res, next) => {
+ try {
+  const resolved = await resolveTabelle30Root(req.query);
   if (!resolved) return res.status(400).json({ error: "missing/unresolved ?root= or ?projectId=" });
 
   const allCandidates = [];
-  function walk(dir, depth) {
+  async function walk(dir, depth) {
     if (depth > 5) return;
     let entries;
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    try { entries = await fsReaddir(dir, { withFileTypes: true }); } catch { return; }
     for (const e of entries) {
       const full = path.join(dir, e.name);
       if (e.isDirectory()) {
-        walk(full, depth + 1);
+        await walk(full, depth + 1);
       } else if (/\.(docx?|docm)$/i.test(e.name) && !/^~\$/.test(e.name)) {
         allCandidates.push(full);
       }
     }
   }
-  walk(resolved, 0);
+  await walk(resolved, 0);
 
-  const hits = allCandidates.filter((p) => cachedMarker(p, "t30", () => fileContainsTabelle30(p)));
-  const files = hits.map((p) => {
-    const stat = fs.statSync(p);
-    return { path: p, name: path.basename(p), size: stat.size, mtime: stat.mtime.toISOString() };
-  }).sort((a, b) => b.mtime.localeCompare(a.mtime));
+  // Yield between per-file marker reads so a slow share doesn't monopolise the
+  // event loop (fileContainsTabelle30 itself is unchanged / still synchronous).
+  const files = [];
+  for (const p of allCandidates) {
+    if (cachedMarker(p, "t30", () => fileContainsTabelle30(p))) {
+      const stat = await fsStat(p);
+      files.push({ path: p, name: path.basename(p), size: stat.size, mtime: stat.mtime.toISOString() });
+    }
+    await new Promise((r) => setImmediate(r));
+  }
+  files.sort((a, b) => b.mtime.localeCompare(a.mtime));
   res.json({ root: resolved, files });
+ } catch (e) { next(e); }
 });
 
 // ── Tabelle 30 Phase 2: Excel-Vergleich ──────────────────────
 // List candidate "Ergänzung" Excel files under the project root — typically in
 // "02 Änderungen/" with "ergänzung" or "ergaenzung" in the filename.
-app.get("/api/tabelle30/excels", (req, res) => {
+app.get("/api/tabelle30/excels", async (req, res, next) => {
+ try {
   const showAll = req.query.all === "1" || req.query.all === "true";
-  const resolved = resolveTabelle30Root(req.query);
+  const resolved = await resolveTabelle30Root(req.query);
   if (!resolved) return res.status(400).json({ error: "missing/unresolved ?root= or ?projectId=" });
 
   const found = [];
-  function walk(dir, depth) {
+  async function walk(dir, depth) {
     if (depth > 5) return;
     let entries;
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    try { entries = await fsReaddir(dir, { withFileTypes: true }); } catch { return; }
     for (const e of entries) {
       const full = path.join(dir, e.name);
       if (e.isDirectory()) {
-        walk(full, depth + 1);
+        await walk(full, depth + 1);
       } else if (/\.(xlsx|xlsm)$/i.test(e.name) && !/^~\$/.test(e.name) && (showAll || /(erg[äa]nzung|material|change|alternativ)/i.test(e.name + dir))) {
-        const stat = fs.statSync(full);
+        const stat = await fsStat(full);
         found.push({ path: full, name: e.name, size: stat.size, mtime: stat.mtime.toISOString() });
       }
     }
   }
-  walk(resolved, 0);
+  await walk(resolved, 0);
   const resultFiles = found;
   const excelPriority = (f) => {
     const hay = `${f.name} ${f.path}`.toLowerCase();
@@ -1642,6 +1660,7 @@ app.get("/api/tabelle30/excels", (req, res) => {
   };
   resultFiles.sort((a, b) => excelPriority(a) - excelPriority(b) || b.mtime.localeCompare(a.mtime));
   res.json({ root: resolved, files: resultFiles });
+ } catch (e) { next(e); }
 });
 
 // Compare an Excel Ergänzung file against the current Tabelle 30 from a Word report.
