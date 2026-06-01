@@ -3016,5 +3016,4 @@ function buildExportHTML(projects) {
   renderDashboard();
   document.body.classList.remove("app-loading");
   history.replaceState({ dashboard: true }, "", location.pathname);
-  startScanStream();
 })();
