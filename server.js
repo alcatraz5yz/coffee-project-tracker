@@ -630,11 +630,11 @@ function _xlsxProjectNo(xlsxPath) {
   return null;
 }
 
-function _findApprobationXlsx(projectDir) {
+async function _findApprobationXlsx(projectDir) {
   const results = [];
-  function walk(dir) {
+  async function walk(dir) {
     let entries;
-    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    try { entries = await fsp.readdir(dir, { withFileTypes: true }); } catch { return; }
     if (path.basename(dir).toLowerCase() === "approbationsauftrag") {
       for (const e of entries.sort((a, b) => a.name.localeCompare(b.name))) {
         if (e.isFile() && /\.xlsx$/i.test(e.name) && !e.name.startsWith("~$") && !e.name.startsWith("."))
@@ -644,10 +644,10 @@ function _findApprobationXlsx(projectDir) {
     }
     for (const e of entries) {
       if (e.name.startsWith(".") || e.name.startsWith("~$")) continue;
-      if (e.isDirectory()) walk(path.join(dir, e.name));
+      if (e.isDirectory()) await walk(path.join(dir, e.name));
     }
   }
-  walk(projectDir);
+  await walk(projectDir);
   return results;
 }
 
@@ -656,25 +656,23 @@ function _projectIdFromFolder(name) {
   return m ? `EF${m[1]}` : null;
 }
 
-function runProjectNoScan(root) {
-  return new Promise((resolve, reject) => {
-    let entries;
-    try {
-      entries = fs.readdirSync(root, { withFileTypes: true })
-        .filter(e => e.isDirectory() && !e.name.startsWith("."))
-        .sort((a, b) => a.name.localeCompare(b.name));
-    } catch (e) { return reject(new Error(e.message)); }
-    let count = 0;
-    for (const entry of entries) {
-      const projectId = _projectIdFromFolder(entry.name);
-      if (!projectId) continue;
-      for (const xlsxPath of _findApprobationXlsx(path.join(root, entry.name))) {
-        const no = _xlsxProjectNo(xlsxPath);
-        if (no) { updateProjectNo(projectId, no); count++; break; }
-      }
+async function runProjectNoScan(root) {
+  let entries;
+  try {
+    entries = (await fsp.readdir(root, { withFileTypes: true }))
+      .filter(e => e.isDirectory() && !e.name.startsWith("."))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  } catch (e) { throw new Error(e.message); }
+  let count = 0;
+  for (const entry of entries) {
+    const projectId = _projectIdFromFolder(entry.name);
+    if (!projectId) continue;
+    for (const xlsxPath of await _findApprobationXlsx(path.join(root, entry.name))) {
+      const no = _xlsxProjectNo(xlsxPath);
+      if (no) { updateProjectNo(projectId, no); count++; break; }
     }
-    resolve(count);
-  });
+  }
+  return count;
 }
 
 function runArchiveScan(excelPath) {
