@@ -355,6 +355,9 @@ const stmts = {
   getStoredMtimes: db.prepare(
     "SELECT area, folder_mtime FROM document_groups WHERE project_id = ? AND folder_mtime IS NOT NULL"
   ),
+  getExistingAreas: db.prepare(
+    "SELECT DISTINCT area FROM document_groups WHERE project_id = ?"
+  ),
   insertScanLog: db.prepare(
     `INSERT INTO scan_log (scanned_at, projects_found, files_found, notes) VALUES (?, ?, ?, ?)`
   ),
@@ -412,6 +415,25 @@ function writeProjectToDB(res, now) {
         r.project || projectId, r.build, r.version, r.modified,
         r.size, r.state, r.file, r.href, r.last_scanned
       );
+    }
+  }
+
+  // Prune areas that no longer exist (e.g. after IEC root structure changes,
+  // or switching between single- and multi-market layouts). Only runs when the
+  // scan actually found areas — a guard against wiping everything if a market
+  // folder was transiently unreadable. Skipped (unchanged) areas are preserved.
+  const activeAreas = new Set([
+    ...(skippedAreas || []),
+    ...documentGroups.map((g) => g.area),
+  ]);
+  if (activeAreas.size > 0) {
+    for (const id of ids) {
+      const existingAreas = stmts.getExistingAreas.all(id).map((r) => r.area);
+      for (const area of existingAreas) {
+        if (!activeAreas.has(area)) {
+          stmts.deleteDocArea.run(id, area);
+        }
+      }
     }
   }
 }
