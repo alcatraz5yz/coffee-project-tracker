@@ -13,6 +13,7 @@
 
 const XLSX = require("xlsx");
 const { readTables } = require("./docx-reader");
+const { assertExcelReadable } = require("./excel-safety");
 
 const TABLE_MARKER = "Resistance to heat and fire";
 
@@ -103,6 +104,7 @@ function getColIndices(header) {
 }
 
 function parseExcelErgaenzung(xlsxPath) {
+  assertExcelReadable(xlsxPath);
   const wb = XLSX.readFile(xlsxPath, { cellStyles: false });
   let sheetName = null; let rowsArr = null; let headerRi = null;
   for (const name of wb.SheetNames) {
