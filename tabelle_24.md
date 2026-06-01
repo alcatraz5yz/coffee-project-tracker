@@ -270,18 +270,13 @@ So logically:
 
 | Path                                                           | Purpose                                                       |
 |----------------------------------------------------------------|---------------------------------------------------------------|
-| `~/Desktop/scripts-tabelle24/parse_bauteilliste.py`            | Read .docx / .doc → JSON of Tabelle-24 rows                   |
-| `~/Desktop/scripts-tabelle24/update_bauteilliste.py`           | Apply staged status changes → write new .docx                 |
-| `~/Desktop/scripts-tabelle24/vde_lookup.py`                    | Look up a single VDE cert, download PDF, extract date         |
-| `~/Desktop/scripts-tabelle24/vde_checker_final.py`             | Pre-existing batch checker (EF1157-hardcoded, reference)      |
-| `~/Desktop/scripts-tabelle24/enec_esti_check.py`               | Pre-existing ENEC/ESTI batch checker (not yet integrated)     |
-| `~/Desktop/scripts-tabelle24/word_updater.py`                  | Pre-existing Word colorizer (EF1157-hardcoded, reference)     |
 | `~/Desktop/coffee-project-tracker/server.js`                   | Express server with Tabelle-24 endpoints                      |
+| `~/Desktop/coffee-project-tracker/tabelle24-node.js`           | Read/update `.docx` / `.docm` Tabelle-24 rows in pure Node    |
+| `~/Desktop/coffee-project-tracker/vde-lookup-node.js`          | Look up a single VDE cert, download PDF, extract date         |
 | `~/Desktop/coffee-project-tracker/tabelle24.html`              | Standalone UI page                                            |
 
-Convention: scripts live in `~/Desktop/scripts-tabelle24/` (macOS dev) or
-`C:\Users\CH16186\Desktop\scripts\` (Windows work laptop). **Never inside the
-project folder.**
+Runtime convention: all active Tabelle-24 code lives inside this repository and
+runs with Node.js. No external Python scripts are required.
 
 ### REST endpoints
 
@@ -358,16 +353,10 @@ re-edited — this is a known limitation.
 ### VDE lookup flow
 
 1. `POST /api/tabelle24/vde-lookup` with `{ certNumber, currentDate? }`
-2. Node spawns `vde_lookup.py`, pipes JSON via stdin
-3. Python:
-   - Playwright headless Chromium
-   - Goto search URL, click `uc-accept-all-button` via shadow DOM
-   - Goto `certificate?id=<cert>` URL
-   - Check `"Certificate number:"` in body → `found`
-   - Collect all `zertreg-proxy.vde.com` links → `pdfList`
-   - Prefer Appendix 200, fall back to 100, then last
-   - Download chosen PDF via `requests` with playwright cookies
-   - Run `extract_updated_date()` to get `onlineDate`
+2. Node runs `lookupVde()` from `vde-lookup-node.js`.
+3. The lookup fetches VDE certificate pages directly, collects PDF links, selects
+   the preferred appendix, downloads the PDF, and extracts the newest certificate
+   date for comparison.
    - Compare with `currentDate` → `current` | `newer` | `older` | `unknown`
 4. Return JSON:
 
@@ -438,7 +427,7 @@ Acceptable for per-row clicks; could batch or persist browser session if needed.
 - Should M3 automation use the work-laptop's logged-in browser session, or skip
   entirely and ask the user to enter results manually?
 
-## Reference: Pre-existing scripts (EF1157-specific, useful as templates)
+## Reference: Pre-existing scripts (historical only)
 
 - `vde_checker_final.py` — batch flow that worked April 2026; has hardcoded
   `CERTS[]` and `CERT_FOLDERS{}` maps for EF1157. Good model for "navigate
@@ -449,5 +438,5 @@ Acceptable for per-row clicks; could batch or persist browser session if needed.
   logic the new `update_bauteilliste.py` uses, but indexed by date text rather
   than paragraph/cell coordinates.
 
-The new scripts replace the hardcoded lists with parameters and project-folder
+The Node implementation replaces the hardcoded lists with parameters and project-folder
 addressing, so they generalize across EF projects.
