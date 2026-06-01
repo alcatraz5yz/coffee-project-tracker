@@ -1268,31 +1268,11 @@ h2 {
 .check-list,
 .timeline,
 .risk-list,
-.task-list,
-.market-filter-bar {
+.task-list {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
   padding: 8px 0 4px;
-}
-.market-filter-btn {
-  padding: 4px 14px;
-  border-radius: 20px;
-  border: 1.5px solid var(--border);
-  background: var(--card-bg);
-  color: var(--text);
-  font-size: 0.82rem;
-  cursor: pointer;
-  font-weight: 500;
-  transition: background 0.15s, border-color 0.15s;
-}
-.market-filter-btn:hover {
-  border-color: var(--accent);
-}
-.market-filter-btn.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
 }
 
 .document-group-grid,
