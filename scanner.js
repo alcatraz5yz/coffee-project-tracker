@@ -126,20 +126,52 @@ function inferDocProject(filename) {
   return null;
 }
 
-async function findIecFolderAsync(projectDir) {
-  const candidates = [
-    path.join(projectDir, "Zulassungen", "IEC"),
-    path.join(projectDir, "Zulassung", "IEC"),
-    path.join(projectDir, "Zulassungen"),
-    path.join(projectDir, "IEC")
-  ];
-  for (const c of candidates) {
+async function findIecRootsAsync(projectDir) {
+  const taPath = path.join(projectDir, "Technische Approbation");
+
+  async function resolveRoots(dirPath) {
+    let entries;
     try {
-      const st = await fsp.stat(c);
-      if (st.isDirectory()) return c;
+      entries = (await fsp.readdir(dirPath, { withFileTypes: true }))
+        .filter(e => e.isDirectory() && !isLockFile(e.name));
+    } catch { return []; }
+
+    // Direct IEC folder — only treat as single no-label root if it's the only subfolder
+    const iec = entries.find(e => e.name === "IEC");
+    if (iec && entries.length === 1) return [{ path: path.join(dirPath, "IEC"), label: "" }];
+
+    // Container folders (Zulassungen, Zulassung) → recurse one level
+    const container = entries.find(e => /^Zulassung/i.test(e.name));
+    if (container) {
+      const inner = await resolveRoots(path.join(dirPath, container.name));
+      if (inner.length > 0) return inner;
+    }
+
+    // Otherwise each subfolder is its own market root
+    return entries.map(e => ({ path: path.join(dirPath, e.name), label: e.name }));
+  }
+
+  // Try Technische Approbation first
+  try {
+    await fsp.stat(taPath);
+    const roots = await resolveRoots(taPath);
+    if (roots.length > 0) return roots;
+  } catch { /* fall through */ }
+
+  // Fallback for projects without Technische Approbation
+  const fallbacks = [
+    { p: path.join(projectDir, "Zulassungen", "IEC"), label: "" },
+    { p: path.join(projectDir, "Zulassung", "IEC"), label: "" },
+    { p: path.join(projectDir, "Zulassungen"), label: "" },
+    { p: path.join(projectDir, "IEC"), label: "" }
+  ];
+  for (const { p, label } of fallbacks) {
+    try {
+      const st = await fsp.stat(p);
+      if (st.isDirectory()) return [{ path: p, label }];
     } catch { /* try next */ }
   }
-  return null;
+  return [];
 }
 
 function encodePathSegment(value) {
@@ -179,109 +211,120 @@ async function scanProject(projectNumber, projectDir, storedMtimes, allNumbers =
   const allProjectIds = allNumbers.length > 0
     ? allNumbers.map((n) => `${PROJECT_PREFIX}${n}`)
     : [projectId];
-  const iecFolder = await findIecFolderAsync(projectDir);
+  const iecRoots = await findIecRootsAsync(projectDir);
   const projectFolderName = path.basename(projectDir);
   const webPrefix = getWebPrefix(projectNumber, projectFolderName);
   const now = new Date().toISOString();
   const errors = [];
 
-  if (!iecFolder) {
+  if (iecRoots.length === 0) {
     errors.push(`Kein IEC-Ordner gefunden in ${projectDir}`);
     return { projectId, allProjectIds, documentGroups: [], reportVersions: [], errors, skipped: 0, scanned: 0 };
   }
 
-  let iecEntries = [];
-  try {
-    iecEntries = (await fsp.readdir(iecFolder, { withFileTypes: true }))
-      .filter((e) => e.isDirectory() && !isLockFile(e.name));
-  } catch (err) {
-    errors.push(`Fehler beim Lesen von ${iecFolder}: ${err.message}`);
-    return { projectId, documentGroups: [], reportVersions: [], errors, skipped: 0, scanned: 0 };
-  }
-
+  // A project spans multiple markets (IEC, UL, …) when there is more than one
+  // root, or a single labelled root. Areas are then prefixed with the market
+  // label (e.g. "UL / 09 Elektronik") so the UI can split them into tabs.
+  const multiRoot = iecRoots.length > 1 || iecRoots[0].label !== "";
   let skipped = 0;
   let scanned = 0;
   const documentGroups = [];
   const skippedAreas = [];
-
-  // Process all IEC areas in parallel, with mtime-based skip
-  await Promise.all(iecEntries.map(async (entry) => {
-    const numMatch = entry.name.match(/^(\d+)/);
-    if (!numMatch) return;
-
-    const num = numMatch[1].padStart(2, "0");
-    const area = IEC_FOLDER_MAP[num] || entry.name;
-    const folderPath = path.join(iecFolder, entry.name);
-
-    let currentMtime = null;
-    try {
-      const st = await fsp.stat(folderPath);
-      currentMtime = st.mtime.toISOString();
-    } catch { return; }
-
-    if (storedMtimes.has(area) && storedMtimes.get(area) === currentMtime) {
-      skippedAreas.push(area);
-      skipped++;
-      return;
-    }
-
-    scanned++;
-    const count = await countFilesAsync(folderPath);
-    const status = count === 0
-      ? (CRITICAL_FOLDERS.has(num) ? "Blocked" : "Open")
-      : (num === "12" ? "Current" : "Available");
-
-    const relPathFromProject = path.relative(projectDir, folderPath).split(path.sep).map(encodeURIComponent).join("/");
-    const href = `${webPrefix}${relPathFromProject}/`;
-
-    documentGroups.push({
-      area,
-      status,
-      count: `${count} ${count === 1 ? "Datei" : "Dateien"}`,
-      summary: `${entry.name} — ${count} Datei${count !== 1 ? "en" : ""} gefunden`,
-      primary_doc: entry.name,
-      href,
-      last_scanned: now,
-      folder_mtime: currentMtime
-    });
-  }));
-
-  // Report versions from folder 12 Untersuchungen
   const reportVersions = [];
   let reportsScanned = false;
-  const unterEntry = iecEntries.find((e) => e.name.match(/^12/));
-  if (unterEntry) {
-    reportsScanned = true;
-    const unterFolder = path.join(iecFolder, unterEntry.name);
-    const wordDocs = await findWordDocsAsync(unterFolder, iecFolder);
-    wordDocs.sort((a, b) => b.stats.mtime - a.stats.mtime);
-    const seenBuild = new Map();
 
-    for (const doc of wordDocs) {
-      const relFrom12 = path.relative(unterFolder, doc.fullPath);
-      const build = inferBuild(relFrom12);
-      let state = inferReportState(doc.relFromIec);
+  for (const { path: iecFolder, label } of iecRoots) {
+    let iecEntries = [];
+    try {
+      iecEntries = (await fsp.readdir(iecFolder, { withFileTypes: true }))
+        .filter((e) => e.isDirectory() && !isLockFile(e.name));
+    } catch (err) {
+      errors.push(`Fehler beim Lesen von ${iecFolder}: ${err.message}`);
+      continue;
+    }
 
-      if (state === "Current") {
-        if (seenBuild.has(build)) state = "Archived";
-        else seenBuild.set(build, true);
+    // Process all area folders in parallel, with mtime-based skip
+    await Promise.all(iecEntries.map(async (entry) => {
+      const numMatch = entry.name.match(/^(\d+)/);
+      if (!numMatch) return;
+
+      const num = numMatch[1].padStart(2, "0");
+      // Use IEC_FOLDER_MAP only for classic single-root IEC structure
+      const baseName = (!multiRoot && IEC_FOLDER_MAP[num]) ? IEC_FOLDER_MAP[num] : entry.name;
+      const area = label ? `${label} / ${baseName}` : baseName;
+      const folderPath = path.join(iecFolder, entry.name);
+
+      let currentMtime = null;
+      try {
+        const st = await fsp.stat(folderPath);
+        currentMtime = st.mtime.toISOString();
+      } catch { return; }
+
+      if (storedMtimes.has(area) && storedMtimes.get(area) === currentMtime) {
+        skippedAreas.push(area);
+        skipped++;
+        return;
       }
 
-      const docProject = inferDocProject(doc.file) || projectId;
-      const relFromProjectDir = path.relative(projectDir, doc.fullPath).split(path.sep).map(encodeURIComponent).join("/");
-      const href = `${webPrefix}${relFromProjectDir}`;
+      scanned++;
+      const count = await countFilesAsync(folderPath);
+      const isReportFolder = num === "12" || entry.name.match(/untersuchung|prüfergebnis|rapport|report/i);
+      const status = count === 0
+        ? (CRITICAL_FOLDERS.has(num) ? "Blocked" : "Open")
+        : (isReportFolder ? "Current" : "Available");
 
-      reportVersions.push({
-        project: docProject,
-        build,
-        version: fmtDate(doc.stats.mtime),
-        modified: fmtDate(doc.stats.mtime),
-        size: fmtSize(doc.stats.size),
-        state,
-        file: doc.file,
+      const relPathFromProject = path.relative(projectDir, folderPath).split(path.sep).map(encodeURIComponent).join("/");
+      const href = `${webPrefix}${relPathFromProject}/`;
+
+      documentGroups.push({
+        area,
+        status,
+        count: `${count} ${count === 1 ? "Datei" : "Dateien"}`,
+        summary: `${entry.name} — ${count} Datei${count !== 1 ? "en" : ""} gefunden`,
+        primary_doc: entry.name,
         href,
-        last_scanned: now
+        last_scanned: now,
+        folder_mtime: currentMtime
       });
+    }));
+
+    // Report versions from investigation/report folders
+    const reportEntries = iecEntries.filter(e =>
+      e.name.match(/^12/) || e.name.match(/untersuchung|prüfergebnis|rapport|report/i)
+    );
+    for (const unterEntry of reportEntries) {
+      reportsScanned = true;
+      const unterFolder = path.join(iecFolder, unterEntry.name);
+      const wordDocs = await findWordDocsAsync(unterFolder, iecFolder);
+      wordDocs.sort((a, b) => b.stats.mtime - a.stats.mtime);
+      const seenBuild = new Map();
+
+      for (const doc of wordDocs) {
+        const relFrom12 = path.relative(unterFolder, doc.fullPath);
+        const build = inferBuild(relFrom12);
+        let state = inferReportState(doc.relFromIec);
+
+        if (state === "Current") {
+          if (seenBuild.has(build)) state = "Archived";
+          else seenBuild.set(build, true);
+        }
+
+        const docProject = inferDocProject(doc.file) || projectId;
+        const relFromProjectDir = path.relative(projectDir, doc.fullPath).split(path.sep).map(encodeURIComponent).join("/");
+        const href = `${webPrefix}${relFromProjectDir}`;
+
+        reportVersions.push({
+          project: docProject,
+          build,
+          version: fmtDate(doc.stats.mtime),
+          modified: fmtDate(doc.stats.mtime),
+          size: fmtSize(doc.stats.size),
+          state,
+          file: doc.file,
+          href,
+          last_scanned: now
+        });
+      }
     }
   }
 
