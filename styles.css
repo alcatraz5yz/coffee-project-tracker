@@ -1863,6 +1863,32 @@ h2 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+.market-filter-bar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 0 4px;
+}
+.market-filter-btn {
+  padding: 4px 14px;
+  border-radius: 20px;
+  border: 1.5px solid var(--line);
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 0.82rem;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.15s, border-color 0.15s;
+}
+.market-filter-btn:hover {
+  border-color: var(--accent);
+}
+.market-filter-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 .row {
   display: grid;
   grid-template-columns: 120px 130px minmax(300px, 1fr) 130px 110px 120px;

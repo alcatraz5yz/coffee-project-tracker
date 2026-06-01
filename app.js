@@ -120,6 +120,7 @@ let activeSubtopic = "Approbation";
 let activeBuild = "Alle";
 let activeView = "overview";
 let activeEvidenceGroup = null;
+let activeMarketFilter = null;
 const evidenceEntries = new Map();
 const evidencePathEntries = new Map();
 let selectedEvidenceHref = null;
@@ -729,9 +730,37 @@ function renderSubtopic(project) {
 
 // ── Docs / Evidence ───────────────────────────────────────────
 function renderDocs(project) {
-  const groups = (project.documentGroups || [])
+  const allGroups = (project.documentGroups || [])
     .slice()
     .sort((a, b) => String(a.primary || "").localeCompare(String(b.primary || "")));
+
+  // Detect unique markets (prefix before " / " in area name).
+  // Only treat a prefix as a real market if it looks like a market code (IEC, UL, EU, US, etc.)
+  // — not IEC_FOLDER_MAP values like "Standards / Changes" or "Manual / Labels".
+  function isMarketCode(s) {
+    return /^(IEC|UL|EU|US|JP|CN|AU|IN|MX|TW|BR|KR|CH|DE|FR)([\s,]|$)/.test(s);
+  }
+  const markets = [...new Set(
+    allGroups.map(g => {
+      if (!g.area?.includes(" / ")) return null;
+      const prefix = g.area.split(" / ")[0];
+      return isMarketCode(prefix) ? prefix : null;
+    }).filter(Boolean)
+  )];
+
+  // Auto-select first market if none active and markets exist
+  if (markets.length > 0 && (!activeMarketFilter || !markets.includes(activeMarketFilter))) {
+    activeMarketFilter = markets[0];
+  }
+
+  const groups = activeMarketFilter
+    ? allGroups.filter(g => {
+        if (!g.area?.includes(" / ")) return true;
+        const prefix = g.area.split(" / ")[0];
+        if (!isMarketCode(prefix)) return true; // IEC_FOLDER_MAP area — always show
+        return g.area.startsWith(activeMarketFilter + " / ");
+      })
+    : allGroups;
   const groupDetailMarkup = (group) => {
     const key = evidenceCacheKey(project.id, group.primary);
     const cached = evidenceEntries.get(key);
@@ -799,6 +828,20 @@ function renderDocs(project) {
       </section>
     `;
   };
+
+  // Market filter bar (IEC / UL / …) — only shown when a project spans >1 market
+  const filterBar = document.querySelector("#market-filter-bar");
+  if (filterBar) {
+    if (markets.length > 1) {
+      filterBar.innerHTML = markets.map(m =>
+        `<button class="market-filter-btn ${activeMarketFilter === m ? "active" : ""}" data-market="${m}">${m}</button>`
+      ).join("");
+      filterBar.style.display = "flex";
+    } else {
+      filterBar.innerHTML = "";
+      filterBar.style.display = "none";
+    }
+  }
 
   document.querySelector("#document-group-grid").innerHTML = groups.length
     ? groups.map((group) => {
@@ -1433,6 +1476,7 @@ async function openProject(projectId, view = "overview", pushHistory = true) {
   activeSubtopic = "Approbation";
   activeBuild = "Alle";
   activeEvidenceGroup = null;
+  activeMarketFilter = null;
   excelFilesCache = null;
   subtopicFilter.value = "all";
   setView(view);
@@ -2120,6 +2164,16 @@ document.addEventListener("keydown", async (event) => {
     }
   }, true);
 })();
+
+document.querySelector("#docs-view").addEventListener("click", (event) => {
+  const btn = event.target.closest("[data-market]");
+  if (!btn) return;
+  const market = btn.dataset.market;
+  if (!market || activeMarketFilter === market) return;
+  activeMarketFilter = market;
+  activeEvidenceGroup = null;
+  renderDocs(activeProject);
+});
 
 document.querySelector("#docs-view").addEventListener("keydown", (event) => {
   if (!["Enter", " "].includes(event.key)) return;
