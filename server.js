@@ -39,6 +39,7 @@ const { updateTabelle30 } = require("./tabelle30-update-node");
 const { readDocumentXml } = require("./docx-reader");
 const { fileContainsTabelle24, parseTabelle24, updateTabelle24 } = require("./tabelle24-node");
 const { lookupVde } = require("./vde-lookup-node");
+const { assertExcelReadable } = require("./excel-safety");
 
 const app = express();
 const PORT = process.env.PORT || 8090;
@@ -612,6 +613,7 @@ const ARCHIVE_EXCEL_PATH = process.env.ARCHIVE_EXCEL || CONFIG_ARCHIVE_EXCEL || 
 
 function _xlsxProjectNo(xlsxPath) {
   try {
+    assertExcelReadable(xlsxPath);
     const wb = XLSX.readFile(xlsxPath, { sheetRows: 15 });
     const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: null });
     for (const row of rows) {
@@ -678,6 +680,7 @@ function runProjectNoScan(root) {
 function runArchiveScan(excelPath) {
   return new Promise((resolve, reject) => {
     try {
+      assertExcelReadable(excelPath);
       const wb = XLSX.readFile(excelPath);
       const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: null });
       const byEf = new Map();
@@ -727,6 +730,7 @@ app.get("/api/open-archive", (req, res) => {
   // Find the row number for this project in the archive Excel
   let rowNum = null;
   try {
+    assertExcelReadable(excelPath);
     const wb2 = XLSX.readFile(excelPath);
     const rows2 = XLSX.utils.sheet_to_json(wb2.Sheets[wb2.SheetNames[0]], { header: 1, defval: null });
     for (let i = 1; i < rows2.length; i++) {
