@@ -11,6 +11,8 @@
       document.body.dataset.theme = localStorage.getItem("pcs-theme") || "light";
     </script>
     <aside class="sidebar">
+      <button id="sidebar-toggle" class="sidebar-toggle" type="button" title="Sidebar ein-/ausblenden">«</button>
+      <div id="sidebar-resizer" class="sidebar-resizer" title="Breite ziehen"></div>
       <button id="dashboard-link" class="brand" type="button">
         <span>PCS</span>
         <strong>Kaffee Dashboard</strong>
@@ -171,7 +173,10 @@
       <section id="docs-view" class="hidden">
         <div class="table-panel report-panel">
           <div id="market-filter-bar" class="market-filter-bar" style="display:none"></div>
-          <div id="document-group-grid" class="document-group-grid"></div>
+          <div class="docs-two-pane">
+            <div id="docs-detail-pane" class="docs-detail-pane"></div>
+            <div id="document-group-grid" class="document-group-grid"></div>
+          </div>
         </div>
         <div id="reports-panel" class="table-panel report-panel hidden">
           <div class="table-header">

@@ -865,10 +865,18 @@ function renderDocs(project) {
               <a class="dgc-link" href="${evidenceHref(group)}" target="_blank" rel="noreferrer">Ordner anzeigen →</a>
               <button class="finder-action" type="button" data-open-href="${evidenceHref(group)}">Im Finder öffnen</button>
             </div>`}
-          </article>
-          ${isSelected ? groupDetailMarkup(group) : ""}`;
+          </article>`;
       }).join("")
     : `<p class="empty-state">Für dieses Projekt ist noch kein PCS Nachweisindex angelegt.</p>`;
+
+  // Detail pane (left): contents/subfolders of the currently selected top folder.
+  const detailPane = document.querySelector("#docs-detail-pane");
+  if (detailPane) {
+    const selectedGroup = groups.find((g) => g.primary === activeEvidenceGroup);
+    detailPane.innerHTML = selectedGroup
+      ? groupDetailMarkup(selectedGroup)
+      : `<p class="empty-state">Wähle rechts einen Ordner, um den Inhalt hier zu sehen.</p>`;
+  }
 
   document.querySelector("#reports-panel")?.classList.add("hidden");
   window._observePdfThumbs?.();
@@ -2174,6 +2182,40 @@ document.querySelector("#docs-view").addEventListener("click", (event) => {
   activeEvidenceGroup = null;
   renderDocs(activeProject);
 });
+
+// Sidebar (ganz links): ein-/ausblenden und Breite verschieben
+(() => {
+  const toggle = document.querySelector("#sidebar-toggle");
+  const resizer = document.querySelector("#sidebar-resizer");
+  if (!toggle || !resizer) return;
+  const setVar = (px) => document.documentElement.style.setProperty("--sb-w", `${px}px`);
+
+  toggle.addEventListener("click", () => {
+    const collapsed = document.body.classList.toggle("sb-collapsed");
+    toggle.textContent = collapsed ? "»" : "«";
+  });
+
+  let dragging = false;
+  resizer.addEventListener("mousedown", (event) => {
+    if (document.body.classList.contains("sb-collapsed")) return;
+    dragging = true;
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+    event.preventDefault();
+  });
+  document.addEventListener("mousemove", (event) => {
+    if (!dragging) return;
+    // Breite = Mausposition von links; begrenzt auf einen sinnvollen Bereich
+    const w = Math.max(180, Math.min(520, event.clientX));
+    setVar(w);
+  });
+  document.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.userSelect = "";
+    document.body.style.cursor = "";
+  });
+})();
 
 document.querySelector("#docs-view").addEventListener("keydown", (event) => {
   if (!["Enter", " "].includes(event.key)) return;
