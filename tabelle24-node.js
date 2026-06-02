@@ -3,6 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { readDocumentXml, replaceDocumentXml } = require("./docx-reader");
+const { convertDocToDocx } = require("./doc-convert");
 
 const GREEN_HEX = "00B050";
 const RED_HEX = "FF0000";
@@ -237,17 +238,23 @@ function fileContainsTabelle24(filePath) {
 }
 
 function parseTabelle24(filePath) {
-  if (!/\.(docx|docm)$/i.test(filePath)) {
-    throw new Error("Legacy .doc files need conversion to .docx/.docm before Tabelle 24 can be parsed without Python/LibreOffice.");
+  let docxPath = filePath;
+  let convertedFromDoc = false;
+  if (/\.doc$/i.test(filePath)) {
+    // Legacy binary .doc — convert to .docx via MS Word (Windows only).
+    docxPath = convertDocToDocx(filePath);
+    convertedFromDoc = true;
+  } else if (!/\.(docx|docm)$/i.test(filePath)) {
+    throw new Error(`Nicht unterstütztes Word-Format für Tabelle 24: ${path.basename(filePath)}`);
   }
-  const xml = readDocumentXml(filePath);
+  const xml = readDocumentXml(docxPath);
   let rows = parseTableFormat(xml);
   let format = "table";
   if (!rows.length) {
     rows = parseParagraphFormat(xml);
     format = "paragraph";
   }
-  return { sourceFile: filePath, convertedFromDoc: false, format, rowCount: rows.length, rows };
+  return { sourceFile: filePath, convertedFromDoc, format, rowCount: rows.length, rows };
 }
 
 function makeRun(text, { color, highlight, strike } = {}) {
