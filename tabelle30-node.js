@@ -15,19 +15,13 @@ const path = require("path");
 const XLSX = require("xlsx");
 const { readTables } = require("./docx-reader");
 const { assertExcelReadable } = require("./excel-safety");
-const { convertDocToDocx } = require("./doc-convert");
 
 const TABLE_MARKER = "Resistance to heat and fire";
 
 // ── parse_tabelle30.py port ──────────────────────────────────────────────────
 function parseTabelle30(wordPath) {
-  let convertedFromDoc = false;
-  if (/\.doc$/i.test(wordPath)) {
-    // Legacy binary .doc — convert to .docx via MS Word (Windows only).
-    wordPath = convertDocToDocx(wordPath);
-    convertedFromDoc = true;
-  } else if (!/\.(docx|docm)$/i.test(wordPath)) {
-    throw new Error(`Nicht unterstütztes Word-Format für Tabelle 30: ${path.basename(wordPath)}`);
+  if (!/\.(docx|docm)$/i.test(wordPath)) {
+    throw new Error(`Alte .doc-Datei – bitte in Word öffnen und als .docx speichern, dann erneut scannen: ${path.basename(wordPath)}`);
   }
   const tables = readTables(wordPath);
   let tableIdx = -1;
@@ -56,7 +50,7 @@ function parseTabelle30(wordPath) {
     if (!cells.some((t) => (t || "").trim())) continue;
     rows.push({ rowIdx: rows.length + 1, tableRowIdx: ri, cells, cellRuns });
   }
-  return { sourceFile: wordPath, convertedFromDoc, tableIdx, rowCount: rows.length, headerRows, rows };
+  return { sourceFile: wordPath, convertedFromDoc: false, tableIdx, rowCount: rows.length, headerRows, rows };
 }
 
 // ── parse_excel_ergaenzung.py port ───────────────────────────────────────────
