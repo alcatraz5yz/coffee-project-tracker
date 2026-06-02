@@ -878,12 +878,21 @@ function handleFsError(res, err, label) {
   res.status(500).json({ error: msg });
 }
 
+function validateEntryName(name) {
+  const value = String(name || "").trim();
+  if (!value) return null;
+  if (value === "." || value === "..") return null;
+  if (/[\\/:*?"<>|\x00-\x1f]/.test(value)) return null;
+  if (value !== path.basename(value)) return null;
+  return value;
+}
+
 app.post("/api/files/mkdir", async (req, res, next) => {
   try {
     const parent = await resolveAllowedHref(req.body?.parentHref);
-    const name = String(req.body?.name || "").trim();
+    const name = validateEntryName(req.body?.name);
     if (!parent || !await fsIsDirectory(parent)) return res.status(400).json({ error: "Zielordner nicht erlaubt" });
-    if (!name || /[\\/:*?"<>|]/.test(name)) return res.status(400).json({ error: "Ungültiger Ordnername" });
+    if (!name) return res.status(400).json({ error: "Ungültiger Ordnername" });
     ensureWritable(parent);
     const target = await uniquePathAsync(path.join(parent, name));
     fs.mkdirSync(target, { recursive: true });
@@ -892,6 +901,28 @@ app.post("/api/files/mkdir", async (req, res, next) => {
   } catch (err) {
     if (err instanceof FsTimeoutError) return next(err);
     handleFsError(res, err, "mkdir fehlgeschlagen");
+  }
+});
+
+app.post("/api/files/rename", async (req, res, next) => {
+  try {
+    const source = await resolveAllowedHref(req.body?.href);
+    const newName = validateEntryName(req.body?.newName);
+    if (!source || !await fsExists(source)) return res.status(400).json({ error: "Pfad nicht erlaubt" });
+    if (!newName) return res.status(400).json({ error: "Ungültiger Name" });
+
+    const parent = path.dirname(source);
+    const target = path.join(parent, newName);
+    if (path.resolve(source) === path.resolve(target)) return res.json({ ok: true, path: source });
+    if (await fsExists(target)) return res.status(409).json({ error: "Ein Element mit diesem Namen existiert bereits" });
+
+    ensureWritable(parent);
+    await fsTimeout(fsp.rename(source, target), `rename ${source}`);
+    invalidateListPathCache();
+    res.json({ ok: true, path: target });
+  } catch (err) {
+    if (err instanceof FsTimeoutError) return next(err);
+    handleFsError(res, err, "rename fehlgeschlagen");
   }
 });
 
@@ -1068,7 +1099,7 @@ app.post("/api/file-action", async (req, res, next) => {
     const targetDir = targetDirHref ? await resolveAllowedHref(targetDirHref) : null;
     if (action === "mkdir") {
       if (!targetDir || !await fsIsDirectory(targetDir)) return res.status(400).json({ error: "target folder invalid" });
-      const safeName = String(name || "").trim().replace(/[\\/:*?"<>|]/g, " ");
+      const safeName = validateEntryName(name);
       if (!safeName) return res.status(400).json({ error: "folder name missing" });
       const created = await uniquePathInDirAsync(targetDir, safeName);
       await fsTimeout(fsp.mkdir(created, { recursive: false }), `mkdir ${created}`);
@@ -1083,6 +1114,19 @@ app.post("/api/file-action", async (req, res, next) => {
       sendToTrash(source);
       clearListPathCache();
       return res.json({ ok: true });
+    }
+
+    if (action === "rename") {
+      const safeName = validateEntryName(name);
+      if (!safeName) return res.status(400).json({ error: "name missing" });
+      const parent = path.dirname(source);
+      const destination = path.join(parent, safeName);
+      if (path.resolve(source) === path.resolve(destination)) return res.json({ ok: true, path: source });
+      if (await fsExists(destination)) return res.status(409).json({ error: "target exists" });
+      ensureWritable(parent);
+      await fsTimeout(fsp.rename(source, destination), `rename ${source}`);
+      clearListPathCache();
+      return res.json({ ok: true, path: destination });
     }
 
     if (!targetDir || !await fsIsDirectory(targetDir)) return res.status(400).json({ error: "target folder invalid" });

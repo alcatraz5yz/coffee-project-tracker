@@ -775,8 +775,10 @@ function renderDocs(project) {
       : [];
     const locationTitle = pathParts.length ? pathParts[pathParts.length - 1] : group.primary;
     const selectedInThisFolder = entries.some((entry) => selectedEvidenceHrefs.has(entry.href));
+    const selectedCountInThisFolder = entries.filter((entry) => selectedEvidenceHrefs.has(entry.href)).length;
     const pasteDisabled = evidenceClipboard ? "" : "disabled";
     const selectedDisabled = selectedInThisFolder ? "" : "disabled";
+    const singleSelectedDisabled = selectedCountInThisFolder === 1 ? "" : "disabled";
     const backBtn = isSubfolder
       ? `<button class="evidence-back-btn" type="button" data-evidence-back="${group.primary}">← Zurück</button>` : "";
     const fileListMarkup = cached?.loading
@@ -792,6 +794,7 @@ function renderDocs(project) {
             <strong>${escapeHtml(locationTitle)}</strong>
             <span class="evidence-toolbar-spacer"></span>
             <button class="finder-action" type="button" data-file-action="mkdir" data-current-href="${escapeHtml(currentHref)}">Neuer Ordner</button>
+            <button class="finder-action" type="button" data-file-action="rename" ${singleSelectedDisabled}>Umbenennen</button>
             <button class="finder-action" type="button" data-file-action="copy" ${selectedDisabled}>Kopieren</button>
             <button class="finder-action" type="button" data-file-action="cut" ${selectedDisabled}>Ausschneiden</button>
             <button class="finder-action" type="button" data-file-action="paste" data-current-href="${escapeHtml(currentHref)}" ${pasteDisabled}>Einfügen</button>
@@ -933,6 +936,24 @@ async function runFileAction(action, currentHref) {
       await apiFetch("/api/files/mkdir", {
         method: "POST",
         body: JSON.stringify({ parentHref: folderHref, name })
+      });
+      await refreshEvidenceFolder(ctx.group, folderHref);
+      return;
+    }
+
+    if (action === "rename") {
+      if (selected.length !== 1) return;
+      const sourceHref = selected[0];
+      const selectedRow = document.querySelector(`[data-evidence-entry-href="${CSS.escape(sourceHref)}"]`);
+      const currentName = selectedRow?.dataset.evidenceEntryName
+        || decodeURIComponent(sourceHref.split("/").filter(Boolean).pop() || "");
+      const newName = prompt("Neuer Name:", currentName);
+      if (newName === null) return;
+      const trimmedName = newName.trim();
+      if (!trimmedName || trimmedName === currentName) return;
+      await apiFetch("/api/files/rename", {
+        method: "POST",
+        body: JSON.stringify({ href: sourceHref, newName: trimmedName })
       });
       await refreshEvidenceFolder(ctx.group, folderHref);
       return;
