@@ -1899,13 +1899,14 @@ h2 {
 .docs-two-pane {
   display: flex;
   gap: 16px;
-  align-items: flex-start;
+  align-items: stretch;
 }
 .docs-two-pane .docs-detail-pane {
+  display: flex;
   flex: 1 1 auto;
   min-width: 0;
-  min-height: 240px;
-  max-height: calc(100vh - 270px);
+  height: calc(100vh - 270px);
+  min-height: 360px;
   overflow-y: auto;
 }
 .docs-two-pane #document-group-grid {
@@ -2286,6 +2287,9 @@ h2 {
 
 
 .document-group-detail {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 100%;
   grid-column: 1 / -1;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
@@ -2321,11 +2325,15 @@ h2 {
 }
 
 .evidence-file-table {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 100%;
   overflow: auto;
 }
 
 .evidence-clear-space {
-  min-height: 96px;
+  flex: 1 0 160px;
   cursor: default;
 }
 
@@ -3323,6 +3331,7 @@ h2 {
   .docs-two-pane .docs-detail-pane,
   .docs-two-pane #document-group-grid {
     width: 100%;
+    height: auto;
     max-height: none;
   }
 
