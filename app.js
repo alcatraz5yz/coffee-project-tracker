@@ -846,7 +846,10 @@ function renderDocs(project) {
 
     return `
       <section class="document-group-detail">
-        <div class="evidence-file-table">${fileListMarkup}</div>
+        <div class="evidence-file-table">
+          ${fileListMarkup}
+          <div class="evidence-clear-space" data-clear-evidence-selection aria-hidden="true"></div>
+        </div>
       </section>
     `;
   };
@@ -919,6 +922,14 @@ function currentEvidenceContext() {
   };
 }
 
+function clearEvidenceSelection() {
+  if (!selectedEvidenceHref && !selectedEvidenceHrefs.size && !evidenceSelectionAnchor) return false;
+  selectedEvidenceHref = null;
+  selectedEvidenceHrefs = new Set();
+  evidenceSelectionAnchor = null;
+  return true;
+}
+
 function clearEvidenceFolderCache(group, href) {
   const key = evidenceCacheKey(activeProject.id, group.primary);
   for (const cacheKey of [...evidencePathEntries.keys()]) {
@@ -928,9 +939,7 @@ function clearEvidenceFolderCache(group, href) {
 }
 
 async function refreshEvidenceFolder(group, href) {
-  selectedEvidenceHref = null;
-  selectedEvidenceHrefs = new Set();
-  evidenceSelectionAnchor = null;
+  clearEvidenceSelection();
   clearEvidenceFolderCache(group, href);
   await loadEvidenceEntries(group, href);
 }
@@ -2017,9 +2026,7 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
       if (!group) return;
       if (!alreadySelected || event.shiftKey) return;
       history.pushState({ projectId: activeProject.id, view: "docs", openGroup: group.primary, subfolderGroup: group.primary, subfolderHref: href }, "", `#${activeProject.id}`);
-      selectedEvidenceHref = null;
-      selectedEvidenceHrefs = new Set();
-      evidenceSelectionAnchor = null;
+      clearEvidenceSelection();
       loadEvidenceEntries(group, href);
       return;
     }
@@ -2108,6 +2115,12 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     const group = activeProject.documentGroups?.find((item) => item.primary === groupCard.dataset.evidenceGroupCard);
     renderDocs(activeProject);
     if (activeEvidenceGroup && group) loadEvidenceEntries(group);
+    return;
+  }
+
+  const clearSpace = event.target.closest("[data-clear-evidence-selection]");
+  if (clearSpace) {
+    if (clearEvidenceSelection()) renderDocs(activeProject);
     return;
   }
 
