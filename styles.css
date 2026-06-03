@@ -2334,6 +2334,15 @@ h2 {
   user-select: none;
 }
 
+.evidence-file-row[draggable="true"] {
+  cursor: grab;
+}
+
+.evidence-file-row.dragging {
+  cursor: grabbing;
+  opacity: 0.55;
+}
+
 .evidence-file-row:last-child {
   border-bottom: 0;
 }
@@ -2429,6 +2438,36 @@ h2 {
 .evidence-back-btn:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.evidence-parent-drop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 8px;
+  padding: 10px 12px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 55%, var(--line));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent-soft) 72%, var(--panel));
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.evidence-parent-drop strong {
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.evidence-parent-drop span {
+  overflow-wrap: anywhere;
+}
+
+.evidence-parent-drop.drop-target {
+  border-color: var(--good);
+  background: color-mix(in srgb, var(--good) 18%, var(--panel));
+  outline: 2px solid var(--good);
+  outline-offset: -2px;
 }
 
 .evidence-file-row span {
@@ -2553,6 +2592,12 @@ h2 {
 .evidence-file-row.explorer-selected {
   background: color-mix(in srgb, var(--accent) 18%, var(--panel));
   outline: 2px solid color-mix(in srgb, var(--accent) 70%, var(--line));
+  outline-offset: -2px;
+}
+
+.evidence-file-row.drop-target {
+  background: color-mix(in srgb, var(--good) 18%, var(--accent-soft));
+  outline: 2px solid var(--good);
   outline-offset: -2px;
 }
 

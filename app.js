@@ -127,6 +127,7 @@ let selectedEvidenceHref = null;
 let selectedEvidenceHrefs = new Set();
 let evidenceSelectionAnchor = null;
 let evidenceClipboard = null;
+let evidenceDrag = null;
 
 // ── Labels / helpers ─────────────────────────────────────────
 const statusFlow = ["Open", "Done", "Not needed"];
@@ -611,6 +612,14 @@ function evidenceHref(link) {
   }
   return encodeURI(trackerConfig.localDocumentRoot + rel);
 }
+function parentEvidenceHref(currentHref, rootHref) {
+  const root = rootHref.endsWith("/") ? rootHref : `${rootHref}/`;
+  const current = currentHref.endsWith("/") ? currentHref.slice(0, -1) : currentHref;
+  if (current === root.slice(0, -1)) return null;
+  const slash = current.lastIndexOf("/");
+  const parent = slash >= 0 ? `${current.slice(0, slash)}/` : root;
+  return parent.startsWith(root) ? parent : root;
+}
 function isWordFile(p) { return /\.(doc|docx|docm)$/i.test(p || ""); }
 function isExcelFile(p) { return /\.(xls|xlsx|xlsm|xlsb|xlam)$/i.test(p || ""); }
 function isOfficeFile(p) { return isWordFile(p) || isExcelFile(p); }
@@ -767,6 +776,8 @@ function renderDocs(project) {
     const entries = cached?.entries || [];
     const isSubfolder = cached?.browseHref && cached.browseHref !== cached?.rootHref;
     const currentHref = cached?.browseHref || evidenceHref(group);
+    const rootHref = cached?.rootHref || evidenceHref(group);
+    const parentHref = isSubfolder ? parentEvidenceHref(currentHref, rootHref) : null;
     const relPath = currentHref
       .replace(evidenceHref(group), "")
       .replace(/\/$/, "");
@@ -781,10 +792,16 @@ function renderDocs(project) {
     const singleSelectedDisabled = selectedCountInThisFolder === 1 ? "" : "disabled";
     const backBtn = isSubfolder
       ? `<button class="evidence-back-btn" type="button" data-evidence-back="${group.primary}">← Zurück</button>` : "";
+    const parentDropZone = parentHref
+      ? `<div class="evidence-parent-drop" data-parent-drop-href="${escapeHtml(parentHref)}">
+          <strong>In übergeordneten Ordner verschieben</strong>
+          <span>${pathParts.length > 1 ? escapeHtml(pathParts[pathParts.length - 2]) : escapeHtml(group.primary)}</span>
+        </div>`
+      : "";
     const fileListMarkup = cached?.loading
-      ? `${backBtn}<p class="empty-state">Ordnerinhalt wird geladen...</p>`
+      ? `${backBtn}${parentDropZone}<p class="empty-state">Ordnerinhalt wird geladen...</p>`
       : cached?.error
-        ? `${backBtn}<p class="empty-state">Ordnerinhalt konnte nicht gelesen werden.
+        ? `${backBtn}${parentDropZone}<p class="empty-state">Ordnerinhalt konnte nicht gelesen werden.
             <button class="finder-action" type="button" data-evidence-retry="${group.primary}">Erneut laden</button>
             ${cached.errorMessage ? `<small>${escapeHtml(cached.errorMessage)}</small>` : ""}
           </p>`
@@ -800,11 +817,13 @@ function renderDocs(project) {
             <button class="finder-action" type="button" data-file-action="paste" data-current-href="${escapeHtml(currentHref)}" ${pasteDisabled}>Einfügen</button>
             <button class="finder-action danger" type="button" data-file-action="delete" ${selectedDisabled}>Löschen</button>
           </div>
+          ${parentDropZone}
           <div class="evidence-file-row head">
             <span>Name</span><span>Typ</span><span>Geändert</span><span>Aktion</span>
           </div>
           ${entries.map((entry) => `
             <div class="evidence-file-row${entry.type === "Ordner" ? " evidence-file-row--folder" : ""}${selectedEvidenceHrefs.has(entry.href) ? " explorer-selected" : ""}"
+              draggable="true"
               data-evidence-entry-href="${entry.href}"
               data-evidence-entry-name="${escapeHtml(entry.name)}"
               data-evidence-entry-type="${entry.type}"
@@ -823,7 +842,7 @@ function renderDocs(project) {
               </span>
             </div>
           `).join("")}
-        ` : `${backBtn}<p class="empty-state">Dieser Ordner enthält keine sichtbaren Dateien.</p>`;
+        ` : `${backBtn}${parentDropZone}<p class="empty-state">Dieser Ordner enthält keine sichtbaren Dateien.</p>`;
 
     return `
       <section class="document-group-detail">
@@ -987,6 +1006,27 @@ async function runFileAction(action, currentHref) {
   } catch (err) {
     alert(`Dateiaktion fehlgeschlagen: ${err.message}`);
     console.error("File action error:", err);
+  }
+}
+
+async function moveEvidenceEntriesToFolder(sourceHrefs, targetHref) {
+  const ctx = currentEvidenceContext();
+  if (!ctx || !targetHref || !sourceHrefs?.length) return;
+
+  const uniqueSources = [...new Set(sourceHrefs)].filter((href) => href && href !== targetHref);
+  if (!uniqueSources.length) return;
+
+  try {
+    for (const href of uniqueSources) {
+      await apiFetch("/api/files/move", {
+        method: "POST",
+        body: JSON.stringify({ sourceHref: href, destHref: targetHref })
+      });
+    }
+    await refreshEvidenceFolder(ctx.group, ctx.currentHref);
+  } catch (err) {
+    alert(`Verschieben fehlgeschlagen: ${err.message}`);
+    console.error("Drag move error:", err);
   }
 }
 
@@ -1865,6 +1905,75 @@ document.querySelector("#task-table").addEventListener("focusout", (event) => {
   const field = event.target.closest("[data-task-block-reason]");
   if (!field) return;
   handleTaskBlockReasonInput(field, true);
+});
+
+document.querySelector("#docs-view").addEventListener("dragstart", (event) => {
+  const row = event.target.closest("[data-evidence-entry-href]");
+  if (!row) return;
+
+  const href = row.dataset.evidenceEntryHref;
+  const sources = selectedEvidenceHrefs.has(href) ? [...selectedEvidenceHrefs] : [href];
+  evidenceDrag = { sources, group: row.dataset.evidenceEntryGroup };
+  row.classList.add("dragging");
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", sources.join("\n"));
+  }
+});
+
+document.querySelector("#docs-view").addEventListener("dragover", (event) => {
+  const parentZone = event.target.closest("[data-parent-drop-href]");
+  if (evidenceDrag && parentZone) {
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+    parentZone.classList.add("drop-target");
+    return;
+  }
+
+  const row = event.target.closest("[data-evidence-entry-href]");
+  if (!evidenceDrag || !row || row.dataset.evidenceEntryType !== "Ordner") return;
+  if (evidenceDrag.sources.includes(row.dataset.evidenceEntryHref)) return;
+
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+  row.classList.add("drop-target");
+});
+
+document.querySelector("#docs-view").addEventListener("dragleave", (event) => {
+  const parentZone = event.target.closest("[data-parent-drop-href]");
+  if (parentZone && !parentZone.contains(event.relatedTarget)) {
+    parentZone.classList.remove("drop-target");
+    return;
+  }
+
+  const row = event.target.closest("[data-evidence-entry-href]");
+  if (!row || row.contains(event.relatedTarget)) return;
+  row.classList.remove("drop-target");
+});
+
+document.querySelector("#docs-view").addEventListener("drop", async (event) => {
+  const parentZone = event.target.closest("[data-parent-drop-href]");
+  const row = event.target.closest("[data-evidence-entry-href]");
+  document.querySelectorAll(".evidence-parent-drop.drop-target").forEach((el) => el.classList.remove("drop-target"));
+  document.querySelectorAll(".evidence-file-row.drop-target").forEach((el) => el.classList.remove("drop-target"));
+  document.querySelectorAll(".evidence-file-row.dragging").forEach((el) => el.classList.remove("dragging"));
+  if (!evidenceDrag || (!parentZone && (!row || row.dataset.evidenceEntryType !== "Ordner"))) {
+    evidenceDrag = null;
+    return;
+  }
+
+  event.preventDefault();
+  const targetHref = parentZone ? parentZone.dataset.parentDropHref : row.dataset.evidenceEntryHref;
+  const sources = evidenceDrag.sources;
+  evidenceDrag = null;
+  await moveEvidenceEntriesToFolder(sources, targetHref);
+});
+
+document.querySelector("#docs-view").addEventListener("dragend", () => {
+  evidenceDrag = null;
+  document.querySelectorAll(".evidence-parent-drop.drop-target").forEach((el) => el.classList.remove("drop-target"));
+  document.querySelectorAll(".evidence-file-row.drop-target, .evidence-file-row.dragging")
+    .forEach((el) => el.classList.remove("drop-target", "dragging"));
 });
 
 // Open local folder in Finder/Explorer via local backend
