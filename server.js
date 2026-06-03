@@ -947,6 +947,9 @@ app.post("/api/files/move", async (req, res, next) => {
     const source = await resolveAllowedHref(req.body?.sourceHref);
     const destDir = await resolveAllowedHref(req.body?.destHref);
     if (!source || !destDir || !await fsIsDirectory(destDir)) return res.status(400).json({ error: "Quelle oder Ziel nicht erlaubt" });
+    if (path.resolve(destDir) === path.resolve(source) || path.resolve(destDir).startsWith(path.resolve(source) + path.sep)) {
+      return res.status(400).json({ error: "Ordner kann nicht in sich selbst verschoben werden" });
+    }
     ensureWritable(destDir);
     ensureWritable(path.dirname(source));
     const target = await uniquePathAsync(path.join(destDir, path.basename(source)));
