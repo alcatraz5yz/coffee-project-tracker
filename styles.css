@@ -2469,7 +2469,7 @@ h2 {
 }
 
 .evidence-parent-drop {
-  display: flex;
+  display: none;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
@@ -2480,6 +2480,10 @@ h2 {
   background: color-mix(in srgb, var(--accent-soft) 72%, var(--panel));
   color: var(--muted);
   font-size: 12px;
+}
+
+#docs-view.evidence-drag-active .evidence-parent-drop {
+  display: flex;
 }
 
 .evidence-parent-drop strong {

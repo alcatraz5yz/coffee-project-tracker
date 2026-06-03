@@ -1915,6 +1915,7 @@ document.querySelector("#docs-view").addEventListener("dragstart", (event) => {
   const sources = selectedEvidenceHrefs.has(href) ? [...selectedEvidenceHrefs] : [href];
   evidenceDrag = { sources, group: row.dataset.evidenceEntryGroup };
   row.classList.add("dragging");
+  document.querySelector("#docs-view").classList.add("evidence-drag-active");
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", sources.join("\n"));
@@ -1954,6 +1955,7 @@ document.querySelector("#docs-view").addEventListener("dragleave", (event) => {
 document.querySelector("#docs-view").addEventListener("drop", async (event) => {
   const parentZone = event.target.closest("[data-parent-drop-href]");
   const row = event.target.closest("[data-evidence-entry-href]");
+  document.querySelector("#docs-view").classList.remove("evidence-drag-active");
   document.querySelectorAll(".evidence-parent-drop.drop-target").forEach((el) => el.classList.remove("drop-target"));
   document.querySelectorAll(".evidence-file-row.drop-target").forEach((el) => el.classList.remove("drop-target"));
   document.querySelectorAll(".evidence-file-row.dragging").forEach((el) => el.classList.remove("dragging"));
@@ -1971,6 +1973,7 @@ document.querySelector("#docs-view").addEventListener("drop", async (event) => {
 
 document.querySelector("#docs-view").addEventListener("dragend", () => {
   evidenceDrag = null;
+  document.querySelector("#docs-view").classList.remove("evidence-drag-active");
   document.querySelectorAll(".evidence-parent-drop.drop-target").forEach((el) => el.classList.remove("drop-target"));
   document.querySelectorAll(".evidence-file-row.drop-target, .evidence-file-row.dragging")
     .forEach((el) => el.classList.remove("drop-target", "dragging"));
