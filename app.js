@@ -312,7 +312,28 @@ function setView(name) {
   document.querySelector(".top-actions").classList.toggle("hidden", name === "dashboard");
   document.querySelector("#excel-sidebar").classList.toggle("hidden", name !== "docs");
   if (name !== "docs") document.querySelector("#excel-sidebar-list").classList.add("hidden");
+  // In der Dateien-Ansicht scrollen die Bereiche intern → kein Seiten-Scrollen
+  // nötig; das verhindert den leeren Streifen + Scrollbalken ganz unten.
+  // (Die Seite scrollt auf <html>, nicht <body>.)
+  document.documentElement.style.overflow = name === "docs" ? "hidden" : "";
+  if (name === "docs") { requestAnimationFrame(fitDocsPanes); setTimeout(fitDocsPanes, 80); }
 }
+
+// Dateien-Bereiche dynamisch bis zum unteren Viewport-Rand füllen — statt einer
+// festen calc(100vh - 270px)-Höhe, die je nach Bildschirm/Projekt einen leeren
+// Streifen unten liess. Nur aktiv, wenn die Panes nebeneinander liegen.
+function fitDocsPanes() {
+  const two = document.querySelector(".docs-two-pane");
+  const detail = document.querySelector("#docs-detail-pane");
+  const grid = document.querySelector("#document-group-grid");
+  if (!two || !detail || !grid || two.offsetParent === null) return;
+  const sideBySide = Math.abs(detail.getBoundingClientRect().top - grid.getBoundingClientRect().top) < 5;
+  if (!sideBySide) { detail.style.height = ""; grid.style.maxHeight = ""; return; }
+  const h = Math.max(240, Math.round(window.innerHeight - two.getBoundingClientRect().top - 34));
+  detail.style.height = `${h}px`;
+  grid.style.maxHeight = `${h}px`;
+}
+window.addEventListener("resize", fitDocsPanes);
 
 // ── Machine list ─────────────────────────────────────────────
 function relatedProjects() {
@@ -905,6 +926,8 @@ function renderDocs(project) {
 
   document.querySelector("#reports-panel")?.classList.add("hidden");
   window._observePdfThumbs?.();
+  requestAnimationFrame(fitDocsPanes);
+  setTimeout(fitDocsPanes, 80);
 }
 
 function currentEvidenceContext() {
@@ -2324,9 +2347,27 @@ document.querySelector("#docs-view").addEventListener("click", (event) => {
   if (!btn) return;
   const market = btn.dataset.market;
   if (!market || activeMarketFilter === market) return;
+  const prevGroup = activeEvidenceGroup;
   activeMarketFilter = market;
-  activeEvidenceGroup = null;
-  renderDocs(activeProject);
+  // War ein Ordner offen, den gleichen Ordner im neuen Markt (IEC↔UL) öffnen.
+  // Abgleich über die führende Nummer, da IEC und UL denselben Abschnitt oft
+  // unterschiedlich benennen (z.B. IEC "03 User Manual" vs UL "03 Offerte …").
+  const folderNo = (s) => (String(s || "").match(/^\s*0*(\d+)/) || [])[1];
+  const prevNo = folderNo(prevGroup);
+  const sameFolder = prevNo && (activeProject.documentGroups || []).find(
+    (g) => (g.area || "").startsWith(market + " / ") && folderNo(g.primary) === prevNo
+  );
+  if (sameFolder) {
+    // Auswahl auf den Ordner des neuen Markts setzen (anderer Name, gleiche Nummer)
+    activeEvidenceGroup = sameFolder.primary;
+    // frisch vom markt-spezifischen href laden (per-href gecacht)
+    evidenceEntries.delete(evidenceCacheKey(activeProject.id, sameFolder.primary));
+    renderDocs(activeProject);
+    loadEvidenceEntries(sameFolder, evidenceHref(sameFolder));
+  } else {
+    activeEvidenceGroup = null;
+    renderDocs(activeProject);
+  }
 });
 
 // Sidebar (ganz links): ein-/ausblenden und Breite verschieben

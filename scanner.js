@@ -126,49 +126,63 @@ function inferDocProject(filename) {
   return null;
 }
 
-async function findIecRootsAsync(projectDir) {
-  const taPath = path.join(projectDir, "Technische Approbation");
+// Folder names that count as a "market" (approval scheme) root.
+const MARKET_FOLDER = /^(IEC|UL|EU|US|JP|CN|AU|IN|MX|TW|BR|KR|CH|DE|FR)$/i;
 
-  async function resolveRoots(dirPath) {
-    let entries;
+async function findIecRootsAsync(projectDir) {
+  async function subdirs(dirPath) {
     try {
-      entries = (await fsp.readdir(dirPath, { withFileTypes: true }))
+      return (await fsp.readdir(dirPath, { withFileTypes: true }))
         .filter(e => e.isDirectory() && !isLockFile(e.name));
     } catch { return []; }
-
-    // Direct IEC folder — only treat as single no-label root if it's the only subfolder
-    const iec = entries.find(e => e.name === "IEC");
-    if (iec && entries.length === 1) return [{ path: path.join(dirPath, "IEC"), label: "" }];
-
-    // Container folders (Zulassungen, Zulassung) → recurse one level
-    const container = entries.find(e => /^Zulassung/i.test(e.name));
-    if (container) {
-      const inner = await resolveRoots(path.join(dirPath, container.name));
-      if (inner.length > 0) return inner;
-    }
-
-    // Otherwise each subfolder is its own market root
+  }
+  // Single lone IEC → classic no-label root; otherwise each entry is a labelled market.
+  function rootsFrom(dirPath, entries) {
+    if (!entries.length) return [];
+    if (entries.length === 1 && entries[0].name.toUpperCase() === "IEC")
+      return [{ path: path.join(dirPath, entries[0].name), label: "" }];
     return entries.map(e => ({ path: path.join(dirPath, e.name), label: e.name }));
   }
 
-  // Try Technische Approbation first
+  // 1) "Technische Approbation" conventionally holds ONLY the market folders, so
+  //    take all of them (recursing one level through a Zulassung* container).
+  async function resolveTA(dirPath) {
+    const entries = await subdirs(dirPath);
+    if (!entries.length) return [];
+    const container = entries.find(e => /^Zulassung/i.test(e.name));
+    if (container) {
+      const inner = await resolveTA(path.join(dirPath, container.name));
+      if (inner.length) return inner;
+    }
+    return rootsFrom(dirPath, entries);
+  }
+  const taPath = path.join(projectDir, "Technische Approbation");
   try {
     await fsp.stat(taPath);
-    const roots = await resolveRoots(taPath);
+    const roots = await resolveTA(taPath);
     if (roots.length > 0) return roots;
   } catch { /* fall through */ }
 
-  // Fallback for projects without Technische Approbation
-  const fallbacks = [
-    { p: path.join(projectDir, "Zulassungen", "IEC"), label: "" },
-    { p: path.join(projectDir, "Zulassung", "IEC"), label: "" },
-    { p: path.join(projectDir, "Zulassungen"), label: "" },
-    { p: path.join(projectDir, "IEC"), label: "" }
-  ];
-  for (const { p, label } of fallbacks) {
+  // 2) Market folders under Zulassungen / Zulassung / directly under the project
+  //    (e.g. 1175/IEC + 1175/UL). Restricted to known market codes so unrelated
+  //    project folders are never mistaken for a market.
+  for (const base of [
+    path.join(projectDir, "Zulassungen"),
+    path.join(projectDir, "Zulassung"),
+    projectDir,
+  ]) {
+    const markets = (await subdirs(base)).filter(e => MARKET_FOLDER.test(e.name));
+    if (markets.length > 0) return rootsFrom(base, markets);
+  }
+
+  // 3) Last-resort single-root fallbacks.
+  for (const p of [
+    path.join(projectDir, "Zulassungen", "IEC"),
+    path.join(projectDir, "Zulassung", "IEC"),
+    path.join(projectDir, "IEC"),
+  ]) {
     try {
-      const st = await fsp.stat(p);
-      if (st.isDirectory()) return [{ path: p, label }];
+      if ((await fsp.stat(p)).isDirectory()) return [{ path: p, label: "" }];
     } catch { /* try next */ }
   }
   return [];
