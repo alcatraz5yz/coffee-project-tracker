@@ -1924,27 +1924,27 @@ h2 {
   background: var(--panel);
   box-shadow: 0 16px 36px color-mix(in srgb, var(--ink) 10%, transparent);
 }
-/* Seiten-Ordnerkacheln: Badge oben rechts, Name mittig über volle Breite
-   (kein Abschneiden), Dateianzahl unten — nutzt die Kachelhöhe sauber aus. */
+/* Seiten-Ordnerkacheln: Name mittig über volle Breite (kein Abschneiden),
+   unten links die Dateianzahl, unten rechts das Status-Badge. */
 .docs-two-pane .document-group-card {
   position: relative;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 32px 12px 30px;
+  padding: 14px 12px 30px;
   overflow: hidden;
 }
 .docs-two-pane .document-group-card .dgc-actions,
 .docs-two-pane .document-group-card .dgc-area {
   display: none;
 }
-/* Wrapper auflösen, damit Name (mittig) & Badge (oben rechts) unabhängig sitzen */
+/* Wrapper auflösen, damit Name (mittig) & Badge (unten rechts) unabhängig sitzen */
 .docs-two-pane .document-group-card .dgc-top {
   display: contents;
 }
 .docs-two-pane .document-group-card .status-toggle {
   position: absolute;
-  top: 9px;
+  bottom: 9px;
   right: 10px;
 }
 .docs-two-pane .document-group-card .dgc-top strong {
