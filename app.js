@@ -807,6 +807,19 @@ function renderDocs(project) {
         return g.area.startsWith(activeMarketFilter + " / ");
       })
     : allGroups;
+
+  // Immer einen Ordner ausgewählt halten — die linke Seite soll nie leer sein.
+  // Ist nichts (mehr) ausgewählt (z.B. beim Öffnen oder nach Markt-Wechsel),
+  // automatisch den ersten Ordner mit Dateien wählen.
+  const activeStillValid = activeEvidenceGroup && groups.some(g => g.primary === activeEvidenceGroup);
+  if (!activeStillValid && groups.length) {
+    const firstReal = groups.find(g => (parseInt(g.count) || 0) > 0) || groups[0];
+    if (firstReal) {
+      activeEvidenceGroup = firstReal.primary;
+      loadEvidenceEntries(firstReal, evidenceHref(firstReal));
+    }
+  }
+
   const groupDetailMarkup = (group) => {
     const key = evidenceCacheKey(project.id, group.primary);
     const cached = evidenceEntries.get(key);
