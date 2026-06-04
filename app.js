@@ -128,6 +128,22 @@ let selectedEvidenceHrefs = new Set();
 let evidenceSelectionAnchor = null;
 let evidenceClipboard = null;
 let evidenceDrag = null;
+// Spring-loaded folders: beim Draggen über einen Ordner verweilen → öffnet ihn.
+let springTimer = null;
+let springKey = null;
+function clearSpring() {
+  if (springTimer) { clearTimeout(springTimer); springTimer = null; }
+  springKey = null;
+}
+function scheduleSpring(key, openFn) {
+  if (springKey === key) return;       // gleiches Ziel → Timer weiterlaufen lassen
+  clearSpring();
+  springKey = key;
+  springTimer = setTimeout(() => {
+    springTimer = null; springKey = null;
+    if (evidenceDrag) openFn();
+  }, 650);
+}
 
 // ── Labels / helpers ─────────────────────────────────────────
 const statusFlow = ["Open", "Done", "Not needed"];
@@ -1959,30 +1975,55 @@ document.querySelector("#docs-view").addEventListener("dragstart", (event) => {
 });
 
 document.querySelector("#docs-view").addEventListener("dragover", (event) => {
+  if (!evidenceDrag) return;
+
   const parentZone = event.target.closest("[data-parent-drop-href]");
-  if (evidenceDrag && parentZone) {
+  if (parentZone) {
     event.preventDefault();
     if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
     parentZone.classList.add("drop-target");
+    clearSpring();
     return;
   }
 
-  // Rechte Top-Ordner-Kachel als Drop-Ziel
+  // Rechte Top-Ordner-Kachel als Drop-Ziel — Verweilen öffnet den Ordner links
   const card = event.target.closest(".document-group-card[data-group-drop-href]");
-  if (evidenceDrag && card) {
+  if (card) {
     event.preventDefault();
     if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
     card.classList.add("drop-target");
+    const cardPrimary = card.dataset.evidenceGroupCard;
+    if (cardPrimary) {
+      scheduleSpring("card:" + cardPrimary, () => {
+        const g = activeProject.documentGroups?.find((x) => x.primary === cardPrimary);
+        if (!g || activeEvidenceGroup === cardPrimary) return;
+        activeEvidenceGroup = cardPrimary;
+        renderDocs(activeProject);
+        loadEvidenceEntries(g, evidenceHref(g));
+      });
+    } else clearSpring();
     return;
   }
 
+  // Unterordner-Zeile links — Verweilen navigiert hinein
   const row = event.target.closest("[data-evidence-entry-href]");
-  if (!evidenceDrag || !row || row.dataset.evidenceEntryType !== "Ordner") return;
-  if (evidenceDrag.sources.includes(row.dataset.evidenceEntryHref)) return;
+  if (row && row.dataset.evidenceEntryType === "Ordner" && !evidenceDrag.sources.includes(row.dataset.evidenceEntryHref)) {
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+    row.classList.add("drop-target");
+    const rowHref = row.dataset.evidenceEntryHref;
+    scheduleSpring("row:" + rowHref, () => {
+      const ctx = currentEvidenceContext();
+      if (!ctx) return;
+      const cached = evidenceEntries.get(ctx.key);
+      if (cached?.browseHref === rowHref) return;
+      loadEvidenceEntries(ctx.group, rowHref);
+    });
+    return;
+  }
 
-  event.preventDefault();
-  if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
-  row.classList.add("drop-target");
+  // über kein Ordner-Ziel → geplantes Öffnen abbrechen
+  clearSpring();
 });
 
 document.querySelector("#docs-view").addEventListener("dragleave", (event) => {
@@ -2004,6 +2045,7 @@ document.querySelector("#docs-view").addEventListener("dragleave", (event) => {
 });
 
 document.querySelector("#docs-view").addEventListener("drop", async (event) => {
+  clearSpring();
   const parentZone = event.target.closest("[data-parent-drop-href]");
   const card = event.target.closest(".document-group-card[data-group-drop-href]");
   const row = event.target.closest("[data-evidence-entry-href]");
@@ -2028,6 +2070,7 @@ document.querySelector("#docs-view").addEventListener("drop", async (event) => {
 
 document.querySelector("#docs-view").addEventListener("dragend", () => {
   evidenceDrag = null;
+  clearSpring();
   document.querySelector("#docs-view").classList.remove("evidence-drag-active");
   document.querySelectorAll(".evidence-parent-drop.drop-target, .document-group-card.drop-target").forEach((el) => el.classList.remove("drop-target"));
   document.querySelectorAll(".evidence-file-row.drop-target, .evidence-file-row.dragging")
