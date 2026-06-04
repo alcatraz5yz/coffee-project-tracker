@@ -321,6 +321,9 @@
       .part-number { color: inherit; font-weight: 900; }
       .empty { padding: 40px; text-align: center; color: #63707a; }
       .err { padding: 16px; background: #ffe2e2; color: #a01616; border-radius: 8px; }
+      .copynum { cursor: pointer; border-radius: 3px; padding: 0 1px; transition: background .12s; }
+      .copynum:hover { background: rgba(42,138,120,0.20); text-decoration: underline; text-underline-offset: 2px; }
+      .copynum.copied { background: #2a9646; color: #fff; }
     </style>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   </head>
@@ -640,8 +643,39 @@
           wireActionButtons(panel);
           wireMarkCellPicker(panel, data);
         }
+        makeNumbersCopyable(panel);
         // Kick off PDF thumbnail rendering for any new canvases just inserted.
         observePdfThumbs();
+      }
+
+      // Wrap every number token in the data cells in a clickable span so a single
+      // click copies just that number to the clipboard (for pasting into Infor).
+      function makeNumbersCopyable(root) {
+        const NUM = /\d+(?:[.\-/]\d+)*/g;
+        root.querySelectorAll("td.cell-content, td.mark-cell").forEach((cell) => {
+          const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT, null);
+          const nodes = [];
+          while (walker.nextNode()) nodes.push(walker.currentNode);
+          nodes.forEach((node) => {
+            const text = node.nodeValue;
+            NUM.lastIndex = 0;
+            if (!NUM.test(text)) return;
+            NUM.lastIndex = 0;
+            const frag = document.createDocumentFragment();
+            let last = 0, m;
+            while ((m = NUM.exec(text))) {
+              if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+              const span = document.createElement("span");
+              span.className = "copynum";
+              span.title = "Klick zum Kopieren";
+              span.textContent = m[0];
+              frag.appendChild(span);
+              last = m.index + m[0].length;
+            }
+            if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+            node.parentNode.replaceChild(frag, node);
+          });
+        });
       }
 
       // Click a mark-of-conformity cell → floating picker with 5 colors. Stages a change.
@@ -1052,6 +1086,27 @@
       $("list-btn").addEventListener("click", fetchFiles);
       $("parse-btn").addEventListener("click", parseFile);
       $("analyze-btn").addEventListener("click", analyzeFile);
+      // Klick auf eine Zahl → in die Zwischenablage kopieren (für Einfügen in Infor)
+      $("results-panel").addEventListener("click", async (ev) => {
+        const num = ev.target.closest(".copynum");
+        if (!num) return;
+        const txt = num.textContent;
+        try {
+          await navigator.clipboard.writeText(txt);
+        } catch {
+          const range = document.createRange();
+          range.selectNodeContents(num);
+          const sel = getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+          try { document.execCommand("copy"); } catch {}
+          sel.removeAllRanges();
+        }
+        num.classList.add("copied");
+        const prevTitle = num.title;
+        num.title = "✓ kopiert";
+        setTimeout(() => { num.classList.remove("copied"); num.title = prevTitle; }, 800);
+      });
       // Auto-load on page open
       fetchFiles();
     </script>
