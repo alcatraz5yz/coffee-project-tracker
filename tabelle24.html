@@ -361,7 +361,7 @@
       <header>
         <div>
           <h1>Tabelle 24 Scanner</h1>
-          <p>Bauteilliste lesen, Zertifikats-Zeilen prüfen, Word-Status vorbereiten.</p>
+          <p>Bauteilliste lesen und Zertifikats-Zeilen anzeigen (nur Ansicht).</p>
         </div>
         <div><a href="/">← Dashboard</a></div>
       </header>
@@ -578,7 +578,7 @@
         currentData = data;
         staged = new Map();
         renderSaveBar();
-        const editable = true;  // both paragraph and table formats are editable now
+        const editable = false;  // Markieren/Bearbeiten + Word-Speichern entfernt — Tabelle 24 ist reine Ansicht
 
         const head = `<thead><tr>
           <th style="width:40px">#</th>
@@ -629,9 +629,11 @@
           return mainRow + drawer;
         }).join("");
 
-        const note = data.format === "table"
-          ? '<div class="meta" style="padding:10px 12px"><strong>Tabellen-Format</strong> (.doc-Konversion). Original-Farben sind verloren — alle Status "unknown". Aktionen per Klick wie gewohnt; das gespeicherte File ist eine neue .docx.</div>'
-          : '<div class="meta" style="padding:10px 12px">Paragraph-Format — klick auf Confirm/Expire/Update pro Zeile, dann oben "Word-Datei speichern".</div>';
+        const note = !editable
+          ? '<div class="meta" style="padding:10px 12px">Bauteil-Tabelle (Tabelle 24) — Ansicht. Die Datei wird nur gelesen, nicht verändert.</div>'
+          : data.format === "table"
+            ? '<div class="meta" style="padding:10px 12px"><strong>Tabellen-Format</strong> (.doc-Konversion). Original-Farben sind verloren — alle Status "unknown". Aktionen per Klick wie gewohnt; das gespeicherte File ist eine neue .docx.</div>'
+            : '<div class="meta" style="padding:10px 12px">Paragraph-Format — klick auf Confirm/Expire/Update pro Zeile, dann oben "Word-Datei speichern".</div>';
         panel.innerHTML = `${note}<table>${head}<tbody>${body}</tbody></table>`;
 
         if (editable) {
