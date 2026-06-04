@@ -1910,15 +1910,15 @@ h2 {
   overflow-y: auto;
 }
 .docs-two-pane #document-group-grid {
-  flex: 0 0 420px;
+  flex: 0 0 470px;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
   align-content: start;
   max-height: calc(100vh - 270px);
-  overflow-y: auto;
+  overflow: hidden;
   /* gleicher Box-Rahmen wie das linke Feld, damit beide gleich weit nach unten reichen */
-  padding: 10px;
+  padding: 8px;
   border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
   border-radius: 8px;
   background: var(--panel);
@@ -1926,7 +1926,7 @@ h2 {
 }
 /* compact cards in the side list: name + small count only */
 .docs-two-pane .document-group-card {
-  padding: 7px 9px;
+  padding: 6px 8px;
   gap: 2px;
 }
 .docs-two-pane .document-group-card .dgc-actions,
