@@ -1056,6 +1056,9 @@ async function moveEvidenceEntriesToFolder(sourceHrefs, targetHref) {
         body: JSON.stringify({ sourceHref: href, destHref: targetHref })
       });
     }
+    // Ordner-Cache leeren, damit sowohl der Quell- als auch der Ziel-Ordner beim
+    // nächsten Öffnen frisch geladen werden (sonst zeigt das Ziel den alten Stand).
+    evidencePathEntries.clear();
     await refreshEvidenceFolder(ctx.group, ctx.currentHref);
   } catch (err) {
     alert(`Verschieben fehlgeschlagen: ${err.message}`);
