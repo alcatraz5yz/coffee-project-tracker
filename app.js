@@ -128,6 +128,45 @@ let selectedEvidenceHrefs = new Set();
 let evidenceSelectionAnchor = null;
 let evidenceClipboard = null;
 let evidenceDrag = null;
+// Sortierung + Suche im aktuellen Ordner.
+let evidenceSort = { key: "name", dir: "asc" };
+let evidenceSearch = "";
+function sortEvidenceEntries(entries) {
+  const { key, dir } = evidenceSort;
+  const mul = dir === "asc" ? 1 : -1;
+  const ext = (n) => { const i = String(n).lastIndexOf("."); return i > 0 ? n.slice(i + 1).toLowerCase() : ""; };
+  return entries.slice().sort((a, b) => {
+    // Ordner immer zuerst (wie im Finder/Explorer).
+    const fa = a.type === "Ordner" ? 0 : 1;
+    const fb = b.type === "Ordner" ? 0 : 1;
+    if (fa !== fb) return fa - fb;
+    let cmp = 0;
+    if (key === "modified") cmp = (a.mtime || 0) - (b.mtime || 0);
+    else if (key === "type") cmp = ext(a.name).localeCompare(ext(b.name), "de");
+    else cmp = String(a.name).localeCompare(String(b.name), "de", { numeric: true, sensitivity: "base" });
+    if (cmp === 0) cmp = String(a.name).localeCompare(String(b.name), "de", { numeric: true, sensitivity: "base" });
+    return cmp * mul;
+  });
+}
+function sortArrow(key) {
+  if (evidenceSort.key !== key) return "";
+  return evidenceSort.dir === "asc" ? " ▲" : " ▼";
+}
+function filterEvidenceRows() {
+  const q = evidenceSearch.trim().toLowerCase();
+  const pane = document.querySelector("#docs-detail-pane");
+  if (!pane) return;
+  let visible = 0, total = 0;
+  pane.querySelectorAll(".evidence-file-row:not(.head)").forEach((row) => {
+    total++;
+    const name = (row.dataset.evidenceEntryName || "").toLowerCase();
+    const hide = q && !name.includes(q);
+    row.classList.toggle("evidence-row-hidden", !!hide);
+    if (!hide) visible++;
+  });
+  const hint = pane.querySelector(".evidence-search-empty");
+  if (hint) hint.classList.toggle("hidden", !(q && total && visible === 0));
+}
 // Spring-loaded folders: beim Draggen über einen Ordner verweilen → öffnet ihn.
 let springTimer = null;
 let springKey = null;
@@ -289,6 +328,7 @@ async function reloadProject() {
 }
 
 async function loadEvidenceEntries(group, browseHref) {
+  evidenceSearch = "";   // Suche bei jedem Ordnerwechsel zurücksetzen
   const key = evidenceCacheKey(activeProject.id, group.primary);
   const href = browseHref || evidenceHref(group);
   const rootHref = evidenceHref(group);
@@ -840,6 +880,20 @@ function renderDocs(project) {
       : decCurrent;
     const pathParts = relPath ? relPath.split("/").filter(Boolean) : [];
     const locationTitle = pathParts.length ? pathParts[pathParts.length - 1] : group.primary;
+    // Breadcrumb-Pfad: Wurzel (= Ordnername) › Unterordner › … — alle ausser dem
+    // letzten sind anklickbar. Wurzel nutzt die exakte rootHref (gleiche Kodierung),
+    // damit isSubfolder korrekt false wird; Zwischenebenen den dekodierten Pfad
+    // (der Server dekodiert ohnehin).
+    const crumbs = [{ label: group.primary, href: rootHref }];
+    let crumbAcc = decRoot;
+    pathParts.forEach((seg) => { crumbAcc = `${crumbAcc}/${seg}`; crumbs.push({ label: seg, href: `${crumbAcc}/` }); });
+    const breadcrumbMarkup = `
+      <nav class="evidence-breadcrumb" aria-label="Pfad">
+        ${crumbs.map((c, i) => i === crumbs.length - 1
+          ? `<span class="evidence-crumb current">${escapeHtml(c.label)}</span>`
+          : `<button type="button" class="evidence-crumb" data-evidence-crumb="${escapeHtml(c.href)}" data-evidence-crumb-group="${escapeHtml(group.primary)}">${escapeHtml(c.label)}</button><span class="evidence-crumb-sep">›</span>`
+        ).join("")}
+      </nav>`;
     const selectedInThisFolder = entries.some((entry) => selectedEvidenceHrefs.has(entry.href));
     const selectedCountInThisFolder = entries.filter((entry) => selectedEvidenceHrefs.has(entry.href)).length;
     const pasteDisabled = evidenceClipboard ? "" : "disabled";
@@ -854,16 +908,16 @@ function renderDocs(project) {
         </div>`
       : "";
     const fileListMarkup = cached?.loading
-      ? `${backBtn}${parentDropZone}<p class="empty-state">Ordnerinhalt wird geladen...</p>`
+      ? `<div class="evidence-crumb-bar">${backBtn}${breadcrumbMarkup}</div>${parentDropZone}<p class="empty-state">Ordnerinhalt wird geladen...</p>`
       : cached?.error
-        ? `${backBtn}${parentDropZone}<p class="empty-state">Ordnerinhalt konnte nicht gelesen werden.
+        ? `<div class="evidence-crumb-bar">${backBtn}${breadcrumbMarkup}</div>${parentDropZone}<p class="empty-state">Ordnerinhalt konnte nicht gelesen werden.
             <button class="finder-action" type="button" data-evidence-retry="${group.primary}">Erneut laden</button>
             ${cached.errorMessage ? `<small>${escapeHtml(cached.errorMessage)}</small>` : ""}
           </p>`
         : entries.length ? `
+          <div class="evidence-crumb-bar">${backBtn}${breadcrumbMarkup}</div>
           <div class="evidence-location-bar">
-            ${backBtn}
-            <strong>${escapeHtml(locationTitle)}</strong>
+            <input type="search" class="evidence-search" data-evidence-search placeholder="Im Ordner suchen…" value="${escapeHtml(evidenceSearch)}" autocomplete="off">
             <span class="evidence-toolbar-spacer"></span>
             <button class="finder-action" type="button" data-file-action="mkdir" data-current-href="${escapeHtml(currentHref)}">Neuer Ordner</button>
             <button class="finder-action" type="button" data-file-action="rename" ${singleSelectedDisabled}>Umbenennen</button>
@@ -874,9 +928,13 @@ function renderDocs(project) {
           </div>
           ${parentDropZone}
           <div class="evidence-file-row head">
-            <span>Name</span><span>Typ</span><span>Geändert</span><span>Aktion</span>
+            <button type="button" class="evidence-sort${evidenceSort.key === "name" ? " active" : ""}" data-sort="name">Name${sortArrow("name")}</button>
+            <button type="button" class="evidence-sort${evidenceSort.key === "type" ? " active" : ""}" data-sort="type">Typ${sortArrow("type")}</button>
+            <button type="button" class="evidence-sort${evidenceSort.key === "modified" ? " active" : ""}" data-sort="modified">Geändert${sortArrow("modified")}</button>
+            <span>Aktion</span>
           </div>
-          ${entries.map((entry) => `
+          <p class="evidence-search-empty empty-state hidden">Keine Treffer.</p>
+          ${sortEvidenceEntries(entries).map((entry) => `
             <div class="evidence-file-row${entry.type === "Ordner" ? " evidence-file-row--folder" : ""}${selectedEvidenceHrefs.has(entry.href) ? " explorer-selected" : ""}"
               draggable="true"
               data-evidence-entry-href="${entry.href}"
@@ -897,7 +955,7 @@ function renderDocs(project) {
               </span>
             </div>
           `).join("")}
-        ` : `${backBtn}${parentDropZone}<p class="empty-state">Dieser Ordner enthält keine sichtbaren Dateien.</p>`;
+        ` : `<div class="evidence-crumb-bar">${backBtn}${breadcrumbMarkup}</div>${parentDropZone}<p class="empty-state">Dieser Ordner enthält keine sichtbaren Dateien.</p>`;
 
     return `
       <section class="document-group-detail">
@@ -957,6 +1015,7 @@ function renderDocs(project) {
     detailPane.innerHTML = selectedGroup
       ? groupDetailMarkup(selectedGroup)
       : `<p class="empty-state">Wähle rechts einen Ordner, um den Inhalt hier zu sehen.</p>`;
+    if (evidenceSearch) filterEvidenceRows();   // aktive Suche nach Re-Render erneut anwenden
   }
 
   document.querySelector("#reports-panel")?.classList.add("hidden");
@@ -2095,6 +2154,14 @@ document.querySelector("#docs-view").addEventListener("dragend", () => {
     .forEach((el) => el.classList.remove("drop-target", "dragging"));
 });
 
+// Live-Suche im aktuellen Ordner (filtert die Zeilen ohne Re-Render → Fokus bleibt)
+document.querySelector("#docs-view").addEventListener("input", (event) => {
+  const box = event.target.closest("[data-evidence-search]");
+  if (!box) return;
+  evidenceSearch = box.value;
+  filterEvidenceRows();
+});
+
 // Open local folder in Finder/Explorer via local backend
 document.querySelector("#docs-view").addEventListener("click", async (event) => {
   const fileActionBtn = event.target.closest("[data-file-action]");
@@ -2170,6 +2237,31 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     }
 
     window.open(href, "_blank", "noreferrer");
+    return;
+  }
+
+  // Breadcrumb-Navigation: zu einer Ebene im Pfad springen
+  const crumb = event.target.closest("[data-evidence-crumb]");
+  if (crumb) {
+    const group = activeProject.documentGroups?.find((g) => g.primary === crumb.dataset.evidenceCrumbGroup);
+    if (group) {
+      const href = crumb.dataset.evidenceCrumb;
+      history.pushState({ projectId: activeProject.id, view: "docs", openGroup: group.primary, subfolderGroup: group.primary, subfolderHref: href }, "", `#${activeProject.id}`);
+      loadEvidenceEntries(group, href);
+    }
+    return;
+  }
+
+  // Sortierung umschalten (Spaltenkopf)
+  const sortBtn = event.target.closest("[data-sort]");
+  if (sortBtn) {
+    const sortKey = sortBtn.dataset.sort;
+    if (evidenceSort.key === sortKey) evidenceSort.dir = evidenceSort.dir === "asc" ? "desc" : "asc";
+    else { evidenceSort.key = sortKey; evidenceSort.dir = "asc"; }
+    const saved = document.querySelector("#docs-detail-pane .evidence-file-table")?.scrollTop || 0;
+    renderDocs(activeProject);
+    const sc = document.querySelector("#docs-detail-pane .evidence-file-table");
+    if (sc) sc.scrollTop = saved;
     return;
   }
 

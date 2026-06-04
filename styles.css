@@ -2334,9 +2334,21 @@ h2 {
 
 .evidence-location-bar {
   display: flex;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
   align-items: center;
   padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-soft);
+}
+
+/* Breadcrumb-Zeile über der Werkzeugleiste */
+.evidence-crumb-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 9px 12px;
   border-bottom: 1px solid var(--line);
   background: var(--panel-soft);
 }
@@ -2387,7 +2399,78 @@ h2 {
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
+
+/* Sortier-Spaltenköpfe */
+.evidence-sort {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.evidence-sort:hover { color: var(--ink); }
+.evidence-sort.active { color: var(--accent); }
+
+/* Breadcrumb-Pfad */
+.evidence-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  font-size: 13px;
+}
+.evidence-crumb {
+  background: none;
+  border: 0;
+  padding: 2px 4px;
+  margin: 0;
+  font: inherit;
+  color: var(--accent);
+  font-weight: 700;
+  cursor: pointer;
+  border-radius: 4px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.evidence-crumb:hover { background: var(--accent-soft); text-decoration: underline; }
+.evidence-crumb.current {
+  color: var(--ink);
+  font-weight: 800;
+  cursor: default;
+  padding: 2px 4px;
+}
+.evidence-crumb-sep { color: var(--muted); opacity: 0.6; }
+
+/* Suche im Ordner */
+.evidence-search {
+  flex: 0 1 200px;
+  min-width: 120px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 13px;
+}
+.evidence-search:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.evidence-row-hidden { display: none !important; }
+.evidence-search-empty { margin: 14px 12px; }
 
 .evidence-file-row a {
   color: var(--accent);
