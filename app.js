@@ -2043,7 +2043,13 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
       evidenceSelectionAnchor = href;
     }
     selectedEvidenceHref = href;
+    // Beim Auswählen einer Datei die Scroll-Position der Liste erhalten, damit
+    // sie nicht nach oben springt. Der Scroll-Container ist .evidence-file-table,
+    // den renderDocs neu erzeugt → Wert sichern und auf dem neuen Element setzen.
+    const savedScroll = document.querySelector("#docs-detail-pane .evidence-file-table")?.scrollTop || 0;
     renderDocs(activeProject);
+    const newScroller = document.querySelector("#docs-detail-pane .evidence-file-table");
+    if (newScroller) newScroller.scrollTop = savedScroll;
 
     if (type === "Ordner") {
       if (!group) return;
