@@ -898,6 +898,7 @@ function renderDocs(project) {
         const isSelected = activeEvidenceGroup === group.primary;
         return `
           <article class="document-group-card ${statusClass(group.status)} ${isSelected ? "selected" : ""} ${isEmpty ? "dgc-empty" : ""}"
+            data-group-drop-href="${escapeHtml(evidenceHref(group))}"
             ${isEmpty ? "" : `data-evidence-group-card="${group.primary}" role="button" tabindex="0"`}>
             <div class="dgc-top">
               <strong>${folderLabel}</strong>
@@ -1963,6 +1964,15 @@ document.querySelector("#docs-view").addEventListener("dragover", (event) => {
     return;
   }
 
+  // Rechte Top-Ordner-Kachel als Drop-Ziel
+  const card = event.target.closest(".document-group-card[data-group-drop-href]");
+  if (evidenceDrag && card) {
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+    card.classList.add("drop-target");
+    return;
+  }
+
   const row = event.target.closest("[data-evidence-entry-href]");
   if (!evidenceDrag || !row || row.dataset.evidenceEntryType !== "Ordner") return;
   if (evidenceDrag.sources.includes(row.dataset.evidenceEntryHref)) return;
@@ -1979,6 +1989,12 @@ document.querySelector("#docs-view").addEventListener("dragleave", (event) => {
     return;
   }
 
+  const card = event.target.closest(".document-group-card[data-group-drop-href]");
+  if (card && !card.contains(event.relatedTarget)) {
+    card.classList.remove("drop-target");
+    return;
+  }
+
   const row = event.target.closest("[data-evidence-entry-href]");
   if (!row || row.contains(event.relatedTarget)) return;
   row.classList.remove("drop-target");
@@ -1986,18 +2002,22 @@ document.querySelector("#docs-view").addEventListener("dragleave", (event) => {
 
 document.querySelector("#docs-view").addEventListener("drop", async (event) => {
   const parentZone = event.target.closest("[data-parent-drop-href]");
+  const card = event.target.closest(".document-group-card[data-group-drop-href]");
   const row = event.target.closest("[data-evidence-entry-href]");
   document.querySelector("#docs-view").classList.remove("evidence-drag-active");
-  document.querySelectorAll(".evidence-parent-drop.drop-target").forEach((el) => el.classList.remove("drop-target"));
+  document.querySelectorAll(".evidence-parent-drop.drop-target, .document-group-card.drop-target").forEach((el) => el.classList.remove("drop-target"));
   document.querySelectorAll(".evidence-file-row.drop-target").forEach((el) => el.classList.remove("drop-target"));
   document.querySelectorAll(".evidence-file-row.dragging").forEach((el) => el.classList.remove("dragging"));
-  if (!evidenceDrag || (!parentZone && (!row || row.dataset.evidenceEntryType !== "Ordner"))) {
+  const isFolderRow = row && row.dataset.evidenceEntryType === "Ordner";
+  if (!evidenceDrag || (!parentZone && !card && !isFolderRow)) {
     evidenceDrag = null;
     return;
   }
 
   event.preventDefault();
-  const targetHref = parentZone ? parentZone.dataset.parentDropHref : row.dataset.evidenceEntryHref;
+  const targetHref = parentZone ? parentZone.dataset.parentDropHref
+    : card ? card.dataset.groupDropHref
+    : row.dataset.evidenceEntryHref;
   const sources = evidenceDrag.sources;
   evidenceDrag = null;
   await moveEvidenceEntriesToFolder(sources, targetHref);
@@ -2006,7 +2026,7 @@ document.querySelector("#docs-view").addEventListener("drop", async (event) => {
 document.querySelector("#docs-view").addEventListener("dragend", () => {
   evidenceDrag = null;
   document.querySelector("#docs-view").classList.remove("evidence-drag-active");
-  document.querySelectorAll(".evidence-parent-drop.drop-target").forEach((el) => el.classList.remove("drop-target"));
+  document.querySelectorAll(".evidence-parent-drop.drop-target, .document-group-card.drop-target").forEach((el) => el.classList.remove("drop-target"));
   document.querySelectorAll(".evidence-file-row.drop-target, .evidence-file-row.dragging")
     .forEach((el) => el.classList.remove("drop-target", "dragging"));
 });
