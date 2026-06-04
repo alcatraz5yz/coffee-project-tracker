@@ -1917,6 +1917,12 @@ h2 {
   align-content: start;
   max-height: calc(100vh - 270px);
   overflow-y: auto;
+  /* gleicher Box-Rahmen wie das linke Feld, damit beide gleich weit nach unten reichen */
+  padding: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 16px 36px color-mix(in srgb, var(--ink) 10%, transparent);
 }
 /* compact cards in the side list: name + small count only */
 .docs-two-pane .document-group-card {
