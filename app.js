@@ -828,12 +828,17 @@ function renderDocs(project) {
     const currentHref = cached?.browseHref || evidenceHref(group);
     const rootHref = cached?.rootHref || evidenceHref(group);
     const parentHref = isSubfolder ? parentEvidenceHref(currentHref, rootHref) : null;
-    const relPath = currentHref
-      .replace(evidenceHref(group), "")
-      .replace(/\/$/, "");
-    const pathParts = relPath
-      ? relPath.split("/").filter(Boolean).map((part) => decodeURIComponent(part))
-      : [];
+    // Hrefs sind inkonsistent kodiert: evidenceHref() nutzt encodeURI (Leerzeichen
+    // → %20), die vom Server gelieferten entry.href sind aber roh. Daher beide Seiten
+    // erst dekodieren, sonst greift das Prefix-Stripping nicht und der kodierte
+    // Ordnername (z.B. "08%20Schema%20Gera%CC%88t") landet im Titel.
+    const decodeSafe = (s) => { try { return decodeURIComponent(s); } catch { return s; } };
+    const decRoot = decodeSafe(rootHref).replace(/\/$/, "");
+    const decCurrent = decodeSafe(currentHref).replace(/\/$/, "");
+    const relPath = decCurrent.startsWith(decRoot)
+      ? decCurrent.slice(decRoot.length).replace(/^\//, "")
+      : decCurrent;
+    const pathParts = relPath ? relPath.split("/").filter(Boolean) : [];
     const locationTitle = pathParts.length ? pathParts[pathParts.length - 1] : group.primary;
     const selectedInThisFolder = entries.some((entry) => selectedEvidenceHrefs.has(entry.href));
     const selectedCountInThisFolder = entries.filter((entry) => selectedEvidenceHrefs.has(entry.href)).length;
@@ -2214,15 +2219,19 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
 
   const groupCard = event.target.closest("[data-evidence-group-card]");
   if (groupCard && !event.target.closest("a, button")) {
-    const wasOpen = activeEvidenceGroup === groupCard.dataset.evidenceGroupCard;
-    toggleEvidenceGroup(groupCard.dataset.evidenceGroupCard);
-    if (!wasOpen && activeEvidenceGroup) {
+    const cardGroup = groupCard.dataset.evidenceGroupCard;
+    // Klick auf eine Kachel wählt sie immer aus (kein Umschalten/Abwählen),
+    // damit ein Doppelklick auf denselben Ordner nicht zum ersten zurückspringt.
+    if (activeEvidenceGroup === cardGroup) return;
+    const hadSelection = !!activeEvidenceGroup;
+    activeEvidenceGroup = cardGroup;
+    if (!hadSelection) {
       history.replaceState({ projectId: activeProject.id, view: "docs" }, "", `#${activeProject.id}`);
-      history.pushState({ projectId: activeProject.id, view: "docs", openGroup: activeEvidenceGroup }, "", `#${activeProject.id}`);
     }
-    const group = activeProject.documentGroups?.find((item) => item.primary === groupCard.dataset.evidenceGroupCard);
+    history.pushState({ projectId: activeProject.id, view: "docs", openGroup: activeEvidenceGroup }, "", `#${activeProject.id}`);
+    const group = activeProject.documentGroups?.find((item) => item.primary === cardGroup);
     renderDocs(activeProject);
-    if (activeEvidenceGroup && group) loadEvidenceEntries(group);
+    if (group) loadEvidenceEntries(group);
     return;
   }
 
