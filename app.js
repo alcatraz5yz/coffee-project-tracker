@@ -869,10 +869,18 @@ function renderDocs(project) {
     const rootHref = cached?.rootHref || evidenceHref(group);
     const parentHref = isSubfolder ? parentEvidenceHref(currentHref, rootHref) : null;
     // Hrefs sind inkonsistent kodiert: evidenceHref() nutzt encodeURI (Leerzeichen
-    // → %20), die vom Server gelieferten entry.href sind aber roh. Daher beide Seiten
-    // erst dekodieren, sonst greift das Prefix-Stripping nicht und der kodierte
-    // Ordnername (z.B. "08%20Schema%20Gera%CC%88t") landet im Titel.
-    const decodeSafe = (s) => { try { return decodeURIComponent(s); } catch { return s; } };
+    // → %20) und liefert je nach Modus teils SOGAR doppelt kodierte Pfade
+    // (z.B. "01%2520Administration" = "%20" nochmals kodiert), während die vom Server
+    // gelieferten entry.href roh sind. Daher beide Seiten mehrfach voll dekodieren —
+    // sonst greift das Prefix-Stripping nicht und der ganze Pfad bzw. ein kodierter
+    // Ordnername (z.B. "08%20Schema%20Gera%CC%88t") landet im Breadcrumb/Titel.
+    const decodeSafe = (s) => {
+      let v = String(s || "");
+      for (let i = 0; i < 5; i++) {
+        try { const d = decodeURIComponent(v); if (d === v) break; v = d; } catch { break; }
+      }
+      return v;
+    };
     const decRoot = decodeSafe(rootHref).replace(/\/$/, "");
     const decCurrent = decodeSafe(currentHref).replace(/\/$/, "");
     const relPath = decCurrent.startsWith(decRoot)
