@@ -131,6 +131,9 @@ let evidenceDrag = null;
 // Sortierung + Suche im aktuellen Ordner.
 let evidenceSort = { key: "name", dir: "asc" };
 let evidenceSearch = "";
+// Pro Ordner (Gruppe) den zuletzt besuchten Unterordner merken, damit man beim
+// Wechsel zwischen Ordnern in seinem jeweiligen Unterordner bleibt.
+const lastFolderByGroup = new Map();
 function sortEvidenceEntries(entries) {
   const { key, dir } = evidenceSort;
   const mul = dir === "asc" ? 1 : -1;
@@ -330,8 +333,12 @@ async function reloadProject() {
 async function loadEvidenceEntries(group, browseHref) {
   evidenceSearch = "";   // Suche bei jedem Ordnerwechsel zurücksetzen
   const key = evidenceCacheKey(activeProject.id, group.primary);
-  const href = browseHref || evidenceHref(group);
+  // Ohne expliziten Pfad: zuletzt besuchten Unterordner dieses Ordners wieder
+  // öffnen (pro Ordner gemerkt), sonst die Wurzel. So bleibt man beim Wechsel
+  // zwischen z.B. 09 und 10 in seinem jeweiligen Unterordner.
+  const href = browseHref || lastFolderByGroup.get(key) || evidenceHref(group);
   const rootHref = evidenceHref(group);
+  lastFolderByGroup.set(key, href);   // aktuellen Ordner pro Gruppe merken
   const pathKey = `${key}:${href}`;
   const cachedPath = evidencePathEntries.get(pathKey);
   if (cachedPath) {
@@ -856,7 +863,7 @@ function renderDocs(project) {
     const firstReal = groups.find(g => (parseInt(g.count) || 0) > 0) || groups[0];
     if (firstReal) {
       activeEvidenceGroup = firstReal.primary;
-      loadEvidenceEntries(firstReal, evidenceHref(firstReal));
+      loadEvidenceEntries(firstReal);   // merkt sich den zuletzt besuchten Unterordner
     }
   }
 
@@ -2084,7 +2091,7 @@ document.querySelector("#docs-view").addEventListener("dragover", (event) => {
         if (!g || activeEvidenceGroup === cardPrimary) return;
         activeEvidenceGroup = cardPrimary;
         renderDocs(activeProject);
-        loadEvidenceEntries(g, evidenceHref(g));
+        loadEvidenceEntries(g);   // gemerkten Unterordner wieder öffnen
       });
     } else clearSpring();
     return;
