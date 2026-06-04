@@ -2482,21 +2482,29 @@ h2 {
 }
 
 .evidence-parent-drop {
-  display: none;
+  /* Immer sichtbar (in Unterordnern) + sticky oben → kein Layout-Sprung beim
+     Drag-Start und auch beim Scrollen erreichbar. Dezent im Ruhezustand. */
+  display: flex;
+  position: sticky;
+  top: 0;
+  z-index: 5;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
   margin: 0 0 8px;
-  padding: 10px 12px;
-  border: 1px dashed color-mix(in srgb, var(--accent) 55%, var(--line));
+  padding: 8px 12px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, var(--line));
   border-radius: 6px;
-  background: color-mix(in srgb, var(--accent-soft) 72%, var(--panel));
+  background: color-mix(in srgb, var(--accent-soft) 80%, var(--panel));
   color: var(--muted);
   font-size: 12px;
+  opacity: 0.65;
+  transition: opacity .12s, border-color .12s, background .12s;
 }
 
 #docs-view.evidence-drag-active .evidence-parent-drop {
-  display: flex;
+  opacity: 1;
+  border-color: var(--accent);
 }
 
 .evidence-parent-drop strong {
