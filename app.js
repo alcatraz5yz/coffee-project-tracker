@@ -951,8 +951,8 @@ function renderDocs(project) {
               data-evidence-entry-group="${group.primary}">
               ${entry.type === "Ordner"
                 ? entry.empty
-                  ? `<span class="evidence-folder-btn evidence-folder-empty">📁 ${entry.name} <em>leer</em></span>`
-                  : `<span class="evidence-folder-btn">📂 ${entry.name} <em class="folder-count">${entry.childCount} Dateien</em></span>`
+                  ? `<span class="evidence-folder-btn evidence-folder-empty"><span class="folder-ico">📁</span> ${entry.name} <em>leer</em></span>`
+                  : `<span class="evidence-folder-btn"><span class="folder-ico">📂</span> ${entry.name} <em class="folder-count">${entry.childCount} Dateien</em></span>`
                 : `<div class="file-name-cell">${fileThumbHtml(entry)}${entry.type === "Datei" && isOfficeFile(entry.name)
                     ? `<span class="word-action word-action--name">${entry.name}</span>`
                     : `<span class="evidence-file-name">${entry.name}</span>`}</div>`}
