@@ -1080,8 +1080,8 @@ app.get("/api/list-path", async (req, res, next) => {
           childCount: isDirectory ? childCount : null
         };
       })))
-      .sort((a, b) => Number(b.type === "Ordner") - Number(a.type === "Ordner") || b.mtime - a.mtime)
-      .map(({ mtime, ...rest }) => rest);
+      .sort((a, b) => Number(b.type === "Ordner") - Number(a.type === "Ordner") || b.mtime - a.mtime);
+    // mtime bleibt im Payload, damit der Client nach Datum sortieren kann.
 
     const payload = { href: urlPath, entries };
     listPathCache.set(cacheKey, { createdAt: Date.now(), payload });
