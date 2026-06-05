@@ -1,41 +1,56 @@
 :root {
   --sb-w: 290px;
-  --bg: #e8e2d8;
-  --panel: #faf7f2;
-  --panel-soft: #f4efe8;
-  --ink: #241f1a;
-  --muted: #6d655b;
-  --line: #ddd5c9;
-  --accent: #2a8a78;
-  --accent-soft: #e7f1ec;
-  --good: #22754b;
-  --watch: #9a6615;
-  --bad: #a33d37;
-  --shadow: 0 16px 34px rgba(40, 32, 22, 0.10);
-  --sidebar: #262019;
-  --sidebar-panel: #322b22;
-  --sidebar-panel-active: #3f372b;
-  --sidebar-line: #463d31;
+  /* Light — kühles, ruhiges „Misty Paper" (Lefos-Gegenstück zum Dark-Theme) */
+  --bg: #e6e9ee;
+  --panel: #f8f9fb;
+  --panel-soft: #eef1f5;
+  --ink: #1d242c;
+  --muted: #5f6b78;
+  --line: #d4dae1;
+  --accent: #2f8a86;
+  --accent-soft: #e4eeec;
+  --good: #1f7a52;
+  --watch: #93651a;
+  --bad: #a83f39;
+  --shadow: 0 16px 38px rgba(40, 52, 66, 0.12);
+  --sidebar: #1b232e;
+  --sidebar-panel: #232d3a;
+  --sidebar-panel-active: #2c3847;
+  --sidebar-line: #313e4d;
+  /* Weiche, unscharfe Bokeh-Flächen + Vignette (Light) */
+  --bg-image:
+    radial-gradient(58% 48% at 24% 18%, rgba(255, 255, 255, 0.55), transparent 70%),
+    radial-gradient(52% 44% at 82% 28%, rgba(214, 224, 234, 0.50), transparent 72%),
+    radial-gradient(68% 58% at 60% 92%, rgba(206, 216, 228, 0.55), transparent 75%),
+    radial-gradient(120% 120% at 50% 45%, transparent 58%, rgba(120, 134, 150, 0.22) 100%);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 body[data-theme="dark"] {
-  --bg: #1b1917;
-  --panel: #25221f;
-  --panel-soft: #2e2a26;
-  --ink: #f1ece6;
-  --muted: #a69e95;
-  --line: #3a3530;
-  --accent: #5ac0a6;
-  --accent-soft: #21302a;
-  --good: #78d39f;
-  --watch: #e5b665;
-  --bad: #ee8b83;
-  --shadow: 0 18px 42px rgba(0, 0, 0, 0.40);
-  --sidebar: #1a1714;
-  --sidebar-panel: #2a251f;
-  --sidebar-panel-active: #3a3329;
-  --sidebar-line: #3a3530;
+  /* Dark — Lefos: tiefes, entsättigtes Navy/Anthrazit, cineastisch */
+  --bg: #141b23;
+  --panel: #1b2531;
+  --panel-soft: #212d3a;
+  --ink: #e9eef3;
+  --muted: #8b98a6;
+  --line: #2c3845;
+  --accent: #6cb4ac;
+  --accent-soft: #1c2a2c;
+  --good: #74cfa0;
+  --watch: #d7ad63;
+  --bad: #e88b83;
+  --shadow: 0 20px 48px rgba(0, 0, 0, 0.52);
+  --sidebar: #10161e;
+  --sidebar-panel: #1a232f;
+  --sidebar-panel-active: #243040;
+  --sidebar-line: #2a3543;
+  /* Weiche, unscharfe Bokeh-Flächen (defokussiertes Laub) + Vignette (Dark) */
+  --bg-image:
+    radial-gradient(58% 48% at 24% 18%, rgba(64, 86, 108, 0.50), transparent 70%),
+    radial-gradient(52% 44% at 82% 28%, rgba(44, 62, 82, 0.46), transparent 72%),
+    radial-gradient(70% 60% at 62% 92%, rgba(30, 46, 64, 0.52), transparent 75%),
+    radial-gradient(46% 40% at 90% 80%, rgba(52, 72, 92, 0.34), transparent 70%),
+    radial-gradient(130% 125% at 50% 45%, transparent 50%, rgba(6, 10, 16, 0.72) 100%);
   color-scheme: dark;
 }
 
@@ -47,32 +62,28 @@ body {
   min-width: 980px;
   min-height: 100vh;
   margin: 0;
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image: var(--bg-image);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-size: cover;
+  background-position: center;
   color: var(--ink);
-  transition: background 160ms ease, color 160ms ease;
-}
-
-body {
+  transition: background-color 200ms ease, color 200ms ease;
   position: relative;
 }
 
+/* Feines Filmkorn über der ganzen Fläche — dezent, nur als Textur (kein Wash) */
 body::after {
   content: '';
-  position: absolute;
-  top: 0;
-  left: var(--sb-w);
-  right: 0;
-  bottom: 0;
+  position: fixed;
+  inset: 0;
   pointer-events: none;
   z-index: 9999;
-  opacity: 0.55;
+  opacity: 0.07;
   background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='820' height='820'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.04' numOctaves='5' seed='15' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='0.25'/%3E%3CfeFuncG type='linear' slope='0.25'/%3E%3CfeFuncB type='linear' slope='0.25'/%3E%3CfeFuncA type='gamma' amplitude='1.7' exponent='4' offset='-0.32'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='820' height='820' filter='url(%23g)'/%3E%3C/svg%3E"),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='460' height='460'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' seed='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='0.2'/%3E%3CfeFuncG type='linear' slope='0.2'/%3E%3CfeFuncB type='linear' slope='0.2'/%3E%3CfeFuncA type='gamma' amplitude='1.4' exponent='3.5' offset='-0.35'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='460' height='460' filter='url(%23s)'/%3E%3C/svg%3E");
-}
-
-body.dashboard-mode::after {
-  left: 0;
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 300px 300px;
 }
 
 button,
@@ -104,10 +115,10 @@ select {
   height: 100vh;
   pointer-events: none;
   z-index: 21;
-  opacity: 0.55;
+  opacity: 0.08;
   background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='820' height='820'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.04' numOctaves='5' seed='15' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='0.25'/%3E%3CfeFuncG type='linear' slope='0.25'/%3E%3CfeFuncB type='linear' slope='0.25'/%3E%3CfeFuncA type='gamma' amplitude='1.7' exponent='4' offset='-0.32'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='820' height='820' filter='url(%23g)'/%3E%3C/svg%3E"),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='460' height='460'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' seed='3'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='0.2'/%3E%3CfeFuncG type='linear' slope='0.2'/%3E%3CfeFuncB type='linear' slope='0.2'/%3E%3CfeFuncA type='gamma' amplitude='1.4' exponent='3.5' offset='-0.35'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='460' height='460' filter='url(%23s)'/%3E%3C/svg%3E");
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n2'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n2)'/%3E%3C/svg%3E");
+  background-size: 300px 300px;
 }
 
 /* Sidebar ein-/ausblenden + Breite ziehen (Prototyp) */
