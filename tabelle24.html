@@ -131,6 +131,16 @@
       .folder-badge.missing { background: #ffe2e2; color: #a01616; }
       .folder-badge.archiv  { background: #e9eef2; color: #52606b; }
       .folder-badge.none    { background: transparent; color: #99a4ab; }
+      /* Anklickbares „Ordner fehlt/wählen" — öffnet den nativen Ordner-Dialog */
+      .folder-badge.missing { cursor: pointer; }
+      .folder-badge.missing:hover { filter: brightness(0.95); text-decoration: underline; }
+      .folder-tools { display: inline-flex; gap: 6px; margin-top: 4px; }
+      .folder-tools button {
+        font: inherit; font-size: 10px; font-weight: 700;
+        padding: 1px 7px; border-radius: 999px; cursor: pointer;
+        border: 1px solid var(--border, #ccc); background: transparent; color: inherit;
+      }
+      .folder-tools button:hover { background: rgba(127,127,127,0.15); }
       body.embedded.theme-dark .folder-badge.ok      { background: rgba(74,208,123,0.20); color: #6ee093; }
       body.embedded.theme-dark .folder-badge.empty   { background: rgba(255,255,255,0.07); color: #99a4ab; }
       body.embedded.theme-dark .folder-badge.missing { background: rgba(255,116,116,0.20); color: #ff8a8a; }
@@ -603,7 +613,7 @@
               <td class="cell-content">${renderRuns(r.cellRuns?.[3], r.cells[3] || "")}</td>
               <td class="cell-content">${renderRuns(r.cellRuns?.[4], r.cells[4] || "")}</td>
               <td class="mark-cell">${renderRuns(r.markOfConformityRuns, r.markOfConformity)}</td>
-              <td class="folder-cell">${renderFolderBadge(r.folderInfo)}</td>
+              <td class="folder-cell">${renderFolderBadge(r.folderInfo, r.rowIdx)}</td>
               <td class="status-cell">${r.status.toUpperCase()}</td>
               ${editable ? actionCell.replace("</td>", `${vdeBtn}</td>`) : ""}
             </tr>`;
@@ -959,17 +969,44 @@
 
       // Build a small folder-info badge for the Ordner column.
       // Shows PDF count, file count, missing-folder warning, Archiv presence, and inline PDF thumbnails.
-      function renderFolderBadge(info) {
-        if (!info) return '<span class="folder-badge none" title="Kein Ordner zugeordnet">–</span>';
+      function renderFolderBadge(info, rowIdx) {
+        const idx = (rowIdx ?? info?.rowIdx ?? "");
+        if (!info) {
+          return `<span class="folder-badge missing" data-pick-folder="${idx}" role="button" tabindex="0" title="Klicken, um den richtigen Ordner zu wählen">Ordner wählen ▸</span>`;
+        }
         if (!info.targetExists) {
-          return `<span class="folder-badge missing" title="${escapeHtml(info.targetFolder || "")}">Ordner fehlt</span>`;
+          return `<span class="folder-badge missing" data-pick-folder="${idx}" role="button" tabindex="0" title="${escapeHtml(info.targetFolder || "")}\nKlicken, um den richtigen Ordner zu wählen">Ordner fehlt ▸</span>`;
         }
         const pdfPart = info.pdfCount > 0
           ? `<span class="folder-badge ok" title="${escapeHtml(info.targetFolder)}">${info.pdfCount} PDF</span>`
           : `<span class="folder-badge empty" title="${escapeHtml(info.targetFolder)}">0 PDF</span>`;
         const arch = info.hasArchiv ? `<span class="folder-badge archiv" title="Archiv-Unterordner vorhanden">Archiv</span>` : "";
         const thumbs = renderFolderThumbs(info);
-        return `${pdfPart}${arch}${thumbs}`;
+        const tools = `<div class="folder-tools">
+          <button type="button" data-open-folder="${escapeHtml(info.targetFolder)}" title="Im Finder/Explorer öffnen">öffnen</button>
+          <button type="button" data-pick-folder="${idx}" title="Anderen Ordner wählen">ändern</button>
+        </div>`;
+        return `${pdfPart}${arch}${thumbs}${tools}`;
+      }
+
+      // Nativen Ordner-Dialog öffnen und der Zeile zuordnen.
+      async function chooseFolderForRow(rowIdx) {
+        let r;
+        try { r = await fetch("/api/pick-folder", { method: "POST" }); }
+        catch (e) { alert("Fehler: " + e.message); return; }
+        const d = await r.json().catch(() => ({}));
+        if (d.canceled) return;
+        if (!d.path) { alert("Fehler: " + (d.error || "kein Ordner gewählt")); return; }
+        let info;
+        try {
+          const ir = await fetch(`/api/tabelle24/folder-info?path=${encodeURIComponent(d.path)}`);
+          info = await ir.json();
+        } catch (e) { alert("Ordner-Info fehlgeschlagen: " + e.message); return; }
+        info.assigned = true;
+        const row = currentData?.rows?.find((x) => x.rowIdx === rowIdx);
+        if (row) { row.folderInfo = info; row.targetFolder = info.targetFolder; }
+        const cell = document.querySelector(`#results-panel tr[data-row="${rowIdx}"] .folder-cell`);
+        if (cell) { cell.innerHTML = renderFolderBadge(info, rowIdx); observePdfThumbs(); }
       }
 
       // Render up to 4 PDF thumbnails for the row's component folder.
@@ -1068,6 +1105,14 @@
       $("analyze-btn").addEventListener("click", analyzeFile);
       // Klick auf eine Zahl → in die Zwischenablage kopieren (für Einfügen in Infor)
       $("results-panel").addEventListener("click", async (ev) => {
+        // Ordner manuell wählen / öffnen
+        const pickBtn = ev.target.closest("[data-pick-folder]");
+        if (pickBtn) { chooseFolderForRow(Number(pickBtn.dataset.pickFolder)); return; }
+        const openBtn = ev.target.closest("[data-open-folder]");
+        if (openBtn) {
+          fetch("/api/open-folder", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: openBtn.dataset.openFolder }) }).catch(() => {});
+          return;
+        }
         const num = ev.target.closest(".copynum");
         if (!num) return;
         const txt = num.textContent;

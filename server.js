@@ -601,11 +601,12 @@ app.put("/api/projects/:id/colors", (req, res) => {
 app.post("/api/open-folder", (req, res) => {
   const folderPath = req.body?.path;
   if (!folderPath) return res.status(400).json({ error: "no path" });
-  const { exec } = require("child_process");
-  exec(`open "${folderPath.replace(/"/g, '\\"')}"`, (err) => {
-    if (err) return res.status(500).json({ error: err.message });
+  try {
+    openInSystemFileManager(folderPath);   // plattformübergreifend (Finder/Explorer)
     res.json({ ok: true });
-  });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 const CONFIG_ARCHIVE_EXCEL = process.platform === "win32" ? trackerConfig.archiveExcel : null;
@@ -1507,6 +1508,66 @@ function pickFileDialog() {
 app.post("/api/pick-file", async (_req, res) => {
   try { res.json(await pickFileDialog()); }
   catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Nativer Ordner-Auswahldialog (Finder/Explorer) → echter Ordnerpfad.
+function pickFolderDialog() {
+  return new Promise((resolve) => {
+    let cmd, args;
+    if (process.platform === "darwin") {
+      const script = [
+        'try',
+        '  set f to choose folder with prompt "Richtigen Ordner wählen"',
+        '  POSIX path of f',
+        'on error number -128',
+        '  return ""',
+        'end try',
+      ].join("\n");
+      cmd = "osascript"; args = ["-e", script];
+    } else if (process.platform === "win32") {
+      const ps = "Add-Type -AssemblyName System.Windows.Forms; "
+        + "$d = New-Object System.Windows.Forms.FolderBrowserDialog; "
+        + "$d.Description = 'Richtigen Ordner waehlen'; "
+        + "if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.SelectedPath) }";
+      cmd = "powershell.exe"; args = ["-NoProfile", "-STA", "-Command", ps];
+    } else {
+      resolve({ error: "Plattform nicht unterstützt" }); return;
+    }
+    let out = "";
+    try {
+      const p = spawn(cmd, args);
+      p.stdout.on("data", (d) => { out += d.toString(); });
+      p.on("error", (e) => resolve({ error: e.message }));
+      p.on("close", () => {
+        const pth = out.trim();
+        resolve(pth ? { path: pth } : { canceled: true });
+      });
+    } catch (e) { resolve({ error: e.message }); }
+  });
+}
+
+app.post("/api/pick-folder", async (_req, res) => {
+  try { res.json(await pickFolderDialog()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Ordner-Info (PDF-Anzahl, Dateien, Archiv) für einen frei gewählten Pfad —
+// liefert dieselbe Form wie die Analyse, damit das Badge danach korrekt aussieht.
+app.get("/api/tabelle24/folder-info", (req, res) => {
+  const p = req.query?.path;
+  if (!p || typeof p !== "string") return res.status(400).json({ error: "missing ?path=" });
+  const resolved = path.resolve(p);
+  const exists = fs.existsSync(resolved);
+  const files = exists ? listFilesDeep(resolved, 2) : [];
+  const pdfs = files.filter((f) => /\.pdf$/i.test(f));
+  res.json({
+    targetFolder: resolved,
+    targetExists: exists,
+    hasArchiv: exists && fs.existsSync(path.join(resolved, "Archiv")),
+    pdfCount: pdfs.length,
+    fileCount: files.length,
+    oldPdfs: pdfs.map((f) => ({ name: path.basename(f), path: f })),
+  });
 });
 
 app.get("/api/tabelle24/files", async (req, res, next) => {
