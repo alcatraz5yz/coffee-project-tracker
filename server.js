@@ -1695,7 +1695,16 @@ app.post("/api/tabelle24/vde-place", async (req, res) => {
   try {
     const lookup = await lookupVde({ certNumber, currentDate });
     if (!lookup.downloadedPdf || !fs.existsSync(lookup.downloadedPdf)) {
-      return res.json({ lookup, placed: false, archived: [], saved: null, message: "no downloaded PDF available" });
+      const reason = lookup.error
+        || (!lookup.found
+            ? `Zertifikat ${certNumber} auf der VDE-Seite nicht gefunden`
+            : (lookup.pdfList?.length ? "PDF-Download von VDE fehlgeschlagen" : "Auf der VDE-Seite ist kein PDF-Anhang verlinkt"));
+      return res.json({
+        lookup, placed: false, archived: [], saved: null,
+        message: reason,
+        certUrl: lookup.certUrl,
+        pdfList: lookup.pdfList || [],
+      });
     }
 
     try { fs.chmodSync(target, fs.statSync(target).mode | 0o200); } catch {}
