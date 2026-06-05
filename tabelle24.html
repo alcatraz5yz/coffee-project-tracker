@@ -558,7 +558,12 @@
                 const place = c.authority === "VDE" && c.number
                   ? `<button type="button" data-vde-place="${escapeHtml(c.number)}" data-row="${row.rowIdx}">holen</button>`
                   : "";
-                return `<span class="tag ${cls}">${escapeHtml(c.authority)} ${escapeHtml(c.number || "")}${place}</span>`;
+                // Direktlink zur offiziellen VDE-Zertifikatsseite (immer zuverlässig — zum
+                // manuellen Prüfen/Herunterladen, falls der Auto-Abruf nichts liefert).
+                const vdeLink = c.authority === "VDE" && c.number
+                  ? ` <a class="vde-link" href="https://www.vde.com/tic-en/marks-and-certificates/vde-approved-products/certificate?id=${encodeURIComponent(c.number)}&type=zertreg%7Ccertificate" target="_blank" rel="noreferrer" title="VDE-Seite öffnen">↗</a>`
+                  : "";
+                return `<span class="tag ${cls}">${escapeHtml(c.authority)} ${escapeHtml(c.number || "")}${place}${vdeLink}</span>`;
               }).join("")}</div>`
             : '<span class="meta">-</span>';
           const status = `<span class="tag">${row.pdfCount} PDF</span>
