@@ -305,6 +305,7 @@ function escapeHtml(value) {
 
 function applyTheme(theme) {
   document.body.dataset.theme = theme;
+  document.documentElement.dataset.theme = theme;   // damit auch <html> die Theme-Farbe kennt
   localStorage.setItem("pcs-theme", theme);
   themeToggle.querySelector("strong").textContent = theme === "dark" ? "Light" : "Dark";
   themeToggle.setAttribute("aria-pressed", String(theme === "dark"));
