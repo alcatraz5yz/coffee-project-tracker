@@ -426,14 +426,17 @@ const STATIC_FILES = new Set([
   "tabelle30.html",
 ]);
 
-app.get("/", (_req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
-});
+// HTML/JS/CSS immer frisch ausliefern (kein Browser-Cache) — sonst sieht man nach
+// 'git pull' evtl. eine veraltete Version (z.B. Tabelle 24) bis zum Hard-Reload.
+function sendNoCache(res, file) {
+  res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.sendFile(path.join(__dirname, file));
+}
+
+app.get("/", (_req, res) => sendNoCache(res, "index.html"));
 
 for (const file of STATIC_FILES) {
-  app.get(`/${file}`, (_req, res) => {
-    res.sendFile(path.join(__dirname, file));
-  });
+  app.get(`/${file}`, (_req, res) => sendNoCache(res, file));
 }
 
 for (const dir of ["assets", "public"]) {
