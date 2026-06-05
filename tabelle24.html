@@ -307,6 +307,11 @@
       .work-row { display: grid; grid-template-columns: 46px 120px 1fr 160px 220px 90px; gap: 10px; padding: 10px 12px; border-bottom: 1px solid #e5ebef; align-items: start; font-size: 12px; }
       .work-row.head { background: #f3f6f8; color: #63707a; font-size: 11px; text-transform: uppercase; font-weight: 800; }
       .work-folder { word-break: break-word; color: #172027; }
+      .work-folder.pickable, .work-folder.pick { cursor: pointer; }
+      .work-folder.pickable:hover { text-decoration: underline; }
+      .work-folder.pick.missing { color: #a01616; font-weight: 800; }
+      body.embedded.theme-dark .work-folder.pick.missing { color: #ff8a8a; }
+      .work-folder.pick.missing:hover { text-decoration: underline; }
       .work-tags { display: flex; flex-wrap: wrap; gap: 4px; }
       .tag { border-radius: 999px; padding: 2px 7px; background: #e9eef2; color: #52606b; font-weight: 800; }
       .tag.vde { background: #f3eefb; color: #553388; }
@@ -408,6 +413,7 @@
       let staged = new Map();          // rowIdx -> { action, newDate, paraIdx }
       let currentWorklist = null;
       let chosenPath = "";             // manuell gewählte Datei (Finder/Explorer)
+      let folderOverrides = new Map(); // rowIdx -> manuell gewählter Ordnerpfad (gilt für beide Ansichten)
 
       // Öffnet den nativen Datei-Dialog (Finder/Explorer) und merkt sich den Pfad.
       async function pickFile() {
@@ -537,7 +543,12 @@
           <span>#</span><span>Block</span><span>Zielordner</span><span>M3</span><span>Zertifikate</span><span>PDFs</span>
         </div>`;
         const body = rows.map((row) => {
-          const folder = row.targetFolder.replace(data.targetRoot, "").replace(/^\/+/, "") || row.targetFolder;
+          // Manuell gewählten Ordner anwenden (gilt für beide Ansichten).
+          if (folderOverrides.has(row.rowIdx)) { row.targetFolder = folderOverrides.get(row.rowIdx); row.targetExists = true; }
+          const folderName = (row.targetFolder || "").split(/[\\/]/).filter(Boolean).pop() || "—";
+          const folderCell = row.targetExists
+            ? `<span class="work-folder pickable" data-pick-folder-wl="${row.rowIdx}" role="button" title="${escapeHtml(row.targetFolder)}\nKlicken: anderen Ordner wählen">${escapeHtml(folderName)} ✎</span>`
+            : `<span class="work-folder pick missing" data-pick-folder-wl="${row.rowIdx}" role="button" title="Klicken: richtigen Ordner wählen">Ordner wählen ▸</span>`;
           const parts = row.partNumbers.length
             ? `<div class="work-tags">${row.partNumbers.map(n => `<span class="tag m3">${escapeHtml(n)}</span>`).join("")}</div>`
             : '<span class="meta">-</span>';
@@ -550,13 +561,12 @@
                 return `<span class="tag ${cls}">${escapeHtml(c.authority)} ${escapeHtml(c.number || "")}${place}</span>`;
               }).join("")}</div>`
             : '<span class="meta">-</span>';
-          const status = `${row.targetExists ? "" : '<span class="tag missing">Ordner fehlt</span>'}
-            <span class="tag">${row.pdfCount} PDF</span>
+          const status = `<span class="tag">${row.pdfCount} PDF</span>
             ${row.hasArchiv ? '<span class="tag">Archiv</span>' : ""}`;
           return `<div class="work-row">
             <strong>${row.rowIdx}</strong>
             <span>${escapeHtml(row.section)}</span>
-            <span class="work-folder">${escapeHtml(folder)}</span>
+            <span>${folderCell}</span>
             <span>${parts}</span>
             <span>${certs}</span>
             <span class="work-tags">${status}</span>
@@ -566,12 +576,21 @@
         panel.querySelectorAll("[data-vde-place]").forEach((btn) => {
           btn.addEventListener("click", () => placeVdePdf(btn));
         });
+        panel.querySelectorAll("[data-pick-folder-wl]").forEach((el) => {
+          el.addEventListener("click", () => chooseFolderForWorklistRow(Number(el.dataset.pickFolderWl)));
+        });
       }
 
       async function placeVdePdf(btn) {
         if (!currentWorklist) return;
         const row = currentWorklist.rows.find(r => r.rowIdx === Number(btn.dataset.row));
         if (!row) return;
+        // Ohne gültigen (gewählten) Zielordner kein Download — erst auswählen lassen.
+        if (!row.targetExists || !row.targetFolder) {
+          alert("Bitte zuerst den richtigen Ordner wählen (Spalte 'Zielordner') - dort wird das Zertifikat-PDF abgelegt.");
+          chooseFolderForWorklistRow(row.rowIdx);
+          return;
+        }
         const certNumber = btn.dataset.vdePlace;
         btn.disabled = true;
         btn.textContent = "läuft";
@@ -1025,10 +1044,47 @@
           info = await ir.json();
         } catch (e) { alert("Ordner-Info fehlgeschlagen: " + e.message); return; }
         info.assigned = true;
+        // Auswahl merken — gilt für Parsen UND Arbeitsliste (gleicher rowIdx).
+        folderOverrides.set(rowIdx, info.targetFolder);
         const row = currentData?.rows?.find((x) => x.rowIdx === rowIdx);
         if (row) { row.folderInfo = info; row.targetFolder = info.targetFolder; }
+        applyOverrideToWorklist(rowIdx, info);
         const cell = document.querySelector(`#results-panel tr[data-row="${rowIdx}"] .folder-cell`);
         if (cell) { cell.innerHTML = renderFolderBadge(info, rowIdx); observePdfThumbs(); }
+      }
+
+      // Übernimmt einen gewählten Ordner in die (evtl. schon erstellte) Arbeitsliste.
+      function applyOverrideToWorklist(rowIdx, info) {
+        if (!currentWorklist) return;
+        const wr = currentWorklist.rows.find((x) => x.rowIdx === rowIdx);
+        if (!wr) return;
+        wr.targetFolder = info.targetFolder;
+        wr.targetExists = true;
+        wr.pdfCount = info.pdfCount;
+        wr.hasArchiv = info.hasArchiv;
+        // Falls die Arbeitsliste gerade sichtbar ist, neu zeichnen.
+        if (currentWorklist && document.querySelector("#results-panel .work-row")) {
+          renderWorklist($("results-panel"), currentWorklist);
+        }
+      }
+
+      // Ordner direkt aus der Arbeitsliste wählen (gleicher Override wie in Parsen).
+      async function chooseFolderForWorklistRow(rowIdx) {
+        let r;
+        try { r = await fetch("/api/pick-folder", { method: "POST" }); }
+        catch (e) { alert("Fehler: " + e.message); return; }
+        const d = await r.json().catch(() => ({}));
+        if (d.canceled) return;
+        if (!d.path) { alert("Fehler: " + (d.error || "kein Ordner gewählt")); return; }
+        let info;
+        try {
+          const ir = await fetch(`/api/tabelle24/folder-info?path=${encodeURIComponent(d.path)}`);
+          info = await ir.json();
+        } catch (e) { alert("Ordner-Info fehlgeschlagen: " + e.message); return; }
+        folderOverrides.set(rowIdx, info.targetFolder);
+        const cd = currentData?.rows?.find((x) => x.rowIdx === rowIdx);
+        if (cd) { info.assigned = true; cd.folderInfo = info; cd.targetFolder = info.targetFolder; }
+        applyOverrideToWorklist(rowIdx, info);
       }
 
       // Render up to 4 PDF thumbnails for the row's component folder.
