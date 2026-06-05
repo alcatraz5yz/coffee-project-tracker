@@ -781,23 +781,29 @@ let scanInProgress = false;
 let scanProgress = { done: 0, total: 0, current: "" };
 
 // Start scan in background, return immediately
-app.post("/api/scan/start", (_req, res) => {
+app.post("/api/scan/start", (req, res) => {
   if (scanInProgress) return res.json({ started: false });
+  // projectId gesetzt → nur dieses eine Projekt scannen (z.B. das geöffnete),
+  // sonst alle. Spart auf dem Netzlaufwerk viel Zeit.
+  const onlyProjectId = String(req.body?.projectId || "").trim() || null;
   scanInProgress = true;
   scanProgress = { done: 0, total: 0, current: "" };
-  scan(null, (p) => { scanProgress = p; })
+  scan(null, (p) => { scanProgress = p; }, { onlyProjectId })
     .then(async (r) => {
-      console.log(`Scan fertig: ${r.projects.length} Projekt(e)`);
-      try {
-        const n = await runProjectNoScan(PCS_ROOT);
-        console.log(`Projektnummern: ${n} gescannt`);
-      } catch (e) {
-        console.warn(`Projektnr-Scan fehlgeschlagen: ${e.message}`);
+      console.log(`Scan fertig: ${r.projects.length} Projekt(e)${onlyProjectId ? ` (nur ${onlyProjectId})` : ""}`);
+      // Projektnummern-Abgleich (liest eine Excel) nur beim Voll-Scan.
+      if (!onlyProjectId) {
+        try {
+          const n = await runProjectNoScan(PCS_ROOT);
+          console.log(`Projektnummern: ${n} gescannt`);
+        } catch (e) {
+          console.warn(`Projektnr-Scan fehlgeschlagen: ${e.message}`);
+        }
       }
     })
     .catch((err) => console.error("Scan-Fehler:", err.message))
     .finally(() => { scanInProgress = false; });
-  res.json({ started: true });
+  res.json({ started: true, scope: onlyProjectId || "all" });
 });
 
 app.get("/api/scan/status", (_req, res) => {
