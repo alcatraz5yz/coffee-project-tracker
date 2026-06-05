@@ -420,7 +420,11 @@
         }
         const d = await r.json().catch(() => ({}));
         if (d.canceled) { meta.textContent = ""; return; }
-        if (!d.path) { meta.textContent = `Fehler: ${d.error || "keine Datei gewählt"}`; return; }
+        if (!d.path) {
+          meta.textContent = `Fehler: ${d.error || "keine Datei gewählt"}`;
+          if (d.error) alert("Datei-Dialog fehlgeschlagen:\n" + d.error);
+          return;
+        }
         chosenPath = d.path;
         const name = d.path.split(/[\\/]/).pop();
         $("chosen-file").textContent = name;
