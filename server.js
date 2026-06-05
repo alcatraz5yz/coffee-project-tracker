@@ -1481,29 +1481,43 @@ function pickFileDialog() {
       ].join("\n");
       cmd = "osascript"; args = ["-e", script];
     } else if (process.platform === "win32") {
-      const ps = "Add-Type -AssemblyName System.Windows.Forms; "
+      // Topmost-Owner-Form, damit der Dialog VOR dem Browser erscheint (sonst öffnet
+      // er sich unsichtbar dahinter). Filter optional via env, Standard: Office-Dateien.
+      const ps = WIN_TOPMOST_OWNER
         + "$d = New-Object System.Windows.Forms.OpenFileDialog; "
-        + "$d.Filter = 'Word/Excel|*.docx;*.doc;*.docm;*.xlsx;*.xlsm;*.xls|Alle Dateien|*.*'; "
+        + "$d.Filter = 'Word/Excel|*.docx;*.doc;*.docm;*.xlsx;*.xlsm;*.xls|Alle Dateien (*.*)|*.*'; "
         + "$d.Title = 'Bauteilliste / Datei waehlen'; "
-        + "if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.FileName) }";
-      cmd = "powershell.exe"; args = ["-NoProfile", "-STA", "-Command", ps];
+        + "$r = $d.ShowDialog($o); $o.Close(); "
+        + "if ($r -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.FileName) }";
+      cmd = "powershell.exe"; args = WIN_PS_ARGS(ps);
     } else {
       resolve({ error: "Plattform nicht unterstützt" }); return;
     }
-    let out = "";
+    let out = "", errOut = "";
     try {
       const p = spawn(cmd, args);
       p.stdout.on("data", (d) => { out += d.toString(); });
+      p.stderr.on("data", (d) => { errOut += d.toString(); });
       p.on("error", (e) => resolve({ error: e.message }));
       p.on("close", () => {
         const pth = out.trim();
-        resolve(pth ? { path: pth } : { canceled: true });
+        if (pth) return resolve({ path: pth });
+        resolve(errOut.trim() ? { error: errOut.trim() } : { canceled: true });
       });
     } catch (e) {
       resolve({ error: e.message });
     }
   });
 }
+
+// Gemeinsamer PowerShell-Vorspann: unsichtbare, immer-im-Vordergrund Owner-Form ($o),
+// damit Datei-/Ordner-Dialoge zuverlässig VOR dem Browser erscheinen.
+const WIN_TOPMOST_OWNER =
+  "Add-Type -AssemblyName System.Windows.Forms; "
+  + "$o = New-Object System.Windows.Forms.Form; $o.TopMost=$true; $o.ShowInTaskbar=$false; "
+  + "$o.Opacity=0; $o.Width=1; $o.Height=1; $o.StartPosition='CenterScreen'; "
+  + "$o.Add_Shown({ $o.Activate() }); $o.Show(); ";
+const WIN_PS_ARGS = (ps) => ["-NoProfile", "-ExecutionPolicy", "Bypass", "-STA", "-WindowStyle", "Hidden", "-Command", ps];
 
 app.post("/api/pick-file", async (_req, res) => {
   try { res.json(await pickFileDialog()); }
@@ -1525,22 +1539,25 @@ function pickFolderDialog() {
       ].join("\n");
       cmd = "osascript"; args = ["-e", script];
     } else if (process.platform === "win32") {
-      const ps = "Add-Type -AssemblyName System.Windows.Forms; "
+      const ps = WIN_TOPMOST_OWNER
         + "$d = New-Object System.Windows.Forms.FolderBrowserDialog; "
         + "$d.Description = 'Richtigen Ordner waehlen'; "
-        + "if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.SelectedPath) }";
-      cmd = "powershell.exe"; args = ["-NoProfile", "-STA", "-Command", ps];
+        + "$r = $d.ShowDialog($o); $o.Close(); "
+        + "if ($r -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.SelectedPath) }";
+      cmd = "powershell.exe"; args = WIN_PS_ARGS(ps);
     } else {
       resolve({ error: "Plattform nicht unterstützt" }); return;
     }
-    let out = "";
+    let out = "", errOut = "";
     try {
       const p = spawn(cmd, args);
       p.stdout.on("data", (d) => { out += d.toString(); });
+      p.stderr.on("data", (d) => { errOut += d.toString(); });
       p.on("error", (e) => resolve({ error: e.message }));
       p.on("close", () => {
         const pth = out.trim();
-        resolve(pth ? { path: pth } : { canceled: true });
+        if (pth) return resolve({ path: pth });
+        resolve(errOut.trim() ? { error: errOut.trim() } : { canceled: true });
       });
     } catch (e) { resolve({ error: e.message }); }
   });
