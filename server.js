@@ -1020,23 +1020,44 @@ function sendToTrash(target) {
   }
 
   if (process.platform === "win32") {
+    // WICHTIG: Pfad als EINFACH-gequoteter PowerShell-Literal übergeben. In doppelten
+    // Anführungszeichen sind Backslashes literal, JSON.stringify hätte sie aber als
+    // "\\" verdoppelt → kaputter Pfad → Fehler. In einfachen Quotes wird nur ' → ''.
+    const psPath = `'${String(target).replace(/'/g, "''")}'`;
     const ps = [
       "Add-Type -AssemblyName Microsoft.VisualBasic",
-      `$p = ${JSON.stringify(target)}`,
+      `$p = ${psPath}`,
       "if (Test-Path -LiteralPath $p -PathType Container) {",
       "  [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($p, 'OnlyErrorDialogs', 'SendToRecycleBin')",
       "} else {",
       "  [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($p, 'OnlyErrorDialogs', 'SendToRecycleBin')",
       "}",
     ].join("; ");
-    const result = spawnSync("powershell.exe", ["-NoProfile", "-Command", ps], { encoding: "utf8" });
+    const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", ps], { encoding: "utf8" });
     if (result.status === 0) return;
-    throw new Error(result.stderr || "Recycle Bin failed");
+    // Netzlaufwerke (z.B. P:\) haben keinen Papierkorb → SendToRecycleBin scheitert.
+    // Dann recoverbar in einen Papierkorb-Ordner auf demselben Laufwerk verschieben,
+    // statt endgültig zu löschen oder mit 500 abzubrechen.
+    const reason = (result.stderr || result.error?.message || "").trim();
+    try {
+      moveToRecycleFolder(target);
+      return;
+    } catch (fallbackErr) {
+      throw new Error(`Papierkorb nicht verfügbar (${reason || "unbekannt"}); Verschieben in Papierkorb-Ordner ebenfalls fehlgeschlagen: ${fallbackErr.message}`);
+    }
   }
 
-  const trashDir = path.join(path.dirname(target), "_Papierkorb");
+  moveToRecycleFolder(target);
+}
+
+// Recoverbarer Fallback: Element in einen ".Papierkorb"-Ordner im selben Verzeichnis
+// verschieben (mit Zeitstempel-Unterordner, damit nichts überschrieben wird). Der
+// Ordner beginnt mit "." → wird in der Dateiliste und vom Scanner ausgeblendet.
+function moveToRecycleFolder(target) {
+  const trashDir = path.join(path.dirname(target), ".Papierkorb");
   fs.mkdirSync(trashDir, { recursive: true });
-  fs.renameSync(target, uniquePathInDir(trashDir, path.basename(target)));
+  const dest = uniquePathInDir(trashDir, path.basename(target));
+  fs.renameSync(target, dest);
 }
 
 app.get("/api/list-path", async (req, res, next) => {
