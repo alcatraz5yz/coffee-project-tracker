@@ -14,3 +14,6 @@
 *.pdf   binary
 *.xlsx  binary
 *.xls   binary
+*.docx  binary
+*.doc   binary
+*.docm  binary

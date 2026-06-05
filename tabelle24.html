@@ -382,6 +382,7 @@
       <section class="controls">
         <div class="row-controls">
           <button id="pick-btn" type="button">📁 Datei wählen…</button>
+          <button id="sample-btn" type="button" title="Mitgelieferte EF1157-Bauteilliste laden">★ Beispiel laden</button>
           <span id="chosen-file" class="meta" style="flex:1">Keine Datei gewählt</span>
           <button id="parse-btn" type="button" disabled>Parsen</button>
           <button id="analyze-btn" type="button" disabled>Arbeitsliste</button>
@@ -432,6 +433,23 @@
         $("parse-btn").disabled = false;
         $("analyze-btn").disabled = false;
         meta.textContent = "";
+      }
+
+      // Lädt die mitgelieferte EF1157-Beispieldatei (ohne Datei-Dialog) und parst sie.
+      async function loadSample() {
+        meta.textContent = "Beispiel wird geladen…";
+        let r;
+        try { r = await fetch("/api/tabelle24/sample"); }
+        catch (e) { meta.textContent = `Fehler: ${e.message}`; return; }
+        const d = await r.json().catch(() => ({}));
+        if (!d.path) { meta.textContent = `Fehler: ${d.error || "Beispiel nicht gefunden"}`; return; }
+        chosenPath = d.path;
+        $("chosen-file").textContent = d.name + "  (Beispiel)";
+        $("chosen-file").title = d.path;
+        $("parse-btn").disabled = false;
+        $("analyze-btn").disabled = false;
+        meta.textContent = "";
+        parseFile();
       }
 
       async function parseFile() {
@@ -1105,6 +1123,7 @@
         document.querySelector("h1").textContent = `Tabelle 24 Scanner — ${projectId}`;
       }
       $("pick-btn").addEventListener("click", pickFile);
+      $("sample-btn").addEventListener("click", loadSample);
       $("parse-btn").addEventListener("click", parseFile);
       $("analyze-btn").addEventListener("click", analyzeFile);
       // Klick auf eine Zahl → in die Zwischenablage kopieren (für Einfügen in Infor)

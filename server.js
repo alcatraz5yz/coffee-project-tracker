@@ -1568,6 +1568,14 @@ app.post("/api/pick-folder", async (_req, res) => {
   catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// Mitgelieferte Beispiel-Bauteilliste (EF1157) — damit Tabelle 24 sofort testbar ist,
+// auch ohne echtes P:\PCS. Liefert den absoluten Pfad zum Parsen.
+app.get("/api/tabelle24/sample", (_req, res) => {
+  const p = path.join(__dirname, "samples", "EF1157-Bauteilliste-Beispiel.docx");
+  if (!fs.existsSync(p)) return res.status(404).json({ error: "Beispiel-Datei nicht gefunden" });
+  res.json({ path: p, name: path.basename(p) });
+});
+
 // Ordner-Info (PDF-Anzahl, Dateien, Archiv) für einen frei gewählten Pfad —
 // liefert dieselbe Form wie die Analyse, damit das Badge danach korrekt aussieht.
 app.get("/api/tabelle24/folder-info", (req, res) => {
