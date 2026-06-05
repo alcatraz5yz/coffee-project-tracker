@@ -3041,9 +3041,14 @@ function showScanDone(s) {
 }
 
 async function startScanStream() {
+  // In einem Projekt → nur dieses scannen; auf dem Dashboard → alle.
+  const onlyId = activeView !== "dashboard" && activeProject ? activeProject.id : null;
   scanBtn.disabled = true;
-  scanStatus.textContent = "Scanne…";
-  await apiFetch("/api/scan/start", { method: "POST" });
+  scanStatus.textContent = onlyId ? `Scanne ${onlyId}…` : "Scanne…";
+  await apiFetch("/api/scan/start", {
+    method: "POST",
+    body: JSON.stringify(onlyId ? { projectId: onlyId } : {})
+  });
   while (true) {
     await new Promise((r) => setTimeout(r, 500));
     const s = await apiFetch("/api/scan/status");
@@ -3052,11 +3057,12 @@ async function startScanStream() {
         scanStatus.textContent = `${s.progress.done}/${s.progress.total}  ${s.progress.current}`;
       }
     } else {
-      showScanDone(s);
       scanBtn.disabled = false;
       projectList = await apiFetch("/api/projects");
       if (activeProject) activeProject = await apiFetch(`/api/projects/${activeProject.id}`);
       if (activeView === "dashboard") { renderMachines(); renderDashboard(); } else renderAll();
+      if (onlyId) scanStatus.textContent = `✓ ${onlyId} aktualisiert`;
+      else showScanDone(s);
       break;
     }
   }

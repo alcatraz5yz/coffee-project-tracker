@@ -453,7 +453,7 @@ function writeProjectToDB(res, now) {
 }
 
 // ── Main scan ────────────────────────────────────────────────
-async function scan(customRoot, onProgress) {
+async function scan(customRoot, onProgress, opts = {}) {
   const root = customRoot || PCS_ROOT;
   const now = new Date().toISOString();
   const result = { scannedAt: now, root, projects: [], totalFiles: 0, errors: [] };
@@ -465,6 +465,16 @@ async function scan(customRoot, onProgress) {
   } catch (err) {
     result.errors.push(`Kann PCS-Root nicht lesen (${root}): ${err.message}`);
     return result;
+  }
+
+  // Nur ein einzelnes Projekt scannen (z.B. das gerade geöffnete), statt aller.
+  // onlyProjectId kann "EF1157" oder "1157" sein → auf die Nummer reduzieren.
+  if (opts.onlyProjectId) {
+    const wanted = String(opts.onlyProjectId).replace(/\D/g, "");
+    rootEntries = rootEntries.filter((e) => extractProjectNumbers(e.name).includes(wanted));
+    if (!rootEntries.length) {
+      result.errors.push(`Projekt ${opts.onlyProjectId} nicht im Root gefunden (${root})`);
+    }
   }
 
   const total = rootEntries.length;
@@ -517,12 +527,16 @@ async function scan(customRoot, onProgress) {
     }
   }
 
-  stmts.insertScanLog.run(
-    result.scannedAt,
-    result.projects.length,
-    result.totalFiles,
-    result.errors.length ? result.errors.join("; ") : null
-  );
+  // Scan-Log nur bei Voll-Scan schreiben — sonst würde ein Einzel-Projekt-Scan
+  // die angezeigte Projektzahl ("X Proj.") auf 1 setzen.
+  if (!opts.onlyProjectId) {
+    stmts.insertScanLog.run(
+      result.scannedAt,
+      result.projects.length,
+      result.totalFiles,
+      result.errors.length ? result.errors.join("; ") : null
+    );
+  }
 
   return result;
 }
