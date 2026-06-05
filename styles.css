@@ -12,7 +12,7 @@
   --good: #1f7a4e;
   --watch: #946312;
   --bad: #a83f39;
-  --shadow: 0 16px 38px rgba(60, 50, 30, 0.14);
+  --shadow: 0 8px 24px rgba(60, 50, 30, 0.10);
   --sidebar: #1b232e;
   --sidebar-panel: #232d3a;
   --sidebar-panel-active: #2c3847;
@@ -29,7 +29,13 @@
   /* Glas-Panels (durchscheinend → Blattschatten dahinter sichtbar) */
   --glass: rgba(243, 237, 226, 0.66);
   --glass-soft: rgba(243, 237, 226, 0.58);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  /* Typografie-System */
+  --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --radius: 7px;
+  --radius-sm: 5px;
+  font-family: var(--sans);
 }
 
 body[data-theme="dark"] {
@@ -45,7 +51,7 @@ body[data-theme="dark"] {
   --good: #74cfa0;
   --watch: #d7ad63;
   --bad: #e88b83;
-  --shadow: 0 20px 48px rgba(0, 0, 0, 0.52);
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.38);
   --sidebar: #10161e;
   --sidebar-panel: #1a232f;
   --sidebar-panel-active: #243040;
@@ -3567,3 +3573,112 @@ h2 {
     padding: 14px;
   }
 }
+
+/* ============================================================
+   FRESH VISUAL LAYER — Lefos-inspiriert (Mono-Chrome + Serif-Akzente,
+   flache Glas-Panels). Liegt am Ende → überschreibt frühere Regeln.
+   ============================================================ */
+
+/* — Serif für große Überschriften & Marke — */
+.topbar-title h1,
+#project-title,
+.dashboard-hero h2,
+.panel-header h2,
+.table-header h2,
+.brand strong {
+  font-family: var(--serif);
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+/* — Monospace für Chrome/Labels/Metadaten/Status — */
+.top-actions button,
+.market-filter-btn,
+.machine-list button,
+.scan-bar button,
+.brand span,
+.recently-opened-label,
+.panel-header span,
+.dashboard-card-brand,
+.dgc-area,
+.dgc-count,
+.summary-card span,
+.status-toggle,
+.evidence-file-row.head,
+.evidence-sort,
+.evidence-breadcrumb,
+.evidence-crumb,
+.evidence-search,
+.search span,
+.scan-bar span,
+.market-filter-bar {
+  font-family: var(--mono);
+}
+
+/* — Uppercase + Spacing nur für echte Labels (nicht Pfade/Eingaben) — */
+.top-actions button,
+.market-filter-btn,
+.recently-opened-label,
+.panel-header span,
+.dashboard-card-brand,
+.dgc-area,
+.summary-card span,
+.status-toggle,
+.evidence-sort,
+.brand span {
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+/* — Top-Navigation: kompakte Mono-Pillen — */
+.top-actions {
+  border-radius: 999px;
+  background: var(--glass);
+  backdrop-filter: blur(14px) saturate(1.05);
+  -webkit-backdrop-filter: blur(14px) saturate(1.05);
+}
+.top-actions button {
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  border-radius: 999px;
+}
+.top-actions button.active {
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* — Status-Pillen: flach, klein, Mono — */
+.status-toggle {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  border-radius: 4px;
+  padding: 3px 8px;
+}
+
+/* — Flache Panels: kleiner Radius — */
+.summary-card,
+.panel,
+.table-panel,
+.doc-card,
+.dashboard-card,
+.document-group-detail,
+.docs-two-pane #document-group-grid,
+.docs-two-pane .document-group-card {
+  border-radius: var(--radius);
+}
+
+/* — Spaltenköpfe der Dateiliste: Mono, ruhig — */
+.evidence-file-row.head {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+/* — Sidebar-Marke „PCS" als Mono-Badge bleibt; Suche-Label Mono — */
+.search span {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+
+/* — Breadcrumb: Mono, dezent — */
+.evidence-breadcrumb { font-size: 12.5px; letter-spacing: 0.01em; }
