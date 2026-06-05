@@ -106,8 +106,10 @@ async function lookupVde({ certNumber, currentDate }) {
   const cert = String(certNumber || "").trim();
   if (!cert) throw new Error("missing certNumber");
 
+  const certUrl = VDE_CERT_URL.replace("{cert}", encodeURIComponent(cert));
   const result = {
     certNumber: cert,
+    certUrl,
     found: false,
     pdfList: [],
     chosen: null,
@@ -116,7 +118,6 @@ async function lookupVde({ certNumber, currentDate }) {
     comparison: "unknown",
   };
 
-  const certUrl = VDE_CERT_URL.replace("{cert}", encodeURIComponent(cert));
   const page = await fetchWithTimeout(certUrl, {
     headers: { "User-Agent": "Mozilla/5.0", "Accept": "text/html,application/xhtml+xml" },
   }, 30000);
