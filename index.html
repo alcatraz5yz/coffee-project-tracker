@@ -8,8 +8,15 @@
   </head>
   <body class="dashboard-mode app-loading">
     <script>
-      document.body.dataset.theme = localStorage.getItem("pcs-theme") || "light";
+      var _t = localStorage.getItem("pcs-theme") || "light";
+      document.body.dataset.theme = _t;
+      document.documentElement.dataset.theme = _t;
     </script>
+    <!-- Echtes Lefos-Blattschatten-Video (lokal), als multiply-Overlay über dem UI -->
+    <video id="bg-shadows" autoplay loop muted playsinline aria-hidden="true">
+      <source src="/assets/shadows-loop.webm" type="video/webm">
+      <source src="/assets/shadows-loop.mp4" type="video/mp4">
+    </video>
     <aside class="sidebar">
       <button id="sidebar-toggle" class="sidebar-toggle" type="button" title="Sidebar ein-/ausblenden">«</button>
       <div id="sidebar-resizer" class="sidebar-resizer" title="Breite ziehen"></div>
