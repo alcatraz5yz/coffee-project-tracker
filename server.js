@@ -1464,6 +1464,51 @@ function analyzeTabelle24Rows(parsed, targetRoot) {
 // List Intern Bauteilliste files in a project that actually contain Tabelle 24.
 // Walk (skip Archiv subdirs, require "intern" in name per workflow rule — never
 // the customer VDE copies), then content-filter via pure Node marker scan.
+// Nativer Datei-Auswahldialog (Finder/Explorer) → liefert den echten Pfad zurück,
+// damit der Benutzer die Bauteilliste manuell wählen kann statt per Pfad-Suche.
+function pickFileDialog() {
+  return new Promise((resolve) => {
+    let cmd, args;
+    if (process.platform === "darwin") {
+      const script = [
+        'try',
+        '  set f to choose file with prompt "Bauteilliste / Datei wählen" of type {"docx","doc","docm","xlsx","xlsm","xls"}',
+        '  POSIX path of f',
+        'on error number -128',
+        '  return ""',
+        'end try',
+      ].join("\n");
+      cmd = "osascript"; args = ["-e", script];
+    } else if (process.platform === "win32") {
+      const ps = "Add-Type -AssemblyName System.Windows.Forms; "
+        + "$d = New-Object System.Windows.Forms.OpenFileDialog; "
+        + "$d.Filter = 'Word/Excel|*.docx;*.doc;*.docm;*.xlsx;*.xlsm;*.xls|Alle Dateien|*.*'; "
+        + "$d.Title = 'Bauteilliste / Datei waehlen'; "
+        + "if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Out.Write($d.FileName) }";
+      cmd = "powershell.exe"; args = ["-NoProfile", "-STA", "-Command", ps];
+    } else {
+      resolve({ error: "Plattform nicht unterstützt" }); return;
+    }
+    let out = "";
+    try {
+      const p = spawn(cmd, args);
+      p.stdout.on("data", (d) => { out += d.toString(); });
+      p.on("error", (e) => resolve({ error: e.message }));
+      p.on("close", () => {
+        const pth = out.trim();
+        resolve(pth ? { path: pth } : { canceled: true });
+      });
+    } catch (e) {
+      resolve({ error: e.message });
+    }
+  });
+}
+
+app.post("/api/pick-file", async (_req, res) => {
+  try { res.json(await pickFileDialog()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get("/api/tabelle24/files", async (req, res, next) => {
  try {
   const resolved = await resolveTabelle24Root(req.query);

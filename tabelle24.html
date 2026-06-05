@@ -371,13 +371,8 @@
 
       <section class="controls">
         <div class="row-controls">
-          <label for="project-root">EF-Projekt-Ordner</label>
-          <input id="project-root" type="text" style="flex:1" placeholder="z.B. /Users/allan/Desktop/1157" value="/Users/allan/Desktop/1157">
-          <button id="list-btn" type="button">Dateien suchen</button>
-        </div>
-        <div class="row-controls">
-          <label for="file-select">Bauteilliste</label>
-          <select id="file-select" style="flex:1"><option value="">(noch nichts geladen)</option></select>
+          <button id="pick-btn" type="button">📁 Datei wählen…</button>
+          <span id="chosen-file" class="meta" style="flex:1">Keine Datei gewählt</span>
           <button id="parse-btn" type="button" disabled>Parsen</button>
           <button id="analyze-btn" type="button" disabled>Arbeitsliste</button>
         </div>
@@ -401,45 +396,32 @@
       let currentData = null;          // parsed JSON from /parse
       let staged = new Map();          // rowIdx -> { action, newDate, paraIdx }
       let currentWorklist = null;
+      let chosenPath = "";             // manuell gewählte Datei (Finder/Explorer)
 
-      async function fetchFiles() {
-        const root = $("project-root").value.trim();
-        if (!root && !projectId && !hrefParam) return;
-        meta.textContent = "Suche...";
-        const query = projectId
-          ? `projectId=${encodeURIComponent(projectId)}`
-          : hrefParam
-            ? `href=${encodeURIComponent(hrefParam)}`
-            : `root=${encodeURIComponent(root)}`;
-        const r = await fetch(`/api/tabelle24/files?${query}`);
-        if (!r.ok) {
-          const { error } = await r.json().catch(() => ({ error: r.statusText }));
-          meta.textContent = `Fehler: ${error}`;
+      // Öffnet den nativen Datei-Dialog (Finder/Explorer) und merkt sich den Pfad.
+      async function pickFile() {
+        meta.textContent = "Datei-Dialog geöffnet…";
+        let r;
+        try {
+          r = await fetch("/api/pick-file", { method: "POST" });
+        } catch (e) {
+          meta.textContent = `Fehler: ${e.message}`;
           return;
         }
-        const { root: resolvedRoot, files } = await r.json();
-        if (resolvedRoot) $("project-root").value = resolvedRoot;
-        const sel = $("file-select");
-        sel.innerHTML = "";
-        if (!files.length) {
-          sel.innerHTML = '<option value="">(keine Intern-Dateien gefunden)</option>';
-          meta.textContent = "Keine Datei mit 'Intern' im Namen unter dem Pfad gefunden.";
-          $("parse-btn").disabled = true;
-          return;
-        }
-        for (const f of files) {
-          const opt = document.createElement("option");
-          opt.value = f.path;
-          opt.textContent = `${f.name}  (${(f.size/1024).toFixed(0)} KB, ${f.mtime.slice(0,10)})`;
-          sel.appendChild(opt);
-        }
-        meta.textContent = `${files.length} Datei(en) gefunden. Neueste oben.`;
+        const d = await r.json().catch(() => ({}));
+        if (d.canceled) { meta.textContent = ""; return; }
+        if (!d.path) { meta.textContent = `Fehler: ${d.error || "keine Datei gewählt"}`; return; }
+        chosenPath = d.path;
+        const name = d.path.split(/[\\/]/).pop();
+        $("chosen-file").textContent = name;
+        $("chosen-file").title = d.path;
         $("parse-btn").disabled = false;
         $("analyze-btn").disabled = false;
+        meta.textContent = "";
       }
 
       async function parseFile() {
-        const file = $("file-select").value;
+        const file = chosenPath;
         if (!file) return;
         const panel = $("results-panel");
         panel.innerHTML = '<div class="empty">Parse läuft...</div>';
@@ -488,7 +470,7 @@
       }
 
       async function analyzeFile() {
-        const file = $("file-select").value;
+        const file = chosenPath;
         if (!file) return;
         const panel = $("results-panel");
         panel.innerHTML = '<div class="empty">Arbeitsliste wird erstellt...</div>';
@@ -1078,12 +1060,10 @@
         }).join("");
       }
 
-      if (rootParam) $("project-root").value = rootParam;
       if (projectId) {
         document.querySelector("h1").textContent = `Tabelle 24 Scanner — ${projectId}`;
-        meta.textContent = `Projekt ${projectId} wird geladen...`;
       }
-      $("list-btn").addEventListener("click", fetchFiles);
+      $("pick-btn").addEventListener("click", pickFile);
       $("parse-btn").addEventListener("click", parseFile);
       $("analyze-btn").addEventListener("click", analyzeFile);
       // Klick auf eine Zahl → in die Zwischenablage kopieren (für Einfügen in Infor)
@@ -1107,8 +1087,6 @@
         num.title = "✓ kopiert";
         setTimeout(() => { num.classList.remove("copied"); num.title = prevTitle; }, 800);
       });
-      // Auto-load on page open
-      fetchFiles();
     </script>
   </body>
 </html>
