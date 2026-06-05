@@ -1,0 +1,16 @@
+# Binärdateien NICHT durch Zeilenenden-Konvertierung verändern (Windows-sicher)
+*.woff2 binary
+*.woff  binary
+*.ttf   binary
+*.otf   binary
+*.mp4   binary
+*.webm  binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.pdf   binary
+*.xlsx  binary
+*.xls   binary
