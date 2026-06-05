@@ -933,14 +933,15 @@ function renderDocs(project) {
         : entries.length ? `
           <div class="evidence-crumb-bar">${backBtn}${breadcrumbMarkup}</div>
           <div class="evidence-location-bar">
-            <input type="search" class="evidence-search" data-evidence-search placeholder="Im Ordner suchen…" value="${escapeHtml(evidenceSearch)}" autocomplete="off">
-            <span class="evidence-toolbar-spacer"></span>
             <button class="finder-action" type="button" data-file-action="mkdir" data-current-href="${escapeHtml(currentHref)}">Neuer Ordner</button>
             <button class="finder-action" type="button" data-file-action="rename" ${singleSelectedDisabled}>Umbenennen</button>
             <button class="finder-action" type="button" data-file-action="copy" ${selectedDisabled}>Kopieren</button>
             <button class="finder-action" type="button" data-file-action="cut" ${selectedDisabled}>Ausschneiden</button>
             <button class="finder-action" type="button" data-file-action="paste" data-current-href="${escapeHtml(currentHref)}" ${pasteDisabled}>Einfügen</button>
             <button class="finder-action danger" type="button" data-file-action="delete" ${selectedDisabled}>Löschen</button>
+          </div>
+          <div class="evidence-search-bar">
+            <input type="search" class="evidence-search" data-evidence-search placeholder="Im Ordner suchen…" value="${escapeHtml(evidenceSearch)}" autocomplete="off">
           </div>
           ${parentDropZone}
           <div class="evidence-file-row head">
