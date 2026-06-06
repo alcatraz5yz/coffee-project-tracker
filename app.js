@@ -3063,8 +3063,34 @@ async function startScanStream() {
       projectList = await apiFetch("/api/projects");
       if (activeProject) activeProject = await apiFetch(`/api/projects/${activeProject.id}`);
       if (activeView === "dashboard") { renderMachines(); renderDashboard(); } else renderAll();
-      if (onlyId) scanStatus.textContent = `✓ ${onlyId} aktualisiert`;
-      else showScanDone(s);
+      // Diagnose-Meldung: echte DB-Ordnerzahl + Pfad + Fehler (hilft v.a. auf Windows).
+      const ls = s.lastScan;
+      // Tatsächliche Ordnerzahl in der DB nach dem Scan:
+      const dbGroups = onlyId
+        ? (activeProject?.documentGroups?.length || 0)
+        : projectList.reduce((a, p) => a + (p.documentGroups?.length || 0), 0);
+      if (ls && ls.error) {
+        scanStatus.textContent = `⚠ Scan-Fehler: ${ls.error}`;
+        scanStatus.title = `Pfad: ${ls.root} (existiert: ${ls.rootExists ? "ja" : "NEIN"})`;
+      } else if (ls && !ls.rootExists) {
+        scanStatus.textContent = `⚠ Pfad nicht gefunden: ${ls.root}`;
+        scanStatus.title = `Liegt das Projekt unter ${ls.root}\\<Projekt>\\…?`;
+      } else if (ls) {
+        const me = onlyId ? (ls.groups || []).find((g) => g.id === onlyId) : null;
+        const projErr = me?.errors?.[0] || ls.errors?.[0];
+        if (dbGroups === 0) {
+          scanStatus.textContent = projErr ? `⚠ ${projErr}` : `⚠ 0 Ordner in ${ls.root} (Projekte gefunden: ${ls.projectsFound})`;
+          scanStatus.title = `Pfad: ${ls.root} · Projekte: ${ls.projectsFound}${projErr ? " · " + projErr : ""}`;
+        } else {
+          const det = me ? ` (neu ${me.scanned}, übersprungen ${me.skipped})` : "";
+          scanStatus.textContent = onlyId ? `✓ ${onlyId}: ${dbGroups} Ordner${det}` : `✓ ${dbGroups} Ordner gesamt`;
+          scanStatus.title = `Pfad: ${ls.root}`;
+        }
+      } else if (onlyId) {
+        scanStatus.textContent = `✓ ${onlyId} aktualisiert`;
+      } else {
+        showScanDone(s);
+      }
       break;
     }
   }

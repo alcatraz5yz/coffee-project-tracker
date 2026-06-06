@@ -491,10 +491,12 @@ async function scan(customRoot, onProgress, opts = {}) {
       const primaryId = `${PROJECT_PREFIX}${primaryNumber}`;
       const projectDir = path.join(root, entry.name);
 
-      // Load stored mtimes using primary project ID
-      const storedMtimes = new Map(
-        stmts.getStoredMtimes.all(primaryId).map((r) => [r.area, r.folder_mtime])
-      );
+      // Load stored mtimes using primary project ID. Bei force (z.B. explizites
+      // "Neu scannen" eines Projekts) den mtime-Cache ignorieren → alles neu
+      // einlesen (verhindert, dass ein früherer Fehlscan den Ordner leer "festnagelt").
+      const storedMtimes = opts.force
+        ? new Map()
+        : new Map(stmts.getStoredMtimes.all(primaryId).map((r) => [r.area, r.folder_mtime]));
 
       const res = await scanProject(primaryNumber, projectDir, storedMtimes, numbers);
 

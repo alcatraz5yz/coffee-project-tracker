@@ -783,6 +783,7 @@ app.delete("/api/archive/:id", (req, res) => {
 // ── Scanner ────────────────────────────────────────────────
 let scanInProgress = false;
 let scanProgress = { done: 0, total: 0, current: "" };
+let lastScan = null;   // Diagnose des letzten Scans (für Windows-Fehlersuche)
 
 // Start scan in background, return immediately
 app.post("/api/scan/start", (req, res) => {
@@ -792,9 +793,21 @@ app.post("/api/scan/start", (req, res) => {
   const onlyProjectId = String(req.body?.projectId || "").trim() || null;
   scanInProgress = true;
   scanProgress = { done: 0, total: 0, current: "" };
-  scan(null, (p) => { scanProgress = p; }, { onlyProjectId })
+  // Einzel-Scan eines Projekts = explizite Aktion → force (mtime-Cache ignorieren),
+  // damit ein leerer/falscher Vorzustand zuverlässig neu aufgebaut wird.
+  scan(null, (p) => { scanProgress = p; }, { onlyProjectId, force: !!onlyProjectId })
     .then(async (r) => {
       console.log(`Scan fertig: ${r.projects.length} Projekt(e)${onlyProjectId ? ` (nur ${onlyProjectId})` : ""}`);
+      lastScan = {
+        at: r.scannedAt,
+        scope: onlyProjectId || "all",
+        root: r.root,
+        rootExists: fs.existsSync(r.root),
+        projectsFound: r.projects.length,
+        totalFiles: r.totalFiles,
+        groups: r.projects.map((p) => ({ id: p.id, groups: p.documentGroups, files: p.files, scanned: p.scanned, skipped: p.skipped, errors: p.errors || [] })),
+        errors: (r.errors || []).slice(0, 8),
+      };
       // Projektnummern-Abgleich (liest eine Excel) nur beim Voll-Scan.
       if (!onlyProjectId) {
         try {
@@ -805,7 +818,10 @@ app.post("/api/scan/start", (req, res) => {
         }
       }
     })
-    .catch((err) => console.error("Scan-Fehler:", err.message))
+    .catch((err) => {
+      console.error("Scan-Fehler:", err.message);
+      lastScan = { scope: onlyProjectId || "all", root: PCS_ROOT, rootExists: fs.existsSync(PCS_ROOT), error: err.message };
+    })
     .finally(() => { scanInProgress = false; });
   res.json({ started: true, scope: onlyProjectId || "all" });
 });
@@ -815,7 +831,8 @@ app.get("/api/scan/status", (_req, res) => {
   res.json({
     ...(last || { scanned_at: null, projects_found: 0, files_found: 0 }),
     in_progress: scanInProgress,
-    progress: scanInProgress ? scanProgress : null
+    progress: scanInProgress ? scanProgress : null,
+    lastScan,
   });
 });
 
