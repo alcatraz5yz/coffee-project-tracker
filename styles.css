@@ -3630,3 +3630,37 @@ body[data-theme="dark"] .top-actions button.active { color: var(--bg); }
   flex: none;
   min-width: 0;
 }
+
+/* ============================================================
+   „TEIL DES HINTERGRUNDS" — grelle/weisse Elemente integrieren.
+   Liegt am Ende → überschreibt vorherige Farben. Nur Akzent-/Titel-
+   Flächen werden gedämpft, dichte Dateilisten bleiben lesbar.
+   ============================================================ */
+
+/* Grosse/helle Überschriften, Marken- und Kachel-Titel + grosse Werte:
+   in den Hintergrund einfügen (geringere Deckkraft statt grellem Weiss). */
+#project-title,
+.topbar-title h1,
+.brand strong,
+.dashboard-hero h2,
+.panel-header h2,
+.table-header h2,
+.summary-card strong,
+.dashboard-card strong,
+.docs-two-pane .document-group-card .dgc-top strong,
+.dgc-top strong,
+.document-group-card strong {
+  color: color-mix(in srgb, var(--ink) 60%, transparent);
+  font-weight: 600;
+}
+
+/* Aktiver Navi-Tab: dezenter Tint statt heller Füllung */
+.top-actions button.active,
+body[data-theme="dark"] .top-actions button.active {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: color-mix(in srgb, var(--ink) 75%, transparent);
+  box-shadow: none;
+}
+
+/* Marken-Badge „PCS" + große Status-Werte dezenter einbinden */
+.brand .brand-mark { opacity: 0.85; }
