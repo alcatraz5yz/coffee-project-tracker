@@ -2401,7 +2401,6 @@ document.addEventListener("keydown", async (event) => {
   let zoomLevel = 1;
   let selectedRow = null;
   let hoveredRow = null;
-  let currentIsPdf = false;   // bei PDF: Pfeiltasten scrollen das Dokument (statt Datei-Wechsel)
 
   function canPreview(href) { return IMAGE_EXT.test(href) || PDF_EXT.test(href); }
 
@@ -2420,7 +2419,6 @@ document.addEventListener("keydown", async (event) => {
     nameEl.textContent = name;
     body.innerHTML = "";
     zoomLevel = 1;
-    currentIsPdf = PDF_EXT.test(href);
     if (IMAGE_EXT.test(href)) {
       zoomBar.style.display = "flex";
       const img = document.createElement("img");
@@ -2430,12 +2428,7 @@ document.addEventListener("keydown", async (event) => {
       zoomBar.style.display = "none";
       const iframe = document.createElement("iframe");
       iframe.src = href;
-      iframe.setAttribute("tabindex", "0");
       body.appendChild(iframe);
-      // Den PDF-Viewer fokussieren → Pfeiltasten (↑/↓, Bild auf/ab) scrollen das PDF.
-      const focusPdf = () => { try { iframe.contentWindow?.focus(); iframe.focus(); } catch {} };
-      iframe.addEventListener("load", () => setTimeout(focusPdf, 50));
-      setTimeout(focusPdf, 120);
     }
     panel.classList.add("active");
   }
@@ -2540,15 +2533,19 @@ document.addEventListener("keydown", async (event) => {
     if (e.key === "+" || e.key === "=") setZoom(zoomLevel * 1.25);
     if (e.key === "-") setZoom(zoomLevel * 0.8);
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-      // Bei PDF: Pfeiltasten scrollen das Dokument (Viewer hat Fokus) — nicht abfangen.
-      if (currentIsPdf) return;
       e.preventDefault();
-      const rows = [...document.querySelectorAll(".evidence-file-row:not(.evidence-file-row--folder):not(.head)")];
-      const idx = rows.indexOf(selectedRow);
-      const next = e.key === "ArrowDown" ? rows[idx + 1] : rows[idx - 1];
-      if (next) {
-        const link = next.querySelector("a[href]");
-        if (link && canPreview(link.href)) { next.scrollIntoView({ block: "nearest" }); openPreview(next, link.href, link.textContent.trim()); }
+      // Zur nächsten/vorherigen VORSCHAUBAREN Datei (PDF/Bild) im Ordner springen.
+      const rows = [...document.querySelectorAll("#docs-detail-pane .evidence-file-row:not(.evidence-file-row--folder):not(.head)")];
+      const step = e.key === "ArrowDown" ? 1 : -1;
+      let idx = rows.indexOf(selectedRow);
+      for (let i = idx + step; i >= 0 && i < rows.length; i += step) {
+        const r = rows[i];
+        const href = r.dataset.evidenceEntryHref;
+        if (href && canPreview(href)) {
+          r.scrollIntoView({ block: "nearest" });
+          openPreview(r, href, r.dataset.evidenceEntryName || r.textContent.trim());
+          break;
+        }
       }
     }
   }, true);
