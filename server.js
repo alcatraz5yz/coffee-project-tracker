@@ -2150,16 +2150,28 @@ app.post("/api/tabelle30/parse", (req, res) => {
   }
 });
 
+// Klartext-Fehler für die UI (v.a. Windows-Fälle: Datei in Word offen / .doc / kaputt).
+function friendlyParseError(err, file) {
+  const m = err?.message || String(err);
+  const name = path.basename(file || "");
+  if (/\.doc-Datei/i.test(m)) return m;   // bereits klare .doc-Meldung
+  if (/EBUSY|EACCES|EPERM|locked|busy|sharing violation/i.test(m))
+    return `„${name}" konnte nicht gelesen werden – ist die Datei evtl. gerade in Word geöffnet? Bitte schließen und erneut versuchen.`;
+  if (/not a zip|EOCD|zip entry|bad (central|local)/i.test(m))
+    return `„${name}" ist keine gültige .docx-Datei (oder beschädigt). Falls es eine alte .doc-Datei ist: in Word öffnen und als .docx speichern.`;
+  return m;
+}
+
 // Parse one Bauteilliste file → Tabelle 24 rows as JSON.
 app.post("/api/tabelle24/parse", (req, res) => {
   const file = req.body?.file;
   if (!file || typeof file !== "string") return res.status(400).json({ error: "missing { file }" });
   const resolved = path.resolve(file);
-  if (!fs.existsSync(resolved)) return res.status(404).json({ error: `not found: ${resolved}` });
+  if (!fs.existsSync(resolved)) return res.status(404).json({ error: `Datei nicht gefunden: ${resolved}` });
   try {
     res.json(cachedParse(parsedTabelle24Cache, resolved, () => parseTabelle24(resolved)));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: friendlyParseError(err, resolved) });
   }
 });
 
@@ -2191,7 +2203,7 @@ app.post("/api/tabelle24/analyze", async (req, res) => {
       rows,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: friendlyParseError(err, resolved) });
   }
 });
 
