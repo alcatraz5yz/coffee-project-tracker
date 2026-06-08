@@ -2239,6 +2239,63 @@ setInterval(refreshActiveFolderIfChanged, 5000);
 window.addEventListener("focus", refreshActiveFolderIfChanged);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshActiveFolderIfChanged(); });
 
+// Marquee-Auswahl (Gummiband) wie im File Explorer: auf LEERER Fläche der Dateiliste
+// die Maustaste drücken und ein Rechteck über die Zeilen ziehen → markiert alle
+// berührten Dateien/Ordner. (Start auf einer Zeile bleibt = Verschieben per Drag.)
+(function marqueeSelect() {
+  const pane = document.querySelector("#docs-detail-pane");
+  if (!pane) return;
+  let box = null, startX = 0, startY = 0, baseSel = null, active = false, moved = false;
+
+  pane.addEventListener("mousedown", (e) => {
+    if (e.button !== 0) return;
+    // Nur im Datei-Bereich, NICHT auf Zeilen/Buttons/Links/Eingaben/Drop-Zonen starten.
+    if (!e.target.closest(".evidence-file-table")) return;
+    if (e.target.closest(".evidence-file-row:not(.head), button, a, input, .evidence-crumb, .evidence-parent-drop, .evidence-sort")) return;
+    active = true; moved = false; startX = e.clientX; startY = e.clientY;
+    baseSel = (e.metaKey || e.ctrlKey) ? new Set(selectedEvidenceHrefs) : new Set();
+    box = document.createElement("div");
+    box.className = "marquee-box";
+    document.body.appendChild(box);
+    e.preventDefault();
+  });
+
+  window.addEventListener("mousemove", (e) => {
+    if (!active) return;
+    const x = Math.min(startX, e.clientX), y = Math.min(startY, e.clientY);
+    const w = Math.abs(e.clientX - startX), h = Math.abs(e.clientY - startY);
+    Object.assign(box.style, { left: x + "px", top: y + "px", width: w + "px", height: h + "px" });
+    if (w < 4 && h < 4) return;
+    moved = true;
+    const mr = { left: x, top: y, right: x + w, bottom: y + h };
+    const sel = new Set(baseSel);
+    document.querySelectorAll("#docs-detail-pane .evidence-file-row:not(.head)").forEach((row) => {
+      const href = row.dataset.evidenceEntryHref;
+      if (!href) return;
+      const r = row.getBoundingClientRect();
+      const hit = !(r.right < mr.left || r.left > mr.right || r.bottom < mr.top || r.top > mr.bottom);
+      if (hit) sel.add(href);
+      row.classList.toggle("explorer-selected", sel.has(href));
+    });
+    selectedEvidenceHrefs = sel;
+  });
+
+  window.addEventListener("mouseup", () => {
+    if (!active) return;
+    active = false;
+    if (box) { box.remove(); box = null; }
+    // Nach echter Marquee-Auswahl neu rendern, damit die Aktions-Buttons (Kopieren/…)
+    // die Auswahl kennen (sonst bleiben sie disabled).
+    if (moved) {
+      const scroller = document.querySelector("#docs-detail-pane .evidence-file-table");
+      const saved = scroller?.scrollTop || 0;
+      renderDocs(activeProject);
+      const ns = document.querySelector("#docs-detail-pane .evidence-file-table");
+      if (ns) ns.scrollTop = saved;
+    }
+  });
+})();
+
 // Open local folder in Finder/Explorer via local backend
 document.querySelector("#docs-view").addEventListener("click", async (event) => {
   const fileActionBtn = event.target.closest("[data-file-action]");
