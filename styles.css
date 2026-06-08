@@ -3749,3 +3749,13 @@ body[data-theme="dark"] .top-actions button.active {
 .evidence-file-row.reviewed .evidence-file-name,
 .evidence-file-row.reviewed .word-action--name,
 .evidence-file-row.reviewed .evidence-folder-btn { color: var(--good); }
+
+/* Marquee-Auswahlrechteck (wie im File Explorer) */
+.marquee-box {
+  position: fixed;
+  z-index: 9998;
+  pointer-events: none;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-radius: 2px;
+}
