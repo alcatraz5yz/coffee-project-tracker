@@ -1054,6 +1054,37 @@ function renderDocs(project) {
   window._observePdfThumbs?.();
   requestAnimationFrame(fitDocsPanes);
   setTimeout(fitDocsPanes, 80);
+
+  // Ordner im Hintergrund vorwärmen → Wechsel zwischen Ordnern (v.a. 09/10) sofort.
+  if (activeView === "docs" && activeProject && _prefetchedProject !== activeProject.id) {
+    _prefetchedProject = activeProject.id;
+    const proj = activeProject;
+    setTimeout(() => prefetchProjectFolders(proj), 500);
+  }
+}
+
+// Vorausladen der Ordner-Inhalte des Projekts in den Cache (sanft, sequenziell).
+// 09/10 zuerst (dort wird am meisten gewechselt), bereits Gecachtes überspringen.
+let _prefetchedProject = null;
+let _prefetchToken = 0;
+async function prefetchProjectFolders(project) {
+  const token = ++_prefetchToken;
+  const prio = (g) => { const n = (String(g.primary || "").match(/^\s*0*(\d+)/) || [])[1]; return (n === "9" || n === "10") ? 1 : 0; };
+  const groups = (project.documentGroups || [])
+    .filter((g) => (parseInt(g.count) || 0) > 0)
+    .sort((a, b) => prio(b) - prio(a));
+  for (const g of groups) {
+    if (token !== _prefetchToken || !activeProject || activeProject.id !== project.id || activeView !== "docs") return;
+    const key = evidenceCacheKey(project.id, g.primary);
+    const href = lastFolderByGroup.get(key) || evidenceHref(g);
+    const pathKey = `${key}:${href}`;
+    if (evidencePathEntries.has(pathKey)) continue;
+    try {
+      const data = await apiFetch(`/api/list-path?href=${encodeURIComponent(href)}`);
+      evidencePathEntries.set(pathKey, { loading: false, entries: data.entries || [], browseHref: href, rootHref: evidenceHref(g) });
+    } catch {}
+    await new Promise((r) => setTimeout(r, 120));   // Laufwerk nicht überlasten
+  }
 }
 
 function currentEvidenceContext() {
