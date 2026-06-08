@@ -128,6 +128,14 @@ let selectedEvidenceHrefs = new Set();
 let evidenceSelectionAnchor = null;
 let evidenceClipboard = null;
 let evidenceDrag = null;
+// Manuell „angeschaut" markierte Dateien/Ordner (grün) — bleibt im Browser gespeichert.
+let reviewedHrefs = new Set();
+try { reviewedHrefs = new Set(JSON.parse(localStorage.getItem("pcs-reviewed") || "[]")); } catch {}
+function isReviewed(href) { return reviewedHrefs.has(href); }
+function toggleReviewed(href) {
+  if (reviewedHrefs.has(href)) reviewedHrefs.delete(href); else reviewedHrefs.add(href);
+  try { localStorage.setItem("pcs-reviewed", JSON.stringify([...reviewedHrefs])); } catch {}
+}
 // Sortierung + Suche im aktuellen Ordner.
 let evidenceSort = { key: "name", dir: "asc" };
 let evidenceSearch = "";
@@ -698,12 +706,17 @@ function evidenceHref(link) {
   return encodeURI(trackerConfig.localDocumentRoot + rel);
 }
 function parentEvidenceHref(currentHref, rootHref) {
-  const root = rootHref.endsWith("/") ? rootHref : `${rootHref}/`;
-  const current = currentHref.endsWith("/") ? currentHref.slice(0, -1) : currentHref;
-  if (current === root.slice(0, -1)) return null;
-  const slash = current.lastIndexOf("/");
-  const parent = slash >= 0 ? `${current.slice(0, slash)}/` : root;
-  return parent.startsWith(root) ? parent : root;
+  // Genau EINE Ebene hoch. Dekodiert vergleichen (sonst klemmt %20/NFD-Mismatch
+  // den Parent fälschlich auf die Wurzel → "geht zu weit rauf").
+  const dec = (s) => { let v = String(s || ""); for (let i = 0; i < 5; i++) { try { const d = decodeURIComponent(v); if (d === v) break; v = d; } catch { break; } } return v.replace(/\/$/, ""); };
+  const cur = String(currentHref || "").replace(/\/$/, "");
+  const slash = cur.lastIndexOf("/");
+  if (slash < 0) return null;
+  const parent = cur.slice(0, slash) + "/";
+  const dRoot = dec(rootHref), dCur = dec(cur), dParent = dec(parent);
+  if (dCur === dRoot) return null;                 // schon an der Wurzel → kein Parent-Drop
+  if (dParent.length < dRoot.length) return rootHref;  // würde über die Wurzel → auf Wurzel klemmen
+  return parent;
 }
 function isWordFile(p) { return /\.(doc|docx|docm)$/i.test(p || ""); }
 function isExcelFile(p) { return /\.(xls|xlsx|xlsm|xlsb|xlam)$/i.test(p || ""); }
@@ -952,7 +965,7 @@ function renderDocs(project) {
           </div>
           <p class="evidence-search-empty empty-state hidden">Keine Treffer.</p>
           ${sortEvidenceEntries(entries).map((entry) => `
-            <div class="evidence-file-row${entry.type === "Ordner" ? " evidence-file-row--folder" : ""}${selectedEvidenceHrefs.has(entry.href) ? " explorer-selected" : ""}"
+            <div class="evidence-file-row${entry.type === "Ordner" ? " evidence-file-row--folder" : ""}${selectedEvidenceHrefs.has(entry.href) ? " explorer-selected" : ""}${isReviewed(entry.href) ? " reviewed" : ""}"
               draggable="true"
               data-evidence-entry-href="${entry.href}"
               data-evidence-entry-name="${escapeHtml(entry.name)}"
@@ -968,6 +981,7 @@ function renderDocs(project) {
               <span>${entry.size || entry.type}</span>
               <span>${entry.modified}</span>
               <span class="evidence-file-actions">
+                <button class="review-toggle${isReviewed(entry.href) ? " on" : ""}" type="button" data-review-href="${entry.href}" title="Als angeschaut markieren (grün)">${isReviewed(entry.href) ? "✓" : "○"}</button>
                 ${entry.type !== "Ordner" ? `<button class="finder-action" type="button" data-open-href="${entry.href}">Öffnen</button>` : `<button class="finder-action" type="button" data-open-href="${entry.href}">Finder</button>`}
               </span>
             </div>
@@ -2178,6 +2192,52 @@ document.querySelector("#docs-view").addEventListener("input", (event) => {
   evidenceSearch = box.value;
   filterEvidenceRows();
 });
+
+// Grün-Markierung „angeschaut" umschalten (Capture + stopPropagation → öffnet die Datei nicht).
+document.querySelector("#docs-view").addEventListener("click", (event) => {
+  const t = event.target.closest("[data-review-href]");
+  if (!t) return;
+  event.stopPropagation();
+  event.preventDefault();
+  const href = t.dataset.reviewHref;
+  toggleReviewed(href);
+  const on = isReviewed(href);
+  t.classList.toggle("on", on);
+  t.textContent = on ? "✓" : "○";
+  const row = t.closest(".evidence-file-row");
+  if (row) row.classList.toggle("reviewed", on);
+}, true);
+
+// Auto-Refresh: offenen Ordner regelmäßig + bei Fenster-Fokus neu laden, damit extern
+// hinzugefügte/gelöschte Dateien ohne Reload erscheinen (wie im File Explorer).
+let _folderPollBusy = false;
+async function refreshActiveFolderIfChanged() {
+  if (_folderPollBusy) return;
+  if (activeView !== "docs" || document.hidden || !activeProject || !activeEvidenceGroup || evidenceDrag) return;
+  const ctx = currentEvidenceContext();
+  if (!ctx) return;
+  const href = ctx.currentHref;
+  _folderPollBusy = true;
+  try {
+    const data = await apiFetch(`/api/list-path?href=${encodeURIComponent(href)}`);
+    const newEntries = data.entries || [];
+    const cached = evidenceEntries.get(ctx.key);
+    const sig = (es) => (es || []).map((e) => `${e.name}|${e.modified}|${e.size}|${e.childCount}`).join("\n");
+    if (cached && sig(cached.entries) === sig(newEntries)) return;   // unverändert → nichts tun
+    const rootHref = cached?.rootHref || evidenceHref(ctx.group);
+    const next = { loading: false, entries: newEntries, browseHref: href, rootHref };
+    evidencePathEntries.set(`${ctx.key}:${href}`, next);
+    evidenceEntries.set(ctx.key, next);
+    const scroller = document.querySelector("#docs-detail-pane .evidence-file-table");
+    const saved = scroller?.scrollTop || 0;
+    renderDocs(activeProject);
+    const ns = document.querySelector("#docs-detail-pane .evidence-file-table");
+    if (ns) ns.scrollTop = saved;
+  } catch {} finally { _folderPollBusy = false; }
+}
+setInterval(refreshActiveFolderIfChanged, 5000);
+window.addEventListener("focus", refreshActiveFolderIfChanged);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshActiveFolderIfChanged(); });
 
 // Open local folder in Finder/Explorer via local backend
 document.querySelector("#docs-view").addEventListener("click", async (event) => {

@@ -3664,3 +3664,17 @@ body[data-theme="dark"] .top-actions button.active {
 
 /* Marken-Badge „PCS" + große Status-Werte dezenter einbinden */
 .brand .brand-mark { opacity: 0.85; }
+
+/* — „Angeschaut"-Markierung (manuell, grün) — */
+.review-toggle {
+  background: none; border: 0; cursor: pointer;
+  font-size: 13px; line-height: 1; color: var(--muted);
+  padding: 2px 6px; border-radius: 5px; opacity: 0.7;
+}
+.review-toggle:hover { opacity: 1; background: color-mix(in srgb, var(--good) 18%, transparent); }
+.review-toggle.on { color: var(--good); opacity: 1; }
+.evidence-file-row.reviewed { background: color-mix(in srgb, var(--good) 13%, transparent); }
+.evidence-file-row.reviewed.evidence-file-row--folder { background: color-mix(in srgb, var(--good) 18%, transparent); }
+.evidence-file-row.reviewed .evidence-file-name,
+.evidence-file-row.reviewed .word-action--name,
+.evidence-file-row.reviewed .evidence-folder-btn { color: var(--good); }
