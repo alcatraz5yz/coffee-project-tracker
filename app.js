@@ -354,6 +354,10 @@ async function loadEvidenceEntries(group, browseHref) {
   if (cachedPath) {
     evidenceEntries.set(key, { ...cachedPath, loading: false, browseHref: href, rootHref });
     renderDocs(activeProject);
+    // Sofort anzeigen (aus Cache) UND im Hintergrund prüfen, ob sich der Ordner extern
+    // geändert hat → ggf. automatisch aktualisieren (wie im File Explorer).
+    _lastFolderMtime = { href: null, mtime: null };
+    setTimeout(() => pollActiveFolder(), 30);
     return;
   }
   const prev = evidenceEntries.get(key);
