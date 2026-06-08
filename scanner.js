@@ -23,7 +23,7 @@ const { trackerConfig } = require("./config");
 const CONFIG_PCS_ROOT = process.platform === "win32" ? trackerConfig.pcsRoot : null;
 const PCS_ROOT = process.env.PCS_ROOT || CONFIG_PCS_ROOT || path.join(os.homedir(), "Desktop");
 const PROJECT_PREFIX = process.env.PROJECT_PREFIX || "EF";
-const CONCURRENCY = 8;
+const CONCURRENCY = Number(process.env.SCAN_CONCURRENCY) || 12;
 
 // IEC subfolder number → display area
 const IEC_FOLDER_MAP = {

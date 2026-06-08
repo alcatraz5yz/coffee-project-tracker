@@ -1144,6 +1144,19 @@ app.get("/api/list-path", async (req, res, next) => {
   }
 });
 
+// Leichtgewichtiger Änderungs-Check: nur die mtime des Ordners (ein stat) — der
+// Auto-Refresh-Poll fragt das ab und holt die volle Liste nur bei Änderung.
+app.get("/api/list-path/mtime", async (req, res) => {
+  try {
+    const target = await resolveAllowedHref(req.query?.href);
+    if (!target) return res.status(400).json({ error: "Pfad nicht erlaubt" });
+    const stat = await fsStat(target);
+    res.json({ mtimeMs: stat.mtimeMs });
+  } catch (err) {
+    res.status(500).json({ error: err?.message || "stat fehlgeschlagen" });
+  }
+});
+
 app.post("/api/file-action", async (req, res, next) => {
   const { action, sourceHref, targetDirHref, name } = req.body || {};
 
