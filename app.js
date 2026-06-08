@@ -128,6 +128,7 @@ let selectedEvidenceHrefs = new Set();
 let evidenceSelectionAnchor = null;
 let evidenceClipboard = null;
 let evidenceDrag = null;
+let marqueeActive = false;   // läuft gerade eine Gummiband-Auswahl? (Poll-Refresh dann aussetzen)
 // Manuell „angeschaut" markierte Dateien/Ordner (grün) — bleibt im Browser gespeichert.
 let reviewedHrefs = new Set();
 try { reviewedHrefs = new Set(JSON.parse(localStorage.getItem("pcs-reviewed") || "[]")); } catch {}
@@ -2211,9 +2212,24 @@ document.querySelector("#docs-view").addEventListener("click", (event) => {
 // Auto-Refresh: offenen Ordner regelmäßig + bei Fenster-Fokus neu laden, damit extern
 // hinzugefügte/gelöschte Dateien ohne Reload erscheinen (wie im File Explorer).
 let _folderPollBusy = false;
+let _lastFolderMtime = { href: null, mtime: null };
+// Billiger Poll: nur die Ordner-mtime prüfen (ein stat). Nur bei Änderung die volle
+// Liste neu holen → minimale Last, auch auf dem Netzlaufwerk.
+async function pollActiveFolder() {
+  if (activeView !== "docs" || document.hidden || !activeProject || !activeEvidenceGroup || evidenceDrag || marqueeActive) return;
+  const ctx = currentEvidenceContext();
+  if (!ctx) return;
+  const href = ctx.currentHref;
+  try {
+    const m = await apiFetch(`/api/list-path/mtime?href=${encodeURIComponent(href)}`);
+    if (_lastFolderMtime.href === href && _lastFolderMtime.mtime === m.mtimeMs) return;  // unverändert
+    _lastFolderMtime = { href, mtime: m.mtimeMs };
+    await refreshActiveFolderIfChanged();
+  } catch {}
+}
 async function refreshActiveFolderIfChanged() {
   if (_folderPollBusy) return;
-  if (activeView !== "docs" || document.hidden || !activeProject || !activeEvidenceGroup || evidenceDrag) return;
+  if (activeView !== "docs" || document.hidden || !activeProject || !activeEvidenceGroup || evidenceDrag || marqueeActive) return;
   const ctx = currentEvidenceContext();
   if (!ctx) return;
   const href = ctx.currentHref;
@@ -2235,9 +2251,9 @@ async function refreshActiveFolderIfChanged() {
     if (ns) ns.scrollTop = saved;
   } catch {} finally { _folderPollBusy = false; }
 }
-setInterval(refreshActiveFolderIfChanged, 5000);
-window.addEventListener("focus", refreshActiveFolderIfChanged);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) refreshActiveFolderIfChanged(); });
+setInterval(pollActiveFolder, 5000);
+window.addEventListener("focus", pollActiveFolder);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) pollActiveFolder(); });
 
 // Marquee-Auswahl (Gummiband) wie im File Explorer: auf LEERER Fläche der Dateiliste
 // die Maustaste drücken und ein Rechteck über die Zeilen ziehen → markiert alle
@@ -2252,7 +2268,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) refr
     // Nur im Datei-Bereich, NICHT auf Zeilen/Buttons/Links/Eingaben/Drop-Zonen starten.
     if (!e.target.closest(".evidence-file-table")) return;
     if (e.target.closest(".evidence-file-row:not(.head), button, a, input, .evidence-crumb, .evidence-parent-drop, .evidence-sort")) return;
-    active = true; moved = false; startX = e.clientX; startY = e.clientY;
+    active = true; marqueeActive = true; moved = false; startX = e.clientX; startY = e.clientY;
     baseSel = (e.metaKey || e.ctrlKey) ? new Set(selectedEvidenceHrefs) : new Set();
     box = document.createElement("div");
     box.className = "marquee-box";
@@ -2282,7 +2298,7 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) refr
 
   window.addEventListener("mouseup", () => {
     if (!active) return;
-    active = false;
+    active = false; marqueeActive = false;
     if (box) { box.remove(); box = null; }
     // Nach echter Marquee-Auswahl neu rendern, damit die Aktions-Buttons (Kopieren/…)
     // die Auswahl kennen (sonst bleiben sie disabled).
