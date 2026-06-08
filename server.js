@@ -793,9 +793,10 @@ app.post("/api/scan/start", (req, res) => {
   const onlyProjectId = String(req.body?.projectId || "").trim() || null;
   scanInProgress = true;
   scanProgress = { done: 0, total: 0, current: "" };
-  // Einzel-Scan eines Projekts = explizite Aktion → force (mtime-Cache ignorieren),
-  // damit ein leerer/falscher Vorzustand zuverlässig neu aufgebaut wird.
-  scan(null, (p) => { scanProgress = p; }, { onlyProjectId, force: !!onlyProjectId })
+  // Schnell = inkrementell (nur geänderte Ordner). Nur wenn das Projekt noch GAR KEINE
+  // Ordner hat (z.B. leerer/kaputter Vorzustand), einmal komplett neu aufbauen (force).
+  const needsRebuild = onlyProjectId ? ((getProject(onlyProjectId)?.documentGroups?.length || 0) === 0) : false;
+  scan(null, (p) => { scanProgress = p; }, { onlyProjectId, force: needsRebuild })
     .then(async (r) => {
       console.log(`Scan fertig: ${r.projects.length} Projekt(e)${onlyProjectId ? ` (nur ${onlyProjectId})` : ""}`);
       lastScan = {
