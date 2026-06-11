@@ -154,6 +154,9 @@ let marqueeActive = false;   // läuft gerade eine Gummiband-Auswahl? (Poll-Refr
 // Maus-Seitentasten im Dateien-Tab: Vorwärts-Stapel (Ordner, aus denen man hochging)
 let _treeForwardStack = [];
 let _treeNavInternal = false;
+let _treeMouseHistoryGuardUntil = 0;
+let _treeMouseHistoryGuardState = null;
+let _lastTreeMouseNav = { button: null, at: 0 };
 // Manuell „angeschaut" markierte Dateien/Ordner (grün) — bleibt im Browser gespeichert.
 let reviewedHrefs = new Set();
 try { reviewedHrefs = new Set(JSON.parse(localStorage.getItem("pcs-reviewed") || "[]")); } catch {}
@@ -369,11 +372,11 @@ async function reloadProject() {
   activeProject = await apiFetch(`/api/projects/${activeProject.id}`);
 }
 
-async function loadEvidenceEntries(group, browseHref) {
+async function loadEvidenceEntries(group, browseHref, options = {}) {
   evidenceSearch = "";   // Suche bei jedem Ordnerwechsel zurücksetzen
   // Manuelle Navigation (Klick, Kachel, Breadcrumb …) macht den Vorwärts-Stapel
   // der Maus-Seitentasten ungültig — wie im File Explorer.
-  if (!_treeNavInternal) _treeForwardStack = [];
+  if (!_treeNavInternal && !options.preserveTreeForward) _treeForwardStack = [];
   const key = evidenceCacheKey(activeProject.id, group.primary);
   // Ohne expliziten Pfad: zuletzt besuchten Unterordner dieses Ordners wieder
   // öffnen (pro Ordner gemerkt), sonst die Wurzel. So bleibt man beim Wechsel
@@ -406,6 +409,42 @@ async function loadEvidenceEntries(group, browseHref) {
     console.error("Evidence list error:", err);
   }
   renderDocs(activeProject);
+}
+
+function evidenceFolderHistoryState(group, href) {
+  if (!activeProject || !group) return null;
+  const rootHref = evidenceHref(group);
+  const currentHref = href || rootHref;
+  const state = { projectId: activeProject.id, view: "docs", openGroup: group.primary };
+  if (parentEvidenceHref(currentHref, rootHref)) {
+    state.subfolderGroup = group.primary;
+    state.subfolderHref = currentHref;
+  }
+  return state;
+}
+
+function writeEvidenceFolderHistory(group, href, mode = "replace") {
+  const state = evidenceFolderHistoryState(group, href);
+  if (!state) return;
+  const fn = mode === "push" ? history.pushState : history.replaceState;
+  fn.call(history, state, "", `#${activeProject.id}`);
+}
+
+async function navigateEvidenceFolder(group, href, options = {}) {
+  if (!group || !activeProject) return false;
+  const {
+    clearForward = true,
+    clearSelection = true,
+    historyMode = "replace",
+    preserveTreeForward = false,
+  } = options;
+  const targetHref = href || evidenceHref(group);
+  activeEvidenceGroup = group.primary;
+  if (clearForward) _treeForwardStack = [];
+  if (clearSelection) clearEvidenceSelection();
+  if (historyMode) writeEvidenceFolderHistory(group, targetHref, historyMode);
+  await loadEvidenceEntries(group, targetHref, { preserveTreeForward });
+  return true;
 }
 
 function toggleEvidenceGroup(groupName) {
@@ -1804,22 +1843,32 @@ async function ensureProjectData(projectId) {
   }
 }
 
+async function restoreDocsHistoryState(state, options = {}) {
+  await ensureProjectData(state.projectId);
+  setView("docs");
+  activeEvidenceGroup = state.openGroup || null;
+  if (activeEvidenceGroup) {
+    const group = activeProject.documentGroups?.find((g) => g.primary === activeEvidenceGroup);
+    if (group) {
+      const href = state.subfolderHref || evidenceHref(group);
+      await loadEvidenceEntries(group, href, { preserveTreeForward: !!options.preserveTreeForward });
+      return;
+    }
+  }
+  renderDocs(activeProject);
+}
+
 window.addEventListener("popstate", async (e) => {
-  if (e.state?.subfolderGroup && e.state?.projectId) {
-    // Level 3: inside subfolder
-    await ensureProjectData(e.state.projectId);
-    activeEvidenceGroup = e.state.openGroup;
-    setView("docs");
-    const group = activeProject.documentGroups?.find((g) => g.primary === e.state.subfolderGroup);
-    if (group) loadEvidenceEntries(group, e.state.subfolderHref);
-  } else if (e.state?.projectId && e.state?.view === "docs" && e.state?.openGroup) {
-    // Level 2: panel open at root
-    await ensureProjectData(e.state.projectId);
-    activeEvidenceGroup = e.state.openGroup;
-    setView("docs");
-    const group = activeProject.documentGroups?.find((g) => g.primary === e.state.openGroup);
-    if (group) loadEvidenceEntries(group, evidenceHref(group));
-    else renderDocs(activeProject);
+  if (_treeMouseHistoryGuardState?.projectId && Date.now() < _treeMouseHistoryGuardUntil) {
+    const guardedState = _treeMouseHistoryGuardState;
+    history.pushState(guardedState, "", `#${guardedState.projectId}`);
+    await restoreDocsHistoryState(guardedState, { preserveTreeForward: true });
+    return;
+  }
+  _treeMouseHistoryGuardState = null;
+
+  if (e.state?.projectId && e.state?.view === "docs" && e.state?.openGroup) {
+    await restoreDocsHistoryState(e.state);
   } else if (e.state?.projectId && e.state?.view === "docs") {
     // Level 1: docs tab, panel closed
     await ensureProjectData(e.state.projectId);
@@ -2334,36 +2383,83 @@ document.addEventListener("visibilitychange", () => { if (!document.hidden) poll
 
 // ── Maus-Seitentasten (Zurück/Vorwärts) im Dateien-Tab ────────────────────────
 // Wie im File Explorer: Zurück = exakt EINE Ordnerebene hoch, Vorwärts = wieder
-// in den Ordner hinunter, aus dem man hochkam. Die Browser-History-Navigation
-// wird dafür unterdrückt (Chrome/Edge: preventDefault auf mousedown/mouseup).
-// Ausserhalb der Dateien-Ansicht bleibt das normale Browser-Verhalten.
-function treeNavUp() {
+// in den Ordner hinunter, aus dem man hochkam. Manche Browser führen bei echten
+// Maus-Seitentasten trotzdem History-Navigation aus; der Guard unten stellt dann
+// sofort wieder den Dateien-State her.
+async function treeNavUp() {
   const ctx = currentEvidenceContext();
-  if (!ctx) return;
+  if (!ctx) return false;
   const rootHref = evidenceHref(ctx.group);
   const parent = parentEvidenceHref(ctx.currentHref, rootHref);
-  if (!parent) return;                       // schon an der Wurzel des Ordners
+  if (!parent) return false;                 // schon an der Wurzel des Ordners
   _treeForwardStack.push(ctx.currentHref);   // für „Vorwärts" merken
   _treeNavInternal = true;
-  try { loadEvidenceEntries(ctx.group, parent); } finally { _treeNavInternal = false; }
+  try {
+    await navigateEvidenceFolder(ctx.group, parent, {
+      clearForward: false,
+      historyMode: "replace",
+      preserveTreeForward: true,
+    });
+  } finally {
+    _treeNavInternal = false;
+  }
+  return true;
 }
 
-function treeNavDown() {
+async function treeNavDown() {
   const ctx = currentEvidenceContext();
-  if (!ctx || !_treeForwardStack.length) return;
+  if (!ctx || !_treeForwardStack.length) return false;
   const next = _treeForwardStack.pop();
   _treeNavInternal = true;
-  try { loadEvidenceEntries(ctx.group, next); } finally { _treeNavInternal = false; }
+  try {
+    await navigateEvidenceFolder(ctx.group, next, {
+      clearForward: false,
+      historyMode: "replace",
+      preserveTreeForward: true,
+    });
+  } finally {
+    _treeNavInternal = false;
+  }
+  return true;
 }
 
-["mousedown", "mouseup", "auxclick"].forEach((type) => {
-  window.addEventListener(type, (e) => {
-    if (e.button !== 3 && e.button !== 4) return;
-    if (activeView !== "docs") return;       // nur im Dateien-Tab eingreifen
-    e.preventDefault();
-    e.stopPropagation();
-    if (type === "mouseup") (e.button === 3 ? treeNavUp() : treeNavDown());
-  }, true);
+function treeMouseButtonFromEvent(e) {
+  if (e.button === 3 || e.button === 4) return e.button;
+  if (e.buttons & 8) return 3;
+  if (e.buttons & 16) return 4;
+  return null;
+}
+
+function armTreeMouseHistoryGuard() {
+  const ctx = currentEvidenceContext();
+  if (!ctx) return;
+  _treeMouseHistoryGuardUntil = Date.now() + 1400;
+  _treeMouseHistoryGuardState = evidenceFolderHistoryState(ctx.group, ctx.currentHref);
+}
+
+function handleTreeMouseButton(e) {
+  const button = treeMouseButtonFromEvent(e);
+  if (button !== 3 && button !== 4) return;
+  if (activeView !== "docs" || !currentEvidenceContext()) return; // nur im Dateien-Tab eingreifen
+
+  if (e.cancelable) e.preventDefault();
+  e.stopPropagation();
+  if (typeof e.stopImmediatePropagation === "function") e.stopImmediatePropagation();
+  armTreeMouseHistoryGuard();
+
+  const now = performance.now();
+  if (_lastTreeMouseNav.button === button && now - _lastTreeMouseNav.at < 350) return;
+  _lastTreeMouseNav = { button, at: now };
+
+  void (async () => {
+    if (button === 3) await treeNavUp();
+    else await treeNavDown();
+    armTreeMouseHistoryGuard();
+  })();
+}
+
+["pointerdown", "mousedown", "mouseup", "auxclick"].forEach((type) => {
+  window.addEventListener(type, handleTreeMouseButton, true);
 });
 
 // Marquee-Auswahl (Gummiband) wie im File Explorer: auf LEERER Fläche der Dateiliste
@@ -2466,9 +2562,7 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     if (type === "Ordner") {
       if (!group) return;
       if (!alreadySelected || event.shiftKey) return;
-      history.pushState({ projectId: activeProject.id, view: "docs", openGroup: group.primary, subfolderGroup: group.primary, subfolderHref: href }, "", `#${activeProject.id}`);
-      clearEvidenceSelection();
-      loadEvidenceEntries(group, href);
+      await navigateEvidenceFolder(group, href);
       return;
     }
 
@@ -2507,8 +2601,7 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     const group = activeProject.documentGroups?.find((g) => g.primary === crumb.dataset.evidenceCrumbGroup);
     if (group) {
       const href = crumb.dataset.evidenceCrumb;
-      history.pushState({ projectId: activeProject.id, view: "docs", openGroup: group.primary, subfolderGroup: group.primary, subfolderHref: href }, "", `#${activeProject.id}`);
-      loadEvidenceEntries(group, href);
+      await navigateEvidenceFolder(group, href);
     }
     return;
   }
@@ -2532,15 +2625,18 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     const group = activeProject.documentGroups?.find((g) => g.primary === subfolderBtn.dataset.browseGroup);
     if (group) {
       const href = subfolderBtn.dataset.browseSubfolder;
-      history.pushState({ projectId: activeProject.id, view: "docs", openGroup: group.primary, subfolderGroup: group.primary, subfolderHref: href }, "", `#${activeProject.id}`);
-      loadEvidenceEntries(group, href);
+      await navigateEvidenceFolder(group, href);
     }
     return;
   }
   // Back button
   const backBtn = event.target.closest("[data-evidence-back]");
   if (backBtn) {
-    history.back();
+    const ctx = currentEvidenceContext();
+    if (ctx) {
+      const parent = parentEvidenceHref(ctx.currentHref, evidenceHref(ctx.group));
+      if (parent) await navigateEvidenceFolder(ctx.group, parent);
+    }
     return;
   }
 
