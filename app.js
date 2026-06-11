@@ -1740,8 +1740,8 @@ function renderTabelle24View() {
     tabelle24Frame.removeAttribute("src");
     return;
   }
-  // Iframes kennen nur light/dark → Cyber als dark darstellen.
-  const theme = (document.body.dataset.theme || "light") === "light" ? "light" : "dark";
+  // Iframes kennen nur light/dark. Cyber ist jetzt hell und nutzt dort light.
+  const theme = (document.body.dataset.theme || "light") === "dark" ? "dark" : "light";
   const url = `/tabelle24.html?projectId=${encodeURIComponent(activeProject.id)}&theme=${theme}`;
   if (tabelle24Frame.getAttribute("src") !== url) {
     tabelle24Frame.setAttribute("src", url);
@@ -1754,7 +1754,7 @@ function renderTabelle30View() {
     tabelle30Frame.removeAttribute("src");
     return;
   }
-  const theme = (document.body.dataset.theme || "light") === "light" ? "light" : "dark";
+  const theme = (document.body.dataset.theme || "light") === "dark" ? "dark" : "light";
   const url = `/tabelle30.html?projectId=${encodeURIComponent(activeProject.id)}&theme=${theme}`;
   if (tabelle30Frame.getAttribute("src") !== url) {
     tabelle30Frame.setAttribute("src", url);
@@ -3231,8 +3231,8 @@ themeToggle.addEventListener("click", () => {
   const cur = document.body.dataset.theme || "light";
   applyTheme(THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length]);
   // Push the new theme to the Tabelle 24/30 iframes so they repaint without losing state.
-  // (Die Iframes kennen nur light/dark → Cyber wird dort als dark dargestellt.)
-  const msg = { type: "theme", theme: document.body.dataset.theme === "light" ? "light" : "dark" };
+  // (Die Iframes kennen nur light/dark. Cyber ist hell und wird dort als light dargestellt.)
+  const msg = { type: "theme", theme: document.body.dataset.theme === "dark" ? "dark" : "light" };
   for (const frame of [tabelle24Frame, tabelle30Frame]) {
     if (frame?.contentWindow) {
       try { frame.contentWindow.postMessage(msg, window.location.origin); } catch {}
