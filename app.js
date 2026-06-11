@@ -337,12 +337,16 @@ function escapeHtml(value) {
 }
 
 
+// Drei Themes im Zyklus: Light → Dark → Cyber → Light. Der Button zeigt das NÄCHSTE.
+const THEMES = ["light", "dark", "cyber"];
 function applyTheme(theme) {
+  if (!THEMES.includes(theme)) theme = "light";
   document.body.dataset.theme = theme;
   document.documentElement.dataset.theme = theme;   // damit auch <html> die Theme-Farbe kennt
   localStorage.setItem("pcs-theme", theme);
-  themeToggle.querySelector("strong").textContent = theme === "dark" ? "Light" : "Dark";
-  themeToggle.setAttribute("aria-pressed", String(theme === "dark"));
+  const next = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+  themeToggle.querySelector("strong").textContent = next.charAt(0).toUpperCase() + next.slice(1);
+  themeToggle.setAttribute("aria-pressed", String(theme !== "light"));
 }
 
 applyTheme(localStorage.getItem("pcs-theme") || "light");
@@ -1727,7 +1731,8 @@ function renderTabelle24View() {
     tabelle24Frame.removeAttribute("src");
     return;
   }
-  const theme = document.body.dataset.theme || "light";
+  // Iframes kennen nur light/dark → Cyber als dark darstellen.
+  const theme = (document.body.dataset.theme || "light") === "light" ? "light" : "dark";
   const url = `/tabelle24.html?projectId=${encodeURIComponent(activeProject.id)}&theme=${theme}`;
   if (tabelle24Frame.getAttribute("src") !== url) {
     tabelle24Frame.setAttribute("src", url);
@@ -1740,7 +1745,7 @@ function renderTabelle30View() {
     tabelle30Frame.removeAttribute("src");
     return;
   }
-  const theme = document.body.dataset.theme || "light";
+  const theme = (document.body.dataset.theme || "light") === "light" ? "light" : "dark";
   const url = `/tabelle30.html?projectId=${encodeURIComponent(activeProject.id)}&theme=${theme}`;
   if (tabelle30Frame.getAttribute("src") !== url) {
     tabelle30Frame.setAttribute("src", url);
@@ -3214,9 +3219,11 @@ calculationsContainer.addEventListener("keydown", (event) => {
   saveWarmthInput(warmthInput);
 });
 themeToggle.addEventListener("click", () => {
-  applyTheme(document.body.dataset.theme === "dark" ? "light" : "dark");
+  const cur = document.body.dataset.theme || "light";
+  applyTheme(THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length]);
   // Push the new theme to the Tabelle 24/30 iframes so they repaint without losing state.
-  const msg = { type: "theme", theme: document.body.dataset.theme };
+  // (Die Iframes kennen nur light/dark → Cyber wird dort als dark dargestellt.)
+  const msg = { type: "theme", theme: document.body.dataset.theme === "light" ? "light" : "dark" };
   for (const frame of [tabelle24Frame, tabelle30Frame]) {
     if (frame?.contentWindow) {
       try { frame.contentWindow.postMessage(msg, window.location.origin); } catch {}

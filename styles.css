@@ -3759,3 +3759,129 @@ body[data-theme="dark"] .top-actions button.active {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
   border-radius: 2px;
 }
+
+/* ============================================================
+   THEME 3: „CYBER" — Cyberpunk-Neon (Pink/Orange/Cyan auf Schwarzviolett).
+   Liegt am Ende der Datei → überschreibt Light-Defaults und die
+   Integrations-Dämpfung weiter oben.
+   ============================================================ */
+html[data-theme="cyber"] { --bg: #0a0118; }
+
+body[data-theme="cyber"] {
+  --bg: #0a0118;            /* tiefes Schwarzviolett */
+  --panel: #150a28;
+  --panel-soft: #1e1136;
+  --ink: #f3e9ff;
+  --muted: #9c8ac0;
+  --line: rgba(255, 46, 166, 0.30);
+  --accent: #ff2ea6;        /* Neon-Pink */
+  --accent-soft: rgba(255, 46, 166, 0.14);
+  --good: #00ffa3;          /* Neon-Grün */
+  --watch: #ff9f1c;         /* Neon-Orange */
+  --bad: #ff3b5c;
+  --shadow: 0 0 22px rgba(255, 46, 166, 0.14), 0 12px 32px rgba(0, 0, 0, 0.55);
+  --sidebar: #0d0420;
+  --sidebar-panel: #170b2e;
+  --sidebar-panel-active: #241344;
+  --sidebar-line: #321b5e;
+  --shadow-opacity: 0.45;   /* Blattschatten-Video etwas dezenter */
+  --noise-blend: color-burn;
+  --noise-opacity: 0.30;
+  --glass: var(--panel);
+  --glass-soft: var(--panel-soft);
+  color-scheme: dark;
+}
+
+/* Scanlines + Korn (Retro-CRT-Touch) */
+body[data-theme="cyber"]::after {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.5' numOctaves='4' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='1.6' intercept='-0.32'/%3E%3CfeFuncG type='linear' slope='1.6' intercept='-0.32'/%3E%3CfeFuncB type='linear' slope='1.6' intercept='-0.32'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='320' height='320' filter='url(%23n)'/%3E%3C/svg%3E"),
+    repeating-linear-gradient(0deg, rgba(255, 46, 166, 0.05) 0 1px, transparent 1px 3px);
+  background-size: 320px 320px, 100% 3px;
+}
+
+/* Grosse Titel: Neon-Pink-Glow (übersteuert die Dämpfung des Integrations-Blocks) */
+body[data-theme="cyber"] #project-title,
+body[data-theme="cyber"] .topbar-title h1,
+body[data-theme="cyber"] .dashboard-hero h2,
+body[data-theme="cyber"] .panel-header h2,
+body[data-theme="cyber"] .table-header h2,
+body[data-theme="cyber"] .brand strong {
+  color: #ffd9f1;
+  text-shadow: 0 0 8px rgba(255, 46, 166, 0.85), 0 0 26px rgba(255, 46, 166, 0.40);
+}
+
+/* EF-Nummern & grosse Werte: Neon-Orange-Glow */
+body[data-theme="cyber"] .dashboard-card strong,
+body[data-theme="cyber"] .summary-card strong,
+body[data-theme="cyber"] .docs-two-pane .document-group-card .dgc-top strong,
+body[data-theme="cyber"] .dgc-top strong,
+body[data-theme="cyber"] .document-group-card strong {
+  color: #ffe9d2;
+  text-shadow: 0 0 8px rgba(255, 159, 28, 0.8), 0 0 22px rgba(255, 159, 28, 0.35);
+}
+
+/* Aktiver Navi-Tab: Pink→Orange-Verlauf mit Glow */
+body[data-theme="cyber"] .top-actions button.active {
+  background: linear-gradient(90deg, #ff2ea6, #ff9f1c);
+  color: #160322;
+  font-weight: 800;
+  box-shadow: 0 0 14px rgba(255, 46, 166, 0.65), 0 0 32px rgba(255, 159, 28, 0.35);
+}
+
+/* Panels/Karten: Neon-Hairline, beim Hover glühen */
+body[data-theme="cyber"] .summary-card,
+body[data-theme="cyber"] .panel,
+body[data-theme="cyber"] .table-panel,
+body[data-theme="cyber"] .dashboard-card,
+body[data-theme="cyber"] .docs-two-pane .document-group-card {
+  border-color: rgba(255, 46, 166, 0.30);
+}
+body[data-theme="cyber"] .dashboard-card:hover,
+body[data-theme="cyber"] .docs-two-pane .document-group-card:hover {
+  border-color: rgba(255, 46, 166, 0.75);
+  box-shadow: 0 0 16px rgba(255, 46, 166, 0.45), 0 0 36px rgba(255, 46, 166, 0.18);
+}
+body[data-theme="cyber"] .docs-two-pane .document-group-card.selected {
+  border-color: #ff2ea6;
+  box-shadow: 0 0 14px rgba(255, 46, 166, 0.55);
+}
+
+/* Status-Pillen: Neon glühend */
+body[data-theme="cyber"] .good, body[data-theme="cyber"] .available,
+body[data-theme="cyber"] .done, body[data-theme="cyber"] .status-toggle.done {
+  background: rgba(0, 255, 163, 0.10); color: #00ffa3;
+  box-shadow: 0 0 9px rgba(0, 255, 163, 0.35);
+}
+body[data-theme="cyber"] .watch, body[data-theme="cyber"] .open,
+body[data-theme="cyber"] .in-progress, body[data-theme="cyber"] .status-toggle.open,
+body[data-theme="cyber"] .status-toggle.in-progress {
+  background: rgba(255, 159, 28, 0.10); color: #ff9f1c;
+  box-shadow: 0 0 9px rgba(255, 159, 28, 0.35);
+}
+body[data-theme="cyber"] .blocked, body[data-theme="cyber"] .high,
+body[data-theme="cyber"] .status-toggle.blocked {
+  background: rgba(255, 59, 92, 0.12); color: #ff5c7a;
+  box-shadow: 0 0 9px rgba(255, 59, 92, 0.40);
+}
+
+/* Eingaben/Suche: Cyan-Fokus als Kontrast zum Pink */
+body[data-theme="cyber"] .evidence-search:focus,
+body[data-theme="cyber"] #dashboard-search:focus,
+body[data-theme="cyber"] .search input:focus {
+  border-color: #19e3ff;
+  box-shadow: 0 0 10px rgba(25, 227, 255, 0.45);
+  outline: none;
+}
+
+/* Grün-markierte Zeilen (angeschaut) glühen leicht */
+body[data-theme="cyber"] .evidence-file-row.reviewed {
+  background: rgba(0, 255, 163, 0.08);
+  box-shadow: inset 2px 0 0 rgba(0, 255, 163, 0.6);
+}
+
+/* Marquee-Rechteck: Cyan statt Pink (hebt sich von den Neon-Rändern ab) */
+body[data-theme="cyber"] .marquee-box {
+  border-color: #19e3ff;
+  background: rgba(25, 227, 255, 0.12);
+}
