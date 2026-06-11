@@ -44,8 +44,7 @@ let _pdfThumbObserver = null;
 function getPdfThumbObserver() {
   if (_pdfThumbObserver) return _pdfThumbObserver;
   if (typeof window.pdfjsLib === "undefined") return null;
-  pdfjsLib.GlobalWorkerOptions.workerSrc =
-    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "/assets/pdf.worker.min.js";
   _pdfThumbObserver = new IntersectionObserver((entries) => {
     for (const e of entries) {
       if (!e.isIntersecting) continue;
@@ -56,10 +55,24 @@ function getPdfThumbObserver() {
   return _pdfThumbObserver;
 }
 
+// Einmal gerenderte Thumbs als ImageBitmap im Speicher merken: beim Re-Render
+// (Ordnerwechsel, Auswahl, Sortierung) wird das PDF NICHT erneut geladen/gerendert,
+// sondern das Bitmap synchron auf den neuen Canvas gezeichnet. Bewusst KEIN
+// dataURL-im-HTML (bläht innerHTML auf) und KEIN pdf.destroy() (Worker-Neustart).
+const _pdfThumbBitmaps = new Map();   // href -> ImageBitmap
+const _PDF_THUMB_BITMAP_MAX = 400;
+
 async function renderPdfThumb(canvas) {
   canvas.dataset.pdfDone = "1";
+  const href = canvas.dataset.pdfHref;
+  const cached = _pdfThumbBitmaps.get(href);
+  if (cached) {
+    canvas.width = cached.width; canvas.height = cached.height;
+    canvas.getContext("2d").drawImage(cached, 0, 0);
+    return;
+  }
   try {
-    const pdf = await pdfjsLib.getDocument({ url: canvas.dataset.pdfHref }).promise;
+    const pdf = await pdfjsLib.getDocument({ url: href }).promise;
     const page = await pdf.getPage(1);
     const SIZE = 40;
     const vp0 = page.getViewport({ scale: 1 });
@@ -68,6 +81,15 @@ async function renderPdfThumb(canvas) {
     canvas.width = vp.width;
     canvas.height = vp.height;
     await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
+    // Bitmap asynchron in den Cache legen (nicht auf dem kritischen Pfad).
+    createImageBitmap(canvas).then((bmp) => {
+      if (_pdfThumbBitmaps.size >= _PDF_THUMB_BITMAP_MAX) {
+        const oldest = _pdfThumbBitmaps.keys().next().value;
+        _pdfThumbBitmaps.get(oldest)?.close?.();
+        _pdfThumbBitmaps.delete(oldest);
+      }
+      _pdfThumbBitmaps.set(href, bmp);
+    }).catch(() => {});
   } catch {
     const ctx = canvas.getContext("2d");
     canvas.width = 40; canvas.height = 40;
