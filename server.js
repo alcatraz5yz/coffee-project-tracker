@@ -343,6 +343,22 @@ function invalidateListPathCache() {
   listPathCache.clear();
 }
 
+function isDirectorySync(target) {
+  try {
+    return fs.statSync(target).isDirectory();
+  } catch (_) {
+    return false;
+  }
+}
+
+function appleScriptString(value) {
+  return String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+function powerShellSingleQuoted(value) {
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+
 async function copyRecursiveAsync(src, dst) {
   await fsTimeout(fsp.cp(src, dst, { recursive: true, errorOnExist: true }), `copy ${src}`);
 }
@@ -358,7 +374,45 @@ async function uniquePathAsync(target) {
   }
 }
 
+function openFolderInFinder(target) {
+  const script = [
+    `set folderPath to "${appleScriptString(target)}"`,
+    "tell application \"Finder\"",
+    "  activate",
+    "  set folderRef to POSIX file folderPath as alias",
+    "  if (count of Finder windows) is 0 then",
+    "    make new Finder window to folderRef",
+    "  else",
+    "    set target of front Finder window to folderRef",
+    "  end if",
+    "end tell",
+  ].join("\n");
+  const result = spawnSync("osascript", ["-e", script], { encoding: "utf8", timeout: 1200 });
+  return result.status === 0;
+}
+
+function openFolderInExplorer(target) {
+  const psPath = powerShellSingleQuoted(target);
+  const ps = [
+    `$p = ${psPath}`,
+    "$shell = New-Object -ComObject Shell.Application",
+    "$wins = @($shell.Windows() | Where-Object { try { $_.FullName -and ([IO.Path]::GetFileName($_.FullName) -ieq 'explorer.exe') } catch { $false } })",
+    "if ($wins.Count -gt 0) {",
+    "  $wins[0].Navigate2($p)",
+    "} else {",
+    "  Start-Process explorer.exe -ArgumentList @($p)",
+    "}",
+  ].join("; ");
+  const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", ps], { encoding: "utf8", timeout: 4000 });
+  return result.status === 0;
+}
+
 function openInSystemFileManager(target, appName) {
+  if (!appName && isDirectorySync(target)) {
+    if (process.platform === "darwin" && openFolderInFinder(target)) return;
+    if (process.platform === "win32" && openFolderInExplorer(target)) return;
+  }
+
   let opener = process.platform === "darwin"
     ? "open"
     : process.platform === "win32"
