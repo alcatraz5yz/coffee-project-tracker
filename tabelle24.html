@@ -341,7 +341,7 @@
       .copynum:hover { background: rgba(42,138,120,0.20); text-decoration: underline; text-underline-offset: 2px; }
       .copynum.copied { background: #2a9646; color: #fff; }
     </style>
-    <script src="/assets/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   </head>
   <body>
     <script>
@@ -1119,7 +1119,7 @@
         if (typeof window.pdfjsLib === "undefined") return;
         if (!_pdfThumbObs) {
           window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-            "/assets/pdf.worker.min.js";
+            "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
           _pdfThumbObs = new IntersectionObserver((entries) => {
             for (const e of entries) {
               if (!e.isIntersecting) continue;

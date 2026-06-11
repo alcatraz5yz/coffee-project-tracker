@@ -442,9 +442,7 @@ for (const file of STATIC_FILES) {
 for (const dir of ["assets", "public"]) {
   const full = path.join(__dirname, dir);
   if (fs.existsSync(full)) {
-    // Assets (Video, Fonts, pdf.js) ändern sich selten → 1 Tag Browser-Cache,
-    // spart Re-Validierungs-Roundtrips bei jedem Seitenladen.
-    app.use(`/${dir}`, express.static(full, { dotfiles: "ignore", index: false, fallthrough: false, maxAge: "1d" }));
+    app.use(`/${dir}`, express.static(full, { dotfiles: "ignore", index: false, fallthrough: false }));
   }
 }
 

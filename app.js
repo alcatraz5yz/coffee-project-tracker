@@ -44,7 +44,8 @@ let _pdfThumbObserver = null;
 function getPdfThumbObserver() {
   if (_pdfThumbObserver) return _pdfThumbObserver;
   if (typeof window.pdfjsLib === "undefined") return null;
-  pdfjsLib.GlobalWorkerOptions.workerSrc = "/assets/pdf.worker.min.js";
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
   _pdfThumbObserver = new IntersectionObserver((entries) => {
     for (const e of entries) {
       if (!e.isIntersecting) continue;
@@ -55,27 +56,10 @@ function getPdfThumbObserver() {
   return _pdfThumbObserver;
 }
 
-// Einmal gerenderte Thumbnails als kleines PNG (dataURL) cachen — beim nächsten
-// Render (z.B. Ordnerwechsel 09⇄10) wird das PDF NICHT erneut geladen/gerendert.
-const _pdfThumbCache = new Map();   // href -> dataURL
-const _PDF_THUMB_CACHE_MAX = 400;
-
-function drawDataUrl(canvas, dataUrl) {
-  const img = new Image();
-  img.onload = () => {
-    canvas.width = img.width; canvas.height = img.height;
-    canvas.getContext("2d").drawImage(img, 0, 0);
-  };
-  img.src = dataUrl;
-}
-
 async function renderPdfThumb(canvas) {
   canvas.dataset.pdfDone = "1";
-  const href = canvas.dataset.pdfHref;
-  const cached = _pdfThumbCache.get(href);
-  if (cached) { drawDataUrl(canvas, cached); return; }
   try {
-    const pdf = await pdfjsLib.getDocument({ url: href }).promise;
+    const pdf = await pdfjsLib.getDocument({ url: canvas.dataset.pdfHref }).promise;
     const page = await pdf.getPage(1);
     const SIZE = 40;
     const vp0 = page.getViewport({ scale: 1 });
@@ -84,13 +68,6 @@ async function renderPdfThumb(canvas) {
     canvas.width = vp.width;
     canvas.height = vp.height;
     await page.render({ canvasContext: canvas.getContext("2d"), viewport: vp }).promise;
-    try {
-      if (_pdfThumbCache.size >= _PDF_THUMB_CACHE_MAX) {
-        _pdfThumbCache.delete(_pdfThumbCache.keys().next().value);
-      }
-      _pdfThumbCache.set(href, canvas.toDataURL("image/png"));
-    } catch {}
-    pdf.destroy?.();
   } catch {
     const ctx = canvas.getContext("2d");
     canvas.width = 40; canvas.height = 40;
@@ -114,9 +91,6 @@ function fileThumbHtml(entry) {
     return `<img src="${href}" loading="lazy" class="file-thumb-img" alt="">`;
   }
   if (/\.pdf$/i.test(name)) {
-    // Schon gerendert? → sofort als Bild einsetzen (kein erneutes PDF-Laden/Rendern).
-    const cached = _pdfThumbCache.get(href);
-    if (cached) return `<img src="${cached}" class="file-thumb-img" alt="">`;
     return `<canvas class="file-thumb-img file-thumb-pdf" data-pdf-href="${href}"></canvas>`;
   }
   if (isExcelFile?.(name)) return `<span class="file-thumb-icon file-thumb-icon--excel">XLS</span>`;
