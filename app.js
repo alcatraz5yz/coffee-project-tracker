@@ -151,6 +151,9 @@ let evidenceSelectionAnchor = null;
 let evidenceClipboard = null;
 let evidenceDrag = null;
 let marqueeActive = false;   // läuft gerade eine Gummiband-Auswahl? (Poll-Refresh dann aussetzen)
+// Maus-Seitentasten im Dateien-Tab: Vorwärts-Stapel (Ordner, aus denen man hochging)
+let _treeForwardStack = [];
+let _treeNavInternal = false;
 // Manuell „angeschaut" markierte Dateien/Ordner (grün) — bleibt im Browser gespeichert.
 let reviewedHrefs = new Set();
 try { reviewedHrefs = new Set(JSON.parse(localStorage.getItem("pcs-reviewed") || "[]")); } catch {}
@@ -364,6 +367,9 @@ async function reloadProject() {
 
 async function loadEvidenceEntries(group, browseHref) {
   evidenceSearch = "";   // Suche bei jedem Ordnerwechsel zurücksetzen
+  // Manuelle Navigation (Klick, Kachel, Breadcrumb …) macht den Vorwärts-Stapel
+  // der Maus-Seitentasten ungültig — wie im File Explorer.
+  if (!_treeNavInternal) _treeForwardStack = [];
   const key = evidenceCacheKey(activeProject.id, group.primary);
   // Ohne expliziten Pfad: zuletzt besuchten Unterordner dieses Ordners wieder
   // öffnen (pro Ordner gemerkt), sonst die Wurzel. So bleibt man beim Wechsel
@@ -2311,6 +2317,40 @@ async function refreshActiveFolderIfChanged() {
 setInterval(pollActiveFolder, 5000);
 window.addEventListener("focus", pollActiveFolder);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) pollActiveFolder(); });
+
+// ── Maus-Seitentasten (Zurück/Vorwärts) im Dateien-Tab ────────────────────────
+// Wie im File Explorer: Zurück = exakt EINE Ordnerebene hoch, Vorwärts = wieder
+// in den Ordner hinunter, aus dem man hochkam. Die Browser-History-Navigation
+// wird dafür unterdrückt (Chrome/Edge: preventDefault auf mousedown/mouseup).
+// Ausserhalb der Dateien-Ansicht bleibt das normale Browser-Verhalten.
+function treeNavUp() {
+  const ctx = currentEvidenceContext();
+  if (!ctx) return;
+  const rootHref = evidenceHref(ctx.group);
+  const parent = parentEvidenceHref(ctx.currentHref, rootHref);
+  if (!parent) return;                       // schon an der Wurzel des Ordners
+  _treeForwardStack.push(ctx.currentHref);   // für „Vorwärts" merken
+  _treeNavInternal = true;
+  try { loadEvidenceEntries(ctx.group, parent); } finally { _treeNavInternal = false; }
+}
+
+function treeNavDown() {
+  const ctx = currentEvidenceContext();
+  if (!ctx || !_treeForwardStack.length) return;
+  const next = _treeForwardStack.pop();
+  _treeNavInternal = true;
+  try { loadEvidenceEntries(ctx.group, next); } finally { _treeNavInternal = false; }
+}
+
+["mousedown", "mouseup", "auxclick"].forEach((type) => {
+  window.addEventListener(type, (e) => {
+    if (e.button !== 3 && e.button !== 4) return;
+    if (activeView !== "docs") return;       // nur im Dateien-Tab eingreifen
+    e.preventDefault();
+    e.stopPropagation();
+    if (type === "mouseup") (e.button === 3 ? treeNavUp() : treeNavDown());
+  }, true);
+});
 
 // Marquee-Auswahl (Gummiband) wie im File Explorer: auf LEERER Fläche der Dateiliste
 // die Maustaste drücken und ein Rechteck über die Zeilen ziehen → markiert alle
