@@ -980,8 +980,10 @@ function renderDocs(project) {
             <button class="finder-action" type="button" data-evidence-retry="${group.primary}">Erneut laden</button>
             ${cached.errorMessage ? `<small>${escapeHtml(cached.errorMessage)}</small>` : ""}
           </p>`
-        : entries.length ? `
-          <div class="evidence-crumb-bar">${backBtn}${breadcrumbMarkup}</div>
+        : (() => {
+          // Werkzeugleiste auch für LEERE Ordner — sonst kann man dort nichts
+          // einfügen (Ausschneiden → leerer Zielordner) und keinen Ordner anlegen.
+          const toolbarMarkup = `
           <div class="evidence-location-bar">
             <button class="finder-action" type="button" data-file-action="mkdir" data-current-href="${escapeHtml(currentHref)}">Neuer Ordner</button>
             <button class="finder-action" type="button" data-file-action="rename" ${singleSelectedDisabled}>Umbenennen</button>
@@ -989,7 +991,10 @@ function renderDocs(project) {
             <button class="finder-action" type="button" data-file-action="cut" ${selectedDisabled}>Ausschneiden</button>
             <button class="finder-action" type="button" data-file-action="paste" data-current-href="${escapeHtml(currentHref)}" ${pasteDisabled}>Einfügen</button>
             <button class="finder-action danger" type="button" data-file-action="delete" ${selectedDisabled}>Löschen</button>
-          </div>
+          </div>`;
+          return entries.length ? `
+          <div class="evidence-crumb-bar">${backBtn}${breadcrumbMarkup}</div>
+          ${toolbarMarkup}
           <div class="evidence-search-bar">
             <input type="search" class="evidence-search" data-evidence-search placeholder="Im Ordner suchen…" value="${escapeHtml(evidenceSearch)}" autocomplete="off">
           </div>
@@ -1023,7 +1028,11 @@ function renderDocs(project) {
               </span>
             </div>
           `).join("")}
-        ` : `<div class="evidence-crumb-bar">${backBtn}${breadcrumbMarkup}</div>${parentDropZone}<p class="empty-state">Dieser Ordner enthält keine sichtbaren Dateien.</p>`;
+        ` : `<div class="evidence-crumb-bar">${backBtn}${breadcrumbMarkup}</div>
+          ${toolbarMarkup}
+          ${parentDropZone}
+          <p class="empty-state">Dieser Ordner enthält keine sichtbaren Dateien.</p>`;
+        })();
 
     return `
       <section class="document-group-detail">
