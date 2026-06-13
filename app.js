@@ -171,6 +171,14 @@ let evidenceSearch = "";
 // Pro Ordner (Gruppe) den zuletzt besuchten Unterordner merken, damit man beim
 // Wechsel zwischen Ordnern in seinem jeweiligen Unterordner bleibt.
 const lastFolderByGroup = new Map();
+const MARKET_ORDER = ["IEC", "UL", "EU", "US", "JP", "CN", "AU", "IN", "MX", "TW", "BR", "KR", "CH", "DE", "FR"];
+function marketRank(market) {
+  const idx = MARKET_ORDER.indexOf(String(market || "").toUpperCase());
+  return idx >= 0 ? idx : MARKET_ORDER.length;
+}
+function sortMarkets(markets) {
+  return [...markets].sort((a, b) => marketRank(a) - marketRank(b) || String(a).localeCompare(String(b)));
+}
 function sortEvidenceEntries(entries) {
   const { key, dir } = evidenceSort;
   const mul = dir === "asc" ? 1 : -1;
@@ -923,13 +931,13 @@ function renderDocs(project) {
   function isMarketCode(s) {
     return /^(IEC|UL|EU|US|JP|CN|AU|IN|MX|TW|BR|KR|CH|DE|FR)([\s,]|$)/.test(s);
   }
-  const markets = [...new Set(
+  const markets = sortMarkets([...new Set(
     allGroups.map(g => {
       if (!g.area?.includes(" / ")) return null;
       const prefix = g.area.split(" / ")[0];
       return isMarketCode(prefix) ? prefix : null;
     }).filter(Boolean)
-  )];
+  )]);
 
   // Auto-select first market if none active and markets exist
   if (markets.length > 0 && (!activeMarketFilter || !markets.includes(activeMarketFilter))) {
@@ -1088,7 +1096,7 @@ function renderDocs(project) {
   if (filterBar) {
     if (markets.length > 1) {
       filterBar.innerHTML = markets.map(m =>
-        `<button class="market-filter-btn ${activeMarketFilter === m ? "active" : ""}" data-market="${m}">${m}</button>`
+        `<button class="market-filter-btn ${activeMarketFilter === m ? "active" : ""}" data-market="${m}" aria-pressed="${activeMarketFilter === m ? "true" : "false"}">${m}</button>`
       ).join("");
       filterBar.style.display = "flex";
     } else {
@@ -2907,6 +2915,8 @@ document.addEventListener("keydown", async (event) => {
 document.querySelector("#docs-view").addEventListener("click", (event) => {
   const btn = event.target.closest("[data-market]");
   if (!btn) return;
+  event.preventDefault();
+  event.stopPropagation();
   const market = btn.dataset.market;
   if (!market || activeMarketFilter === market) return;
   const prevGroup = activeEvidenceGroup;
@@ -2930,7 +2940,7 @@ document.querySelector("#docs-view").addEventListener("click", (event) => {
     activeEvidenceGroup = null;
     renderDocs(activeProject);
   }
-});
+}, true);
 
 // Sidebar (ganz links): ein-/ausblenden und Breite verschieben
 (() => {
