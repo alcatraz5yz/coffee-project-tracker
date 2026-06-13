@@ -960,17 +960,18 @@ body:not(.dashboard-mode) .topbar-divider {
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  /* Auto-füllend: so viele Karten pro Zeile wie passen (min. ~205px breit). */
+  grid-template-columns: repeat(auto-fill, minmax(205px, 1fr));
+  gap: 10px;
 }
 
 .dashboard-card {
   display: grid;
-  gap: 8px;
-  min-height: 170px;
+  gap: 6px;
+  min-height: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 16px;
+  padding: 11px 12px;
   background: var(--glass-soft);
   color: var(--ink);
   text-align: left;
@@ -1167,14 +1168,14 @@ body:not(.dashboard-mode) .topbar-divider {
 }
 
 .dashboard-card strong {
-  font-size: 34px;
+  font-size: 26px;
 }
 
 .dashboard-card p {
   margin: 0;
   color: var(--muted);
-  font-size: 14px;
-  line-height: 1.35;
+  font-size: 13px;
+  line-height: 1.3;
 }
 
 .summary-card,
@@ -3510,7 +3511,6 @@ h2 {
 @media (max-width: 1100px) {
   .summary-grid,
   .pcs-strip,
-  .dashboard-grid,
   .document-group-grid,
   .doc-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3553,7 +3553,6 @@ h2 {
 
   .summary-grid,
   .pcs-strip,
-  .dashboard-grid,
   .document-group-grid,
   .doc-grid {
     grid-template-columns: 1fr;
