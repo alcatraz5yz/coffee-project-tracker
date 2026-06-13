@@ -3761,6 +3761,131 @@ body[data-theme="dark"] .top-actions button.active {
 }
 
 /* ============================================================
+   LIGHT THEME — old paper polish.
+   Warm paper base, fine fibres, calmer blue ink and soft pressed panels.
+   ============================================================ */
+html[data-theme="light"] { --bg: #eee9df; }
+
+body[data-theme="light"] {
+  --bg: #eee9df;
+  --panel: rgba(248, 245, 238, 0.82);
+  --panel-soft: rgba(232, 226, 215, 0.74);
+  --ink: #24201a;
+  --muted: #6d665b;
+  --line: rgba(89, 80, 68, 0.24);
+  --accent: #48617f;
+  --accent-soft: rgba(72, 97, 127, 0.13);
+  --good: #3c7352;
+  --watch: #a56b20;
+  --bad: #9c4538;
+  --shadow: 0 18px 38px rgba(61, 52, 40, 0.12), 0 2px 8px rgba(61, 52, 40, 0.06);
+  --shadow-opacity: 0.16;
+  --noise-blend: multiply;
+  --noise-opacity: 0.20;
+  --glass: var(--panel);
+  --glass-soft: var(--panel-soft);
+  background:
+    radial-gradient(circle at 22% 6%, rgba(255, 255, 255, 0.72) 0, rgba(255, 255, 255, 0.20) 23%, transparent 42%),
+    radial-gradient(circle at 88% 16%, rgba(199, 188, 166, 0.20) 0, transparent 34%),
+    linear-gradient(135deg, rgba(126, 100, 66, 0.050), transparent 26%),
+    linear-gradient(180deg, #f0ece4 0%, #e9e3d8 48%, #f6f3ec 100%);
+  color-scheme: light;
+}
+
+body[data-theme="light"]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.28;
+  mix-blend-mode: multiply;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='paper'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.018 0.085' numOctaves='5' seed='31' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0.55 0 0 0 0.28 0 0.50 0 0 0.25 0 0 0.43 0 0.20 0 0 0 0.62 0'/%3E%3C/filter%3E%3Crect width='420' height='420' filter='url(%23paper)'/%3E%3C/svg%3E"),
+    linear-gradient(90deg, rgba(101, 87, 67, 0.035) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(101, 87, 67, 0.026) 1px, transparent 1px);
+  background-size: 420px 420px, 38px 100%, 100% 34px;
+}
+
+body[data-theme="light"] #bg-shadows {
+  opacity: var(--shadow-opacity, 0.16);
+  filter: sepia(0.22) saturate(0.72) contrast(0.92);
+}
+
+body[data-theme="light"] .sidebar,
+body[data-theme="light"] .top-actions,
+body[data-theme="light"] .theme-toggle,
+body[data-theme="light"] .summary-card,
+body[data-theme="light"] .panel,
+body[data-theme="light"] .table-panel,
+body[data-theme="light"] .dashboard-card,
+body[data-theme="light"] .document-group-detail,
+body[data-theme="light"] .docs-two-pane #document-group-grid,
+body[data-theme="light"] .docs-two-pane .document-group-card,
+body[data-theme="light"] .file-preview-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 253, 247, 0.72), rgba(239, 234, 225, 0.64)),
+    color-mix(in srgb, var(--panel) 88%, transparent);
+  border-color: rgba(82, 74, 63, 0.24);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.54), var(--shadow);
+}
+
+body[data-theme="light"] .sidebar {
+  background:
+    linear-gradient(180deg, rgba(238, 233, 223, 0.92), rgba(226, 219, 207, 0.86)),
+    var(--panel-soft);
+  box-shadow: inset -1px 0 0 rgba(82, 74, 63, 0.20);
+}
+
+body[data-theme="light"] .brand span {
+  background: linear-gradient(180deg, #6f8ca6, #42637d);
+  color: #101820;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.32), 0 8px 18px rgba(54, 71, 85, 0.18);
+}
+
+body[data-theme="light"] #project-title,
+body[data-theme="light"] .topbar-title h1,
+body[data-theme="light"] .brand strong,
+body[data-theme="light"] .dashboard-hero h2,
+body[data-theme="light"] .panel-header h2,
+body[data-theme="light"] .table-header h2 {
+  color: rgba(39, 34, 28, 0.74);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+body[data-theme="light"] .top-actions button.active,
+body[data-theme="light"] .machine-list button.active,
+body[data-theme="light"] .docs-two-pane .document-group-card.selected {
+  background: rgba(72, 97, 127, 0.13);
+  border-color: rgba(72, 97, 127, 0.52);
+  box-shadow: inset 0 0 0 1px rgba(72, 97, 127, 0.22), 0 8px 20px rgba(72, 97, 127, 0.10);
+}
+
+body[data-theme="light"] .evidence-location-bar,
+body[data-theme="light"] .evidence-search-bar,
+body[data-theme="light"] .evidence-file-row.head,
+body[data-theme="light"] .file-preview-header {
+  background: rgba(230, 224, 213, 0.58);
+}
+
+body[data-theme="light"] .evidence-file-row:not(.head):hover,
+body[data-theme="light"] .evidence-file-row.explorer-selected {
+  background: rgba(72, 97, 127, 0.075);
+  box-shadow: inset 3px 0 0 rgba(72, 97, 127, 0.56);
+}
+
+body[data-theme="light"] .finder-action,
+body[data-theme="light"] .evidence-back-btn,
+body[data-theme="light"] .market-filter-btn,
+body[data-theme="light"] .search input,
+body[data-theme="light"] .evidence-search,
+body[data-theme="light"] .scan-bar button {
+  background: rgba(246, 243, 237, 0.72);
+  border-color: rgba(82, 74, 63, 0.24);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.54);
+}
+
+/* ============================================================
    THEME 3: „CYBER" — VS-Code-Cyberpunk (Neon-Magenta/Cyan auf Deep Purple).
    Liegt am Ende der Datei → überschreibt Light-Defaults und die
    Integrations-Dämpfung weiter oben.
