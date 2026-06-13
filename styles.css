@@ -43,7 +43,7 @@
   --leaf-opacity: 0;
   --shadow-opacity: 0.20;   /* Stärke des Blattschatten-Videos (Light) */
   --noise-blend: overlay;
-  --noise-opacity: 0.22;    /* Stärke des Filmkorns (Light) */
+  --noise-opacity: 0.30;    /* Stärke des Filmkorns (Light) */
   /* Panels sind deckend (Schatten fallen via Video-Overlay darüber) */
   --glass: var(--panel);
   --glass-soft: var(--panel-soft);
@@ -80,7 +80,7 @@ body[data-theme="dark"] {
   --leaf-opacity: 0;
   --shadow-opacity: 0.55;   /* Stärke des Blattschatten-Videos (Dark) */
   --noise-blend: color-burn;
-  --noise-opacity: 0.34;    /* Stärke des Filmkorns (Dark, color-burn dämpft → höher) */
+  --noise-opacity: 0.44;    /* Stärke des Filmkorns (Dark) */
   --glass: var(--panel);
   --glass-soft: var(--panel-soft);
   color-scheme: dark;
@@ -141,8 +141,9 @@ body::after {
   opacity: var(--noise-opacity, 0.28);
   mix-blend-mode: var(--noise-blend, overlay);
   background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='320'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.5' numOctaves='4' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='1.6' intercept='-0.32'/%3E%3CfeFuncG type='linear' slope='1.6' intercept='-0.32'/%3E%3CfeFuncB type='linear' slope='1.6' intercept='-0.32'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='320' height='320' filter='url(%23n)'/%3E%3C/svg%3E");
-  background-size: 320px 320px;
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='340' height='340'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.42' numOctaves='4' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='1.85' intercept='-0.4'/%3E%3CfeFuncG type='linear' slope='1.85' intercept='-0.4'/%3E%3CfeFuncB type='linear' slope='1.85' intercept='-0.4'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='340' height='340' filter='url(%23n)'/%3E%3C/svg%3E");
+  /* Etwas grössere Kachel → auf grossen/HiDPI-Monitoren sind die Körner sichtbarer. */
+  background-size: 340px 340px;
 }
 
 button,
@@ -3785,7 +3786,7 @@ body[data-theme="cyber"] {
   --sidebar-line: rgba(168, 38, 255, 0.24);
   --shadow-opacity: 0.16;
   --noise-blend: multiply;
-  --noise-opacity: 0.12;
+  --noise-opacity: 0.22;
   --glass: var(--panel);
   --glass-soft: var(--panel-soft);
   color-scheme: light;
