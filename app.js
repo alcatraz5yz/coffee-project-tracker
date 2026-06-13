@@ -1825,8 +1825,21 @@ async function openProject(projectId, view = "overview", pushHistory = true) {
   activeMarketFilter = null;
   excelFilesCache = null;
   subtopicFilter.value = "all";
+  // Beim Öffnen direkt in den Dateien-Tab im Ordner „10 Komponenten" landen
+  // (falls vorhanden & nicht leer); sonst greift die normale Auto-Auswahl.
+  if (view === "docs") {
+    const folderNo = (s) => (String(s || "").match(/^\s*0*(\d+)/) || [])[1];
+    const g10 = (activeProject.documentGroups || []).find(
+      (g) => folderNo(g.primary) === "10" && (parseInt(g.count) || 0) > 0
+    );
+    if (g10) activeEvidenceGroup = g10.primary;
+  }
   setView(view);
   renderAll();
+  if (view === "docs" && activeEvidenceGroup) {
+    const g = activeProject.documentGroups.find((x) => x.primary === activeEvidenceGroup);
+    if (g) loadEvidenceEntries(g);
+  }
   if (pushHistory) history.pushState({ projectId, view }, "", `#${projectId}`);
 }
 
@@ -1927,7 +1940,7 @@ machineList.addEventListener("click", async (event) => {
     return;
   }
 
-  openProject(btn.dataset.id, activeView === "dashboard" ? "overview" : activeView);
+  openProject(btn.dataset.id, activeView === "dashboard" ? "docs" : activeView);
 });
 
 dashboardLink.addEventListener("click", () => {
@@ -2050,13 +2063,13 @@ document.querySelector("#dashboard-grid").addEventListener("click", (event) => {
   }
   const card = event.target.closest("[data-dashboard-project]");
   if (!card) return;
-  openProject(card.dataset.dashboardProject, "overview");
+  openProject(card.dataset.dashboardProject, "docs");
 });
 
 recentlyOpenedEl.addEventListener("click", (event) => {
   const card = event.target.closest("[data-dashboard-project]");
   if (!card) return;
-  openProject(card.dataset.dashboardProject, "overview");
+  openProject(card.dataset.dashboardProject, "docs");
 });
 
 search.addEventListener("input", () => {
