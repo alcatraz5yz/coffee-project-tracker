@@ -4284,3 +4284,138 @@ body[data-theme="explorer"] .marquee-box {
   border-color: var(--accent);
   background: rgba(0, 95, 184, 0.12);
 }
+
+/* ── EXPLORER-Theme: Datei-Ansicht strukturell wie Windows-Explorer ──────────
+   Links schmale Ordner-Navigation, rechts Dateiliste mit Spaltenkopf.
+   Nur im Explorer-Theme; Dashboard & andere Themes unverändert. */
+body[data-theme="explorer"] .docs-two-pane {
+  gap: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--panel);
+}
+
+/* Ordner-Grid → linke Navigationsspalte (vertikale Liste) */
+body[data-theme="explorer"] .docs-two-pane #document-group-grid {
+  order: -1;
+  flex: 0 0 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-radius: 0;
+  background: #f8f8f8;
+  box-shadow: none;
+  overflow-y: auto;
+  max-height: calc(100vh - 270px);
+}
+body[data-theme="explorer"] .docs-two-pane .docs-detail-pane {
+  order: 0;
+  border: 0;
+}
+body[data-theme="explorer"] .document-group-detail {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Ordner-Kacheln → schmale Explorer-Nav-Zeilen (Icon · Name · Anzahl) */
+body[data-theme="explorer"] .docs-two-pane .document-group-card {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  min-height: 0;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+}
+body[data-theme="explorer"] .docs-two-pane .document-group-card:hover {
+  background: #ececec;
+}
+body[data-theme="explorer"] .docs-two-pane .document-group-card.selected {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+body[data-theme="explorer"] .document-group-card .dgc-top strong {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+body[data-theme="explorer"] .document-group-card .dgc-top strong::before {
+  content: "\01F4C1\00a0";   /* 📁 */
+}
+body[data-theme="explorer"] .document-group-card.selected .dgc-top strong {
+  font-weight: 600;
+}
+body[data-theme="explorer"] .document-group-card .status-toggle { display: none; }
+body[data-theme="explorer"] .document-group-card .dgc-count {
+  position: static;
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+body[data-theme="explorer"] .document-group-card .dgc-count span { display: none; }  /* nur Zahl */
+body[data-theme="explorer"] .document-group-card.dgc-empty .dgc-count { opacity: 0.6; }
+
+/* Datei-Liste: Explorer-Spaltenkopf (heller Balken) */
+body[data-theme="explorer"] .evidence-file-row.head {
+  background: #f6f6f6;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+body[data-theme="explorer"] .evidence-sort { font-weight: 600; color: var(--muted); }
+body[data-theme="explorer"] .evidence-file-row {
+  border-bottom: 1px solid #f0f0f0;
+}
+body[data-theme="explorer"] .evidence-file-row:hover { background: #f2f6fb; }
+
+/* Command-Bar (Aktionen) flach, Explorer-Stil */
+body[data-theme="explorer"] .evidence-location-bar {
+  background: #fafafa;
+  border-bottom: 1px solid var(--line);
+}
+body[data-theme="explorer"] .evidence-crumb-bar {
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+/* Explorer: kompakte, einzeilige Datei-Zeilen (Aktionen inline statt umgebrochen) */
+body[data-theme="explorer"] .docs-two-pane .docs-detail-pane .evidence-file-row {
+  grid-template-columns: minmax(0, 1fr) 70px 120px 118px;
+  align-items: center;
+  padding: 3px 12px;
+}
+body[data-theme="explorer"] .evidence-file-actions {
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  align-items: center;
+}
+body[data-theme="explorer"] .evidence-file-actions .finder-action {
+  padding: 2px 10px;
+}
+body[data-theme="explorer"] .evidence-file-row .review-toggle {
+  align-self: center;
+}
+
+/* Explorer: Breadcrumb schlicht wie Adressleiste (generisches .current-Grün aufheben) */
+body[data-theme="explorer"] .evidence-crumb.current {
+  background: none;
+  color: var(--ink);
+  font-weight: 600;
+}

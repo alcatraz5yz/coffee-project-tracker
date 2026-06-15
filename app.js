@@ -1138,7 +1138,7 @@ function renderDocs(project) {
     const selectedGroup = groups.find((g) => g.primary === activeEvidenceGroup);
     detailPane.innerHTML = selectedGroup
       ? groupDetailMarkup(selectedGroup)
-      : `<p class="empty-state">Wähle rechts einen Ordner, um den Inhalt hier zu sehen.</p>`;
+      : `<p class="empty-state">Wähle einen Ordner, um den Inhalt hier zu sehen.</p>`;
     if (evidenceSearch) filterEvidenceRows();   // aktive Suche nach Re-Render erneut anwenden
   }
 
