@@ -349,7 +349,7 @@ function escapeHtml(value) {
 
 
 // Drei Themes im Zyklus: Light → Dark → Cyber → Light. Der Button zeigt das NÄCHSTE.
-const THEMES = ["light", "dark", "cyber"];
+const THEMES = ["light", "dark", "cyber", "explorer"];
 function applyTheme(theme) {
   if (!THEMES.includes(theme)) theme = "light";
   document.body.dataset.theme = theme;
@@ -1788,7 +1788,7 @@ function renderTabelle24View() {
     return;
   }
   // Iframes kennen nur light/dark. Cyber ist dunkel und nutzt dort dark.
-  const theme = (document.body.dataset.theme || "light") === "light" ? "light" : "dark";
+  const theme = ["light","explorer"].includes(document.body.dataset.theme||"light") ? "light" : "dark";
   const url = `/tabelle24.html?projectId=${encodeURIComponent(activeProject.id)}&theme=${theme}`;
   if (tabelle24Frame.getAttribute("src") !== url) {
     tabelle24Frame.setAttribute("src", url);
@@ -1801,7 +1801,7 @@ function renderTabelle30View() {
     tabelle30Frame.removeAttribute("src");
     return;
   }
-  const theme = (document.body.dataset.theme || "light") === "light" ? "light" : "dark";
+  const theme = ["light","explorer"].includes(document.body.dataset.theme||"light") ? "light" : "dark";
   const url = `/tabelle30.html?projectId=${encodeURIComponent(activeProject.id)}&theme=${theme}`;
   if (tabelle30Frame.getAttribute("src") !== url) {
     tabelle30Frame.setAttribute("src", url);
@@ -3351,7 +3351,7 @@ themeToggle.addEventListener("click", () => {
   applyTheme(THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length]);
   // Push the new theme to the Tabelle 24/30 iframes so they repaint without losing state.
   // (Die Iframes kennen nur light/dark. Cyber ist dunkel und wird dort als dark dargestellt.)
-  const msg = { type: "theme", theme: document.body.dataset.theme === "light" ? "light" : "dark" };
+  const msg = { type: "theme", theme: ["light","explorer"].includes(document.body.dataset.theme) ? "light" : "dark" };
   for (const frame of [tabelle24Frame, tabelle30Frame]) {
     if (frame?.contentWindow) {
       try { frame.contentWindow.postMessage(msg, window.location.origin); } catch {}

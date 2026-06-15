@@ -4159,3 +4159,128 @@ body[data-theme="cyber"] .theme-toggle span::after {
   box-shadow: 0 0 10px rgba(255, 44, 232, 0.82);
   transform: translateX(18px);
 }
+
+/* ============================================================
+   THEME 4: „EXPLORER" — sauberer Windows-11-Datei-Explorer-Look
+   (helles Grau/Weiss, Windows-Blau, KEIN Laub-Video, KEIN Korn).
+   Liegt am Ende → überschreibt Light-Defaults + Integrations-Dämpfung.
+   ============================================================ */
+html[data-theme="explorer"] { --bg: #f3f3f3; }
+
+body[data-theme="explorer"] {
+  --bg: #f3f3f3;            /* Windows Mica-Grau */
+  --panel: #ffffff;
+  --panel-soft: #fbfbfb;
+  --ink: #1b1b1b;
+  --muted: #5d5d5d;
+  --line: #e2e2e2;
+  --accent: #005fb8;        /* Windows-Blau */
+  --accent-soft: #eaf2fb;
+  --good: #0f7b0f;
+  --watch: #9d5d00;
+  --bad: #c42b1c;
+  --shadow: 0 1px 3px rgba(0, 0, 0, 0.10);
+  --sidebar: #eaeaea;
+  --sidebar-panel: #ffffff;
+  --sidebar-panel-active: #e8f1fb;
+  --sidebar-line: #e2e2e2;
+  --shadow-opacity: 0;      /* Blattschatten-Video aus */
+  --noise-opacity: 0;       /* Filmkorn aus */
+  --noise-blend: normal;
+  --glass: var(--panel);
+  --glass-soft: var(--panel-soft);
+  --radius: 6px;
+  color-scheme: light;
+}
+
+/* Laub-Video + Korn-Overlay komplett ausblenden (Explorer ist clean) */
+body[data-theme="explorer"] #bg-shadows,
+body[data-theme="explorer"]::after { display: none; }
+
+/* Schrift: System-Sans (Segoe UI Look) statt Serif/Mono-Akzente */
+body[data-theme="explorer"] {
+  --serif: "Segoe UI", Inter, system-ui, sans-serif;
+  --mono: "Segoe UI", Inter, system-ui, sans-serif;
+}
+body[data-theme="explorer"] #project-title,
+body[data-theme="explorer"] .topbar-title h1,
+body[data-theme="explorer"] .dashboard-hero h2,
+body[data-theme="explorer"] .panel-header h2,
+body[data-theme="explorer"] .table-header h2,
+body[data-theme="explorer"] .brand strong {
+  color: var(--ink);
+  text-shadow: none;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+/* Mono-Labels nicht mehr uppercase/breit — normaler Explorer-Text */
+body[data-theme="explorer"] .top-actions button,
+body[data-theme="explorer"] .market-filter-btn,
+body[data-theme="explorer"] .recently-opened-label,
+body[data-theme="explorer"] .panel-header span,
+body[data-theme="explorer"] .dashboard-card-brand,
+body[data-theme="explorer"] .dgc-area,
+body[data-theme="explorer"] .summary-card span,
+body[data-theme="explorer"] .status-toggle,
+body[data-theme="explorer"] .evidence-sort,
+body[data-theme="explorer"] .brand span {
+  text-transform: none;
+  letter-spacing: 0;
+}
+body[data-theme="explorer"] .dashboard-card strong,
+body[data-theme="explorer"] .summary-card strong,
+body[data-theme="explorer"] .dgc-top strong,
+body[data-theme="explorer"] .document-group-card strong {
+  color: var(--ink);
+  text-shadow: none;
+  font-weight: 600;
+}
+
+/* Flache, helle Panels mit dünner Linie (kein Glow) */
+body[data-theme="explorer"] .summary-card,
+body[data-theme="explorer"] .panel,
+body[data-theme="explorer"] .table-panel,
+body[data-theme="explorer"] .dashboard-card,
+body[data-theme="explorer"] .doc-card,
+body[data-theme="explorer"] .docs-two-pane #document-group-grid,
+body[data-theme="explorer"] .document-group-detail {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+body[data-theme="explorer"] .dashboard-card:hover,
+body[data-theme="explorer"] .docs-two-pane .document-group-card:hover {
+  background: #f6f6f6;
+  border-color: #cfcfcf;
+}
+
+/* Aktiver Tab: dezent blau (Windows-Style) */
+body[data-theme="explorer"] .top-actions button.active {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: none;
+  font-weight: 600;
+}
+
+/* Datei-Zeilen: Windows-Explorer-Auswahl (helles Blau) */
+body[data-theme="explorer"] .evidence-file-row.explorer-selected {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+body[data-theme="explorer"] .evidence-file-row:hover {
+  background: #f2f6fb;
+}
+body[data-theme="explorer"] .evidence-file-name,
+body[data-theme="explorer"] .evidence-folder-btn,
+body[data-theme="explorer"] .word-action--name {
+  color: var(--ink);
+}
+
+/* Status-Pillen flach (kein Glow) */
+body[data-theme="explorer"] .status-toggle { box-shadow: none; }
+
+/* Auswahlrechteck: Windows-Blau */
+body[data-theme="explorer"] .marquee-box {
+  border-color: var(--accent);
+  background: rgba(0, 95, 184, 0.12);
+}
