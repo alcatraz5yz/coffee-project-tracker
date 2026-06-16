@@ -14,3 +14,6 @@ files/
 .DS_Store
 *.swp
 .fuse_hidden*
+
+# Single-Instance-Lock des App-Launchers (start.vbs), nur lokal/Windows
+.app-running.lock
