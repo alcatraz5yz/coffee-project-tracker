@@ -49,10 +49,20 @@ End If
 '    Groesse und Position zwischen den Starts.
 profileDir = sh.ExpandEnvironmentStrings("%LOCALAPPDATA%") & "\PcsDashboardApp"
 
-' 5) Edge im App-Modus oeffnen (randlos, ohne Adressleiste/Tabs).
+' 5) Edge im App-Modus oeffnen (randlos, ohne Adressleiste/Tabs) UND warten,
+'    bis das Fenster geschlossen wird (letzter Parameter True = blockierend).
+'    Dank eigenem --user-data-dir ist dieses Edge-Fenster ein eigener Prozess,
+'    der erst beim Schliessen endet.
 sh.Run """" & edge & """ --app=" & url & _
        " --user-data-dir=""" & profileDir & """" & _
-       " --no-first-run --no-default-browser-check", 1, False
+       " --no-first-run --no-default-browser-check", 1, True
+
+' 6) Fenster geschlossen -> Server sauber beenden. Kein lingernder, versteckter
+'    node.exe-Prozess (waere fuer eine EDR-Verhaltensbasis eher auffaellig).
+On Error Resume Next
+sh.Run "cmd /c """ & baseDir & "\stop.bat""", 0, True
+On Error GoTo 0
+WScript.Quit
 
 ' --- Edge an gaengigen Orten + Registry finden -------------------------------
 Function FindEdge(fsoRef, shRef)

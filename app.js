@@ -355,6 +355,10 @@ function applyTheme(theme) {
   document.body.dataset.theme = theme;
   document.documentElement.dataset.theme = theme;   // damit auch <html> die Theme-Farbe kennt
   localStorage.setItem("pcs-theme", theme);
+  // Favicon im Explorer-Theme = gelbes Ordner-Icon (komplettiert im Edge-App-Modus
+  // auch das Taskleisten-/Titelleisten-Icon), sonst das App-Icon.
+  const favEl = document.querySelector('link[rel="icon"]');
+  if (favEl) favEl.href = theme === "explorer" ? "/assets/folder-favicon.svg" : "/assets/favicon.svg";
   const next = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
   themeToggle.querySelector("strong").textContent = next.charAt(0).toUpperCase() + next.slice(1);
   themeToggle.setAttribute("aria-pressed", String(theme !== "light"));
