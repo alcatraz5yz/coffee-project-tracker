@@ -4419,3 +4419,155 @@ body[data-theme="explorer"] .evidence-crumb.current {
   color: var(--ink);
   font-weight: 600;
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   WINDOWS-11-EXPLORER-CHROME (Theme "explorer")
+   Befehlsleiste + Adressleiste über volle Breite, Statusleiste unten, echte
+   Segoe-Fluent-Icons (auf Win11 als Systemfont vorhanden). Alles theme-gated.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Datei-Panel wird zum Explorer-Fenster (randlos, gerahmt) */
+body[data-theme="explorer"] .winex-window {
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #d6d6d6;
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+/* Zwei-Pane jetzt ohne eigenen Rahmen — das Fenster rahmt */
+body[data-theme="explorer"] .winex-window .docs-two-pane {
+  border: 0;
+  border-radius: 0;
+  background: var(--panel);
+}
+
+/* Icon-Helfer: echtes Windows-Systemfont */
+body[data-theme="explorer"] .winex-ico {
+  font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets", sans-serif;
+  font-size: 15px; line-height: 1; display: inline-block;
+}
+body[data-theme="explorer"] [data-winex-nav="back"]    .winex-ico::before { content: "\E72B"; }
+body[data-theme="explorer"] [data-winex-nav="forward"] .winex-ico::before { content: "\E72A"; }
+body[data-theme="explorer"] [data-winex-nav="up"]      .winex-ico::before { content: "\E74A"; }
+body[data-theme="explorer"] [data-winex-sort] .winex-ico::before { content: "\E8CB"; }
+body[data-theme="explorer"] [data-winex-view] .winex-ico::before { content: "\E8FD"; }
+body[data-theme="explorer"] .winex-cmdx-icon .winex-ico::before  { content: "\E712"; }
+
+/* ── Befehlsleiste ───────────────────────────────────────────── */
+body[data-theme="explorer"] .winex-chrome {
+  background: #f9f9f9;
+  border-bottom: 1px solid #ededed;
+}
+body[data-theme="explorer"] .winex-cmdbar {
+  display: flex; align-items: center; gap: 2px;
+  padding: 6px 8px;
+}
+body[data-theme="explorer"] .winex-cmd-spacer { flex: 1 1 auto; }
+body[data-theme="explorer"] .winex-cmd-actions,
+body[data-theme="explorer"] .winex-cmd-extra { display: flex; align-items: center; gap: 2px; }
+/* Den .evidence-location-bar-Wrapper auflösen, Buttons direkt in die Leiste */
+body[data-theme="explorer"] .winex-cmd-actions .evidence-location-bar { display: contents; }
+
+/* Befehls-Buttons: borderless, Icon + Label, Hover = helle Pille (Win11) */
+body[data-theme="explorer"] .winex-cmdbar .finder-action,
+body[data-theme="explorer"] .winex-cmdx {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: none; border: 0; border-radius: 4px;
+  padding: 6px 10px; min-height: 32px;
+  font-family: var(--serif);
+  font-size: 13px; font-weight: 400; letter-spacing: 0;
+  text-transform: none; color: var(--ink);
+  cursor: pointer; white-space: nowrap; box-shadow: none;
+}
+body[data-theme="explorer"] .winex-cmdbar .finder-action:hover:not(:disabled),
+body[data-theme="explorer"] .winex-cmdx:hover { background: rgba(0,0,0,.06); }
+body[data-theme="explorer"] .winex-cmdbar .finder-action:disabled { opacity: .4; cursor: default; }
+body[data-theme="explorer"] .winex-cmdbar .finder-action.danger { color: var(--ink); }
+body[data-theme="explorer"] .winex-cmdx-icon { padding: 6px 8px; }
+
+/* Icons vor den Datei-Befehlen (Segoe Fluent Icons) */
+body[data-theme="explorer"] .winex-cmdbar .finder-action::before {
+  font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets", sans-serif;
+  font-size: 15px; line-height: 1;
+}
+body[data-theme="explorer"] .finder-action[data-file-action="mkdir"]::before  { content: "\E8F4"; }
+body[data-theme="explorer"] .finder-action[data-file-action="cut"]::before     { content: "\E8C6"; }
+body[data-theme="explorer"] .finder-action[data-file-action="copy"]::before    { content: "\E8C8"; }
+body[data-theme="explorer"] .finder-action[data-file-action="paste"]::before   { content: "\E77F"; }
+body[data-theme="explorer"] .finder-action[data-file-action="rename"]::before  { content: "\E8AC"; }
+body[data-theme="explorer"] .finder-action[data-file-action="delete"]::before  { content: "\E74D"; }
+
+/* ── Adressleiste (Pfeile + Breadcrumb + Suche) ──────────────── */
+body[data-theme="explorer"] .winex-addrbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 8px 8px;
+}
+body[data-theme="explorer"] .winex-navbtns { display: flex; gap: 2px; flex: 0 0 auto; }
+body[data-theme="explorer"] .winex-navbtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; padding: 0;
+  border: 0; border-radius: 4px; background: none;
+  color: var(--ink); cursor: pointer;
+}
+body[data-theme="explorer"] .winex-navbtn:hover:not(:disabled) { background: rgba(0,0,0,.06); }
+body[data-theme="explorer"] .winex-navbtn:disabled { opacity: .3; cursor: default; }
+
+/* Adressfeld */
+body[data-theme="explorer"] .winex-addrslot {
+  flex: 1 1 auto; min-width: 0; height: 32px;
+  display: flex; align-items: center; padding: 0 8px;
+  background: #fff; border: 1px solid #d9d9d9; border-radius: 5px;
+  overflow: hidden;
+}
+body[data-theme="explorer"] .winex-addrslot .evidence-crumb-bar {
+  border: 0; background: none; padding: 0; margin: 0;
+  width: 100%; min-height: 0; display: flex; align-items: center; gap: 2px;
+}
+/* Suchfeld rechts (mit Lupe) */
+body[data-theme="explorer"] .winex-searchslot {
+  flex: 0 0 250px; height: 32px;
+  display: flex; align-items: center; padding: 0 10px;
+  background: #fff; border: 1px solid #d9d9d9; border-radius: 5px;
+}
+body[data-theme="explorer"] .winex-searchslot::before {
+  content: "\E721"; font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets", sans-serif;
+  color: var(--muted); margin-right: 8px; font-size: 14px; flex: 0 0 auto;
+}
+body[data-theme="explorer"] .winex-searchslot .evidence-search-bar { width: 100%; margin: 0; padding: 0; border: 0; }
+body[data-theme="explorer"] .winex-searchslot .evidence-search {
+  width: 100%; height: 30px; border: 0; background: none; padding: 0; box-shadow: none; font-size: 13px;
+}
+
+/* ── Statusleiste unten ──────────────────────────────────────── */
+body[data-theme="explorer"] .winex-status {
+  display: flex; align-items: center; min-height: 26px;
+  padding: 4px 12px; font-size: 12px; color: var(--muted);
+  background: #f9f9f9; border-top: 1px solid #ededed;
+}
+
+/* ── Sortier-Popup ───────────────────────────────────────────── */
+.winex-sortmenu {
+  position: fixed; z-index: 9999; min-width: 180px;
+  background: #fbfbfb; border: 1px solid #e2e2e2; border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18); padding: 5px;
+  font-family: "Segoe UI", Inter, system-ui, sans-serif;
+}
+.winex-sortmenu button {
+  display: block; width: 100%; text-align: left;
+  background: none; border: 0; border-radius: 4px;
+  padding: 7px 10px; font-size: 13px; color: #1b1b1b; cursor: pointer;
+}
+.winex-sortmenu button:hover { background: rgba(0,0,0,.06); }
+.winex-sortsep { height: 1px; background: #e2e2e2; margin: 4px 6px; }
+
+/* ── Win11-Auswahl: weiches Akzentblau, leicht gerundet ──────── */
+body[data-theme="explorer"] .docs-two-pane .docs-detail-pane .evidence-file-row.explorer-selected {
+  background: #cfe4fb;
+  box-shadow: none;
+  border-radius: 4px;
+  border-bottom-color: transparent;
+}
+body[data-theme="explorer"] .evidence-file-row:hover:not(.head):not(.explorer-selected) {
+  background: #f0f0f0;
+}

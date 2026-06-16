@@ -485,7 +485,10 @@ function fitDocsPanes() {
   if (!two || !detail || !grid || two.offsetParent === null) return;
   const sideBySide = Math.abs(detail.getBoundingClientRect().top - grid.getBoundingClientRect().top) < 5;
   if (!sideBySide) { detail.style.height = ""; grid.style.maxHeight = ""; return; }
-  const h = Math.max(240, Math.round(window.innerHeight - two.getBoundingClientRect().top - 34));
+  // Im Explorer-Theme sitzt unten eine Statusleiste — deren Höhe abziehen.
+  const statusEl = document.querySelector("#docs-view .winex-status");
+  const statusH = statusEl ? statusEl.offsetHeight + 8 : 0;
+  const h = Math.max(240, Math.round(window.innerHeight - two.getBoundingClientRect().top - 34 - statusH));
   detail.style.height = `${h}px`;
   grid.style.maxHeight = `${h}px`;
 }
@@ -1143,6 +1146,7 @@ function renderDocs(project) {
   }
 
   document.querySelector("#reports-panel")?.classList.add("hidden");
+  applyExplorerDocsChrome();
   window._observePdfThumbs?.();
   requestAnimationFrame(fitDocsPanes);
   setTimeout(fitDocsPanes, 80);
@@ -1153,6 +1157,127 @@ function renderDocs(project) {
     const proj = activeProject;
     setTimeout(() => prefetchProjectFolders(proj), 500);
   }
+}
+
+// ── Windows-11-Explorer-Chrome (nur Theme "explorer") ────────────────────────
+// Macht aus der Datei-Ansicht ein echtes Explorer-Fenster: verschiebt die
+// vorhandenen Leisten (Befehle / Breadcrumb / Suche) aus dem rechten Detail-Pane
+// nach oben über die VOLLE Breite (Befehlsleiste + Adressleiste) und ergänzt
+// Navigationspfeile ← → ↑ sowie eine Statusleiste unten. Die Knoten werden
+// VERSCHOBEN (nicht kopiert) — alle Handler liegen per Delegation auf #docs-view
+// und bleiben dadurch funktionsfähig. Andere Themes sind komplett unberührt.
+function applyExplorerDocsChrome() {
+  const two = document.querySelector("#docs-view .docs-two-pane");
+  const panel = two?.parentElement;
+  if (!panel) return;
+  const isExplorer = document.body.dataset.theme === "explorer";
+  let chrome = panel.querySelector(":scope > .winex-chrome");
+  let status = panel.querySelector(":scope > .winex-status");
+
+  if (!isExplorer) {
+    chrome?.remove();
+    status?.remove();
+    panel.classList.remove("winex-window");
+    return;
+  }
+
+  panel.classList.add("winex-window");
+
+  if (!chrome) {
+    chrome = document.createElement("div");
+    chrome.className = "winex-chrome";
+    chrome.innerHTML =
+      '<div class="winex-cmdbar">' +
+        '<div class="winex-cmd-actions"></div>' +
+        '<div class="winex-cmd-spacer"></div>' +
+        '<div class="winex-cmd-extra">' +
+          '<button type="button" class="winex-cmdx" data-winex-sort><span class="winex-ico"></span>Sortieren</button>' +
+          '<button type="button" class="winex-cmdx" data-winex-view><span class="winex-ico"></span>Anzeigen</button>' +
+          '<button type="button" class="winex-cmdx winex-cmdx-icon" title="Mehr anzeigen" aria-label="Mehr anzeigen"><span class="winex-ico"></span></button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="winex-addrbar">' +
+        '<div class="winex-navbtns">' +
+          '<button type="button" class="winex-navbtn" data-winex-nav="back" title="Zurück" aria-label="Zurück"><span class="winex-ico"></span></button>' +
+          '<button type="button" class="winex-navbtn" data-winex-nav="forward" title="Vorwärts" aria-label="Vorwärts"><span class="winex-ico"></span></button>' +
+          '<button type="button" class="winex-navbtn" data-winex-nav="up" title="Eine Ebene nach oben" aria-label="Nach oben"><span class="winex-ico"></span></button>' +
+        '</div>' +
+        '<div class="winex-addrslot"></div>' +
+        '<div class="winex-searchslot"></div>' +
+      '</div>';
+    panel.insertBefore(chrome, two);
+    chrome.querySelector('[data-winex-nav="back"]').addEventListener("click", () => treeNavUp());
+    chrome.querySelector('[data-winex-nav="up"]').addEventListener("click", () => treeNavUp());
+    chrome.querySelector('[data-winex-nav="forward"]').addEventListener("click", () => treeNavDown());
+    chrome.querySelector('[data-winex-sort]').addEventListener("click", (e) => toggleWinexSortMenu(e.currentTarget));
+  }
+
+  if (!status) {
+    status = document.createElement("div");
+    status.className = "winex-status";
+    panel.appendChild(status);
+  }
+
+  // Leisten aus dem Detail-Pane nach oben verschieben (Single Source of Truth).
+  const detail = document.querySelector("#docs-detail-pane");
+  const locBar = detail?.querySelector(".evidence-location-bar");
+  const crumbBar = detail?.querySelector(".evidence-crumb-bar");
+  const searchBar = detail?.querySelector(".evidence-search-bar");
+  const actions = chrome.querySelector(".winex-cmd-actions");
+  const addrslot = chrome.querySelector(".winex-addrslot");
+  const searchslot = chrome.querySelector(".winex-searchslot");
+  if (locBar) actions.replaceChildren(locBar); else actions.replaceChildren();
+  if (crumbBar) addrslot.replaceChildren(crumbBar); else addrslot.replaceChildren();
+  if (searchBar) searchslot.replaceChildren(searchBar); else searchslot.replaceChildren();
+
+  // Navigationspfeile aktivieren/deaktivieren wie im echten Explorer.
+  const ctx = currentEvidenceContext?.();
+  const canUp = ctx ? !!parentEvidenceHref(ctx.currentHref, evidenceHref(ctx.group)) : false;
+  const canFwd = (_treeForwardStack?.length || 0) > 0;
+  chrome.querySelector('[data-winex-nav="back"]').disabled = !canUp;
+  chrome.querySelector('[data-winex-nav="up"]').disabled = !canUp;
+  chrome.querySelector('[data-winex-nav="forward"]').disabled = !canFwd;
+
+  // Statusleiste: Elementanzahl (+ Auswahl), wie unten links im Explorer.
+  const count = detail ? detail.querySelectorAll(".evidence-file-row:not(.head)").length : 0;
+  const selCount = (typeof selectedEvidenceHrefs !== "undefined" && selectedEvidenceHrefs) ? selectedEvidenceHrefs.size : 0;
+  const word = count === 1 ? "Element" : "Elemente";
+  status.textContent = selCount > 0 ? `${count} ${word}  ·  ${selCount} ausgewählt` : `${count} ${word}`;
+}
+
+// Sortier-Menü der Befehlsleiste (öffnet wie im Explorer ein kleines Popup).
+function toggleWinexSortMenu(btn) {
+  const open = document.querySelector(".winex-sortmenu");
+  if (open) { open.remove(); return; }
+  const menu = document.createElement("div");
+  menu.className = "winex-sortmenu";
+  const cols = [["name", "Name"], ["type", "Typ"], ["modified", "Geändert"]];
+  const dirs = [["asc", "Aufsteigend"], ["desc", "Absteigend"]];
+  menu.innerHTML =
+    cols.map(([k, l]) => `<button type="button" data-sortkey="${k}">${evidenceSort.key === k ? "●" : "○"} ${l}</button>`).join("") +
+    '<div class="winex-sortsep"></div>' +
+    dirs.map(([k, l]) => `<button type="button" data-sortdir="${k}">${evidenceSort.dir === k ? "●" : "○"} ${l}</button>`).join("");
+  document.body.appendChild(menu);
+  const r = btn.getBoundingClientRect();
+  menu.style.top = `${Math.round(r.bottom + 4)}px`;
+  menu.style.left = `${Math.round(Math.min(r.left, window.innerWidth - 200))}px`;
+  menu.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.dataset.sortkey) evidenceSort.key = b.dataset.sortkey;
+    if (b.dataset.sortdir) evidenceSort.dir = b.dataset.sortdir;
+    menu.remove();
+    renderDocs(activeProject);
+  });
+  setTimeout(() => {
+    const close = (ev) => {
+      if (!menu.contains(ev.target) && ev.target !== btn && !btn.contains(ev.target)) {
+        menu.remove();
+        document.removeEventListener("mousedown", close);
+      }
+    };
+    document.addEventListener("mousedown", close);
+  }, 0);
 }
 
 // Vorausladen der Ordner-Inhalte des Projekts in den Cache (sanft, sequenziell).
