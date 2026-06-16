@@ -3474,6 +3474,10 @@ calculationsContainer.addEventListener("keydown", (event) => {
 themeToggle.addEventListener("click", () => {
   const cur = document.body.dataset.theme || "light";
   applyTheme(THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length]);
+  // Docs-Ansicht neu rendern, damit das Explorer-Fenster-Chrome (Befehls-/Adress-/
+  // Statusleiste) sauber auf- bzw. abgebaut wird. Ohne das blieben die im
+  // Explorer-Theme nach oben verschobenen Leisten auch in Light/Dark hängen.
+  if (activeView === "docs" && activeProject) renderDocs(activeProject);
   // Push the new theme to the Tabelle 24/30 iframes so they repaint without losing state.
   // (Die Iframes kennen nur light/dark. Cyber ist dunkel und wird dort als dark dargestellt.)
   const msg = { type: "theme", theme: ["light","explorer"].includes(document.body.dataset.theme) ? "light" : "dark" };
