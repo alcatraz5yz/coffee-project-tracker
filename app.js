@@ -1178,6 +1178,7 @@ function applyExplorerDocsChrome() {
     chrome?.remove();
     status?.remove();
     panel.classList.remove("winex-window");
+    document.title = "PCS Kaffee Dashboard";
     return;
   }
 
@@ -1243,6 +1244,12 @@ function applyExplorerDocsChrome() {
   const selCount = (typeof selectedEvidenceHrefs !== "undefined" && selectedEvidenceHrefs) ? selectedEvidenceHrefs.size : 0;
   const word = count === 1 ? "Element" : "Elemente";
   status.textContent = selCount > 0 ? `${count} ${word}  ·  ${selCount} ausgewählt` : `${count} ${word}`;
+
+  // Fenstertitel = aktueller Ordnername (wie im echten Explorer). Im randlosen
+  // Edge-App-Modus ist die Titelleiste das einzige Chrome — so steht dort der Ordner.
+  const folderName = chrome.querySelector(".evidence-crumb.current")?.textContent?.trim()
+    || activeEvidenceGroup || "Dateien";
+  document.title = folderName;
 }
 
 // Sortier-Menü der Befehlsleiste (öffnet wie im Explorer ein kleines Popup).
