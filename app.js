@@ -117,7 +117,15 @@ function fileThumbHtml(entry) {
   }
   if (isExcelFile?.(name)) return `<span class="file-thumb-icon file-thumb-icon--excel">XLS</span>`;
   if (isWordFile?.(name))  return `<span class="file-thumb-icon file-thumb-icon--word">DOC</span>`;
+  if (/\.(zip|rar|7z|tar|gz|tgz)$/i.test(name)) return `<span class="file-thumb-icon file-thumb-icon--zip">ZIP</span>`;
   return `<span class="file-thumb-icon file-thumb-icon--file">FILE</span>`;
+}
+
+// Explorer-Typbezeichnung: Ordner -> "Dateiordner", Datei -> "PDF-Datei" usw.
+function fileTypeLabel(entry) {
+  if (entry.type === "Ordner") return "Dateiordner";
+  const m = String(entry.name || "").match(/\.([^.]+)$/);
+  return m ? `${m[1].toUpperCase()}-Datei` : "Datei";
 }
 
 // ── Recent projects (localStorage) ──────────────────────────
@@ -359,6 +367,14 @@ function applyTheme(theme) {
   // auch das Taskleisten-/Titelleisten-Icon), sonst das App-Icon.
   const favEl = document.querySelector('link[rel="icon"]');
   if (favEl) favEl.href = theme === "explorer" ? "/assets/folder-favicon.svg" : "/assets/favicon.svg";
+  // theme-color faerbt im Edge-App-Modus die Fenster-Titelleiste. Auf die echte
+  // Hintergrundfarbe des Themes setzen -> im Explorer hell (#f3f3f3) wie der
+  // echte Datei-Explorer statt der bisherigen dunklen/teal Leiste.
+  const metaTC = document.querySelector('meta[name="theme-color"]');
+  if (metaTC) {
+    const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim();
+    if (bg) metaTC.setAttribute("content", bg);
+  }
   const next = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
   themeToggle.querySelector("strong").textContent = next.charAt(0).toUpperCase() + next.slice(1);
   themeToggle.setAttribute("aria-pressed", String(theme !== "light"));
@@ -397,6 +413,7 @@ async function loadEvidenceEntries(group, browseHref, options = {}) {
   const rootHref = evidenceHref(group);
   lastFolderByGroup.set(key, href);   // aktuellen Ordner pro Gruppe merken
   const pathKey = `${key}:${href}`;
+  if (options.force) evidencePathEntries.delete(pathKey);   // Aktualisieren-Button: Cache umgehen
   const cachedPath = evidencePathEntries.get(pathKey);
   if (cachedPath) {
     evidenceEntries.set(key, { ...cachedPath, loading: false, browseHref: href, rootHref });
@@ -1054,10 +1071,11 @@ function renderDocs(project) {
           </div>
           ${parentDropZone}
           <div class="evidence-file-row head">
-            <button type="button" class="evidence-sort${evidenceSort.key === "name" ? " active" : ""}" data-sort="name">Name${sortArrow("name")}</button>
-            <button type="button" class="evidence-sort${evidenceSort.key === "type" ? " active" : ""}" data-sort="type">Typ${sortArrow("type")}</button>
-            <button type="button" class="evidence-sort${evidenceSort.key === "modified" ? " active" : ""}" data-sort="modified">Geändert${sortArrow("modified")}</button>
-            <span>Aktion</span>
+            <button type="button" class="evidence-sort fcol-name${evidenceSort.key === "name" ? " active" : ""}" data-sort="name">Name${sortArrow("name")}</button>
+            <button type="button" class="evidence-sort fcol-type${evidenceSort.key === "type" ? " active" : ""}" data-sort="type">Typ${sortArrow("type")}</button>
+            <span class="fcol-size">Größe</span>
+            <button type="button" class="evidence-sort fcol-modified${evidenceSort.key === "modified" ? " active" : ""}" data-sort="modified">Geändert${sortArrow("modified")}</button>
+            <span class="fcol-actions">Aktion</span>
           </div>
           <p class="evidence-search-empty empty-state hidden">Keine Treffer.</p>
           ${sortEvidenceEntries(entries).map((entry) => `
@@ -1074,9 +1092,10 @@ function renderDocs(project) {
                 : `<div class="file-name-cell">${fileThumbHtml(entry)}${entry.type === "Datei" && isOfficeFile(entry.name)
                     ? `<span class="word-action word-action--name">${entry.name}</span>`
                     : `<span class="evidence-file-name">${entry.name}</span>`}</div>`}
-              <span>${entry.size || entry.type}</span>
-              <span>${entry.modified}</span>
-              <span class="evidence-file-actions">
+              <span class="fcol-type">${fileTypeLabel(entry)}</span>
+              <span class="fcol-size">${entry.size || ""}</span>
+              <span class="fcol-modified">${entry.modified}</span>
+              <span class="evidence-file-actions fcol-actions">
                 <button class="review-toggle${isReviewed(entry.href) ? " on" : ""}" type="button" data-review-href="${entry.href}" title="Als angeschaut markieren (grün)">${isReviewed(entry.href) ? "✓" : "○"}</button>
                 ${entry.type !== "Ordner" ? `<button class="finder-action" type="button" data-open-href="${entry.href}">Öffnen</button>` : `<button class="finder-action" type="button" data-open-href="${entry.href}">Finder</button>`}
               </span>
@@ -1208,12 +1227,17 @@ function applyExplorerDocsChrome() {
           '<button type="button" class="winex-navbtn" data-winex-nav="up" title="Eine Ebene nach oben" aria-label="Nach oben"><span class="winex-ico"></span></button>' +
         '</div>' +
         '<div class="winex-addrslot"></div>' +
+        '<button type="button" class="winex-navbtn winex-refresh" data-winex-nav="refresh" title="Aktualisieren" aria-label="Aktualisieren"><span class="winex-ico"></span></button>' +
         '<div class="winex-searchslot"></div>' +
       '</div>';
     panel.insertBefore(chrome, two);
     chrome.querySelector('[data-winex-nav="back"]').addEventListener("click", () => treeNavUp());
     chrome.querySelector('[data-winex-nav="up"]').addEventListener("click", () => treeNavUp());
     chrome.querySelector('[data-winex-nav="forward"]').addEventListener("click", () => treeNavDown());
+    chrome.querySelector('[data-winex-nav="refresh"]').addEventListener("click", () => {
+      const c = currentEvidenceContext?.();
+      if (c) loadEvidenceEntries(c.group, c.currentHref, { force: true, preserveTreeForward: true });
+    });
     chrome.querySelector('[data-winex-sort]').addEventListener("click", (e) => toggleWinexSortMenu(e.currentTarget));
   }
 

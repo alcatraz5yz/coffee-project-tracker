@@ -1178,7 +1178,7 @@ app.get("/api/list-path", async (req, res, next) => {
           name: entry.name,
           type: isDirectory ? "Ordner" : "Datei",
           href: hrefJoin(urlPath, entry.name, isDirectory),
-          modified: entryStat.mtime.toLocaleString("de-CH", { dateStyle: "short", timeStyle: "short" }),
+          modified: (() => { const d = entryStat.mtime, p = (n) => String(n).padStart(2, "0"); return `${p(d.getDate())}.${p(d.getMonth() + 1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; })(),
           mtime: entryStat.mtime.getTime(),
           size: isDirectory ? "" : formatFileSize(entryStat.size),
           empty: childCount === 0,

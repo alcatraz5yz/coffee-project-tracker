@@ -2041,7 +2041,7 @@ h2 {
    damit lange Ordnernamen nicht horizontal abgeschnitten werden */
 .docs-two-pane .docs-detail-pane .evidence-file-row {
   min-width: 0;
-  grid-template-columns: minmax(0, 1fr) 60px 116px 84px;
+  grid-template-columns: minmax(0, 1fr) 120px 80px 130px 96px;
   align-items: start;
   gap: 8px;
 }
@@ -2456,7 +2456,7 @@ h2 {
 
 .evidence-file-row {
   display: grid;
-  grid-template-columns: minmax(320px, 1fr) 120px 150px 170px;
+  grid-template-columns: minmax(280px, 1fr) 130px 90px 160px 150px;
   gap: 10px;
   align-items: center;
   min-width: 820px;
@@ -2754,6 +2754,7 @@ h2 {
 .file-thumb-icon--pdf  { background: #fee2e2; color: #dc2626; }
 .file-thumb-icon--word { background: #dbeafe; color: #1d4ed8; }
 .file-thumb-icon--excel { background: #dcfce7; color: #15803d; }
+.file-thumb-icon--zip { background: #fef3c7; color: #b45309; }
 .file-thumb-icon--file { background: var(--panel-soft); color: var(--muted); }
 
 .file-preview-panel {
@@ -4395,23 +4396,28 @@ body[data-theme="explorer"] .evidence-crumb-bar {
   border-bottom: 1px solid var(--line);
 }
 
-/* Explorer: kompakte, einzeilige Datei-Zeilen (Aktionen inline statt umgebrochen) */
+/* Explorer-Spalten wie Win11: Name | Änderungsdatum | Typ | Größe.
+   Die Aktion-Spalte wird ausgeblendet (Explorer hat keine), daher 4 Tracks.
+   Reihenfolge per CSS-order (DOM bleibt Name|Typ|Größe|Geändert|Aktion). */
 body[data-theme="explorer"] .docs-two-pane .docs-detail-pane .evidence-file-row {
-  grid-template-columns: minmax(0, 1fr) 70px 120px 118px;
+  grid-template-columns: minmax(0, 1fr) 150px 130px 92px;
   align-items: center;
   padding: 3px 12px;
 }
-body[data-theme="explorer"] .evidence-file-actions {
-  flex-wrap: nowrap;
-  justify-content: flex-end;
-  align-items: center;
-}
-body[data-theme="explorer"] .evidence-file-actions .finder-action {
-  padding: 2px 10px;
-}
-body[data-theme="explorer"] .evidence-file-row .review-toggle {
-  align-self: center;
-}
+body[data-theme="explorer"] .evidence-file-row > .file-name-cell,
+body[data-theme="explorer"] .evidence-file-row > .evidence-folder-btn,
+body[data-theme="explorer"] .evidence-file-row > .fcol-name { order: 1; }
+body[data-theme="explorer"] .evidence-file-row > .fcol-modified { order: 2; }
+body[data-theme="explorer"] .evidence-file-row > .fcol-type { order: 3; }
+body[data-theme="explorer"] .evidence-file-row > .fcol-size { order: 4; }
+/* Aktion-Spalte raus (Explorer kennt sie nicht) — Öffnen weiterhin per Klick */
+body[data-theme="explorer"] .evidence-file-row > .fcol-actions,
+body[data-theme="explorer"] .evidence-file-row > .evidence-file-actions { display: none; }
+/* Datei-Count-Badges entfernen (Explorer zeigt das nie) */
+body[data-theme="explorer"] .evidence-folder-btn .folder-count,
+body[data-theme="explorer"] .evidence-folder-btn em { display: none; }
+/* Zahlen im Navigationsbaum entfernen */
+body[data-theme="explorer"] .document-group-card .dgc-count { display: none; }
 
 /* Explorer: Breadcrumb schlicht wie Adressleiste (generisches .current-Grün aufheben) */
 body[data-theme="explorer"] .evidence-crumb.current {
@@ -4450,6 +4456,7 @@ body[data-theme="explorer"] .winex-ico {
 body[data-theme="explorer"] [data-winex-nav="back"]    .winex-ico::before { content: "\E72B"; }
 body[data-theme="explorer"] [data-winex-nav="forward"] .winex-ico::before { content: "\E72A"; }
 body[data-theme="explorer"] [data-winex-nav="up"]      .winex-ico::before { content: "\E74A"; }
+body[data-theme="explorer"] [data-winex-nav="refresh"] .winex-ico::before { content: "\E72C"; }
 body[data-theme="explorer"] [data-winex-sort] .winex-ico::before { content: "\E8CB"; }
 body[data-theme="explorer"] [data-winex-view] .winex-ico::before { content: "\E8FD"; }
 body[data-theme="explorer"] .winex-cmdx-icon .winex-ico::before  { content: "\E712"; }
