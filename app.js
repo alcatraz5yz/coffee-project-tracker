@@ -7,6 +7,7 @@ const views = {
   subtopic: document.querySelector("#subtopic-view"),
   tasks: document.querySelector("#tasks-view"),
   docs: document.querySelector("#docs-view"),
+  workflow: document.querySelector("#workflow-view"),
   calculations: document.querySelector("#calculations-view"),
   tabelle24: document.querySelector("#tabelle24-view"),
   tabelle30: document.querySelector("#tabelle30-view"),
@@ -18,6 +19,7 @@ const buttons = {
   subtopic: document.querySelector("#view-subtopic"),
   tasks: document.querySelector("#view-tasks"),
   docs: document.querySelector("#view-docs"),
+  workflow: document.querySelector("#view-workflow"),
   calculations: document.querySelector("#view-calculations"),
   tabelle24: document.querySelector("#tabelle24-link"),
   tabelle30: document.querySelector("#tabelle30-link"),
@@ -1978,6 +1980,7 @@ function renderAll() {
   renderSubtopic(activeProject);
   renderTasks(activeProject);
   renderDocs(activeProject);
+  renderWorkflow();
   renderFachfreigabe(activeProject);
   renderCalculations();
   renderTabelle24View();
@@ -3451,6 +3454,10 @@ buttons.overview.addEventListener("click", () => setView("overview"));
 buttons.subtopic.addEventListener("click", () => setView("subtopic"));
 buttons.tasks.addEventListener("click", () => setView("tasks"));
 buttons.docs.addEventListener("click", () => setView("docs"));
+buttons.workflow.addEventListener("click", () => {
+  setView("workflow");
+  renderWorkflow();
+});
 buttons.calculations.addEventListener("click", () => {
   setView("calculations");
   renderCalculations();
@@ -3461,6 +3468,309 @@ buttons.packaging.addEventListener("click", async () => {
   await loadPackagingData();
   renderPackaging();
 });
+
+// ── Prüf-Workflow (pro Projekt, lokal in localStorage) ───────────────────────
+// Prototypen-Maschinen mit Bild + je eigener Ziffern-Pfad (IEC-Klauseln) mit
+// Übergangsbedingungen dazwischen, plus leichte Plausibilitäts-Warnungen.
+const WF_KEY = "pcs-workflow";
+function wfStorageKey() { return `${WF_KEY}:${activeProject?.id || "?"}`; }
+
+function defaultWorkflowForProject(project) {
+  if (!project || !String(project.id || "").includes("1234")) return null;
+  return {
+    machines: [
+      {
+        id: "ef1234-008-thermal",
+        name: "weiss · thermischer Pfad",
+        number: "PT1-EF1234-008",
+        color: "#c28a35",
+        image: "",
+        steps: [
+          { id: "ef1234-008-07", ziffer: "§07", label: "Kennzeichnung", transition: "Sichtprüfung abschliessen; danach Zugangsschutz ohne warmen Aufbau prüfen." },
+          { id: "ef1234-008-08", ziffer: "§08", label: "Schutz gegen Zugang zu aktiven Teilen", transition: "Keine Thermoelemente/HV-Leitungen montiert; normaler Aufbau fuer Leistungsaufnahme." },
+          { id: "ef1234-008-10", ziffer: "§10", label: "Leistungsaufnahme", transition: "Messwerte protokollieren, dann Thermoelemente fuer §11 montieren." },
+          { id: "ef1234-008-11", ziffer: "§11", label: "Erwaermung mit Thermoelementen", transition: "Heiss und verkabelt: §13/§16 auf dieser Maschine nicht direkt fahren. TCs dranlassen bis §11 dokumentiert; fuer HV zuerst TC abbauen und abkuehlen lassen." },
+          { id: "ef1234-008-19", ziffer: "§19", label: "Anormaler Betrieb" }
+        ]
+      },
+      {
+        id: "ef1234-009-humidity",
+        name: "schwarz · Feuchte/HV-Pfad",
+        number: "PT1-EF1234-009",
+        color: "#475160",
+        image: "",
+        steps: [
+          { id: "ef1234-009-15", ziffer: "§15", label: "Feuchtekammer ca. 48 h", transition: "Direkt aus der Kammer weiterpruefen: feucht & kalt, nicht zuerst mit Kaffee aufwaermen." },
+          { id: "ef1234-009-16", ziffer: "§16", label: "Ableitstrom + Hochspannung nach Feuchte", transition: "Nach §16 mit ein paar Kaffeebezuegen auf Betriebstemperatur bringen; Maschine bleibt TC-frei." },
+          { id: "ef1234-009-13", ziffer: "§13", label: "Ableitstrom + Hochspannung bei Betrieb", transition: "Betriebstemperatur dokumentieren; danach Konstruktion/weitere Sichtpruefungen ohne Feuchte-Zwang." },
+          { id: "ef1234-009-22", ziffer: "§22", label: "Konstruktion" }
+        ]
+      }
+    ]
+  };
+}
+
+function loadWorkflow() {
+  const fallback = defaultWorkflowForProject(activeProject) || { machines: [] };
+  try {
+    const raw = localStorage.getItem(wfStorageKey());
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return parsed && Array.isArray(parsed.machines) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+function saveWorkflow(data) {
+  try { localStorage.setItem(wfStorageKey(), JSON.stringify(data)); } catch (e) { console.warn("Workflow speichern fehlgeschlagen", e); }
+}
+function wfId(prefix) { return prefix + Math.random().toString(36).slice(2, 8); }
+function wfClauseNo(z) { const m = String(z || "").match(/(\d+)/); return m ? parseInt(m[1]) : null; }
+function wfNewMachine() {
+  return { id: wfId("m"), name: "", number: "", color: "#8a5a2b", image: "", steps: [] };
+}
+function wfNewStep() {
+  return { id: wfId("s"), ziffer: "", label: "", transition: "" };
+}
+function wfCloneMachine(machine) {
+  return {
+    ...machine,
+    id: wfId("m"),
+    name: machine.name ? `${machine.name} Kopie` : "",
+    number: machine.number || "",
+    steps: (machine.steps || []).map((step) => ({ ...step, id: wfId("s") }))
+  };
+}
+
+function wfTransitionHints(machine, index) {
+  const steps = machine.steps || [];
+  const current = wfClauseNo(steps[index]?.ziffer);
+  const next = wfClauseNo(steps[index + 1]?.ziffer);
+  const before = steps.slice(0, index + 1).map((s) => wfClauseNo(s.ziffer));
+  const hints = [];
+  if (current === 10 && next === 11) hints.push("Vor §11: Thermoelemente montieren und Messstellen dokumentieren.");
+  if (current === 11) hints.push("Nach §11: heiss & mit TCs verkabelt. §13/§16 nur nach TC-Abbau/Abkuehlen oder auf anderer Maschine.");
+  if (current === 15 && next === 16) hints.push("§16 direkt aus der Feuchtekammer: feucht & kalt, nicht zuerst aufwaermen.");
+  if (current === 16 && next === 13) hints.push("Vor §13 mit Kaffeebezuegen auf Betriebstemperatur bringen.");
+  if ((next === 13 || next === 16) && before.includes(11)) hints.push("HV-Pruefung nach §11: Thermoelemente muessen weg, sonst anderer Prototyp.");
+  return [...new Set(hints)];
+}
+
+// Leichte Plausibilitäts-Prüfung der Ziffern-Reihenfolge je Maschine.
+function wfWarnings(machine) {
+  const out = [];
+  const steps = machine.steps || [];
+  const nums = steps.map((s) => wfClauseNo(s.ziffer));
+  const trans = steps.map((s) => (s.transition || "").toLowerCase());
+  steps.forEach((s, i) => {
+    const n = nums[i];
+    if ((n === 13 || n === 16) && nums.slice(0, i).includes(11)) {
+      const noteBefore = trans.slice(0, i).join(" ");
+      if (!/(abkühl|abkuehl|thermoelement|\btc\b|abhäng|abhaeng)/.test(noteBefore))
+        out.push(`§${n} folgt auf §11 — vorher Thermoelemente abhängen & abkühlen lassen (im Übergang vermerken).`);
+    }
+    if (n === 16 && i > 0 && nums[i - 1] !== 15)
+      out.push("§16 sollte unmittelbar nach §15 (Feuchtekammer) gemessen werden — feucht & kalt.");
+  });
+  if (nums.includes(11) && nums.includes(13))
+    out.push("§11 und §13 auf derselben Maschine: mit Thermoelementen ist keine HV-Prüfung möglich — ggf. auf zwei Maschinen aufteilen.");
+  return [...new Set(out)];
+}
+
+function wfLaneMarkup(m) {
+  const accent = m.color || "#8a5a2b";
+  const steps = m.steps || [];
+  const warns = wfWarnings(m);
+  const stepsHtml = steps.map((s, i) => `
+    <div class="wf-step" data-step="${s.id}">
+      <div class="wf-step-card">
+        <input class="wf-ziffer" data-wf="step-field" data-field="ziffer" value="${escapeHtml(s.ziffer || "")}" placeholder="§11">
+        <input class="wf-step-label" data-wf="step-field" data-field="label" value="${escapeHtml(s.label || "")}" placeholder="Erwärmung (Thermoelemente)">
+        <div class="wf-step-tools">
+          <button class="wf-icon-btn" data-wf="move-step" data-dir="-1" title="Ziffer nach oben">↑</button>
+          <button class="wf-icon-btn" data-wf="move-step" data-dir="1" title="Ziffer nach unten">↓</button>
+        </div>
+        <button class="wf-del-step" data-wf="del-step" title="Schritt löschen">✕</button>
+      </div>
+      ${i < steps.length - 1 ? `
+      <div class="wf-transition">
+        <span class="wf-trans-ico">↓</span>
+        <div class="wf-trans-body">
+          ${wfTransitionHints(m, i).length ? `<div class="wf-trans-hints">${wfTransitionHints(m, i).map((hint) => `<span>${escapeHtml(hint)}</span>`).join("")}</div>` : ""}
+          <textarea class="wf-trans-input" data-wf="step-field" data-field="transition" rows="1" placeholder="Übergangsbedingung … (z.B. abkühlen lassen · TC abhängen · direkt aus der Kammer)">${escapeHtml(s.transition || "")}</textarea>
+        </div>
+      </div>` : ""}
+    </div>`).join("");
+  return `
+    <div class="wf-lane" data-machine="${m.id}" style="--lane-accent:${escapeHtml(accent)}">
+      <div class="wf-lane-head">
+        <label class="wf-img" title="Bild wählen">
+          ${m.image ? `<img src="${m.image}" alt="">` : `<span class="wf-img-ph">＋ Bild</span>`}
+          <input type="file" accept="image/*" data-wf="machine-image" hidden>
+        </label>
+        <div class="wf-lane-meta">
+          <input class="wf-m-name" data-wf="machine-field" data-field="name" value="${escapeHtml(m.name || "")}" placeholder="Bezeichnung (z.B. weiss)">
+          <input class="wf-m-number" data-wf="machine-field" data-field="number" value="${escapeHtml(m.number || "")}" placeholder="PT1-EF1234-008">
+        </div>
+        <div class="wf-lane-tools">
+          <input type="color" class="wf-m-color" data-wf="machine-field" data-field="color" value="${escapeHtml(accent)}" title="Farbe">
+          <button class="wf-icon-btn" data-wf="clone-machine" title="Maschine duplizieren">⧉</button>
+          <button class="wf-del-machine" data-wf="del-machine" title="Maschine löschen">🗑</button>
+        </div>
+      </div>
+      ${warns.length ? `<div class="wf-warn">${warns.map((w) => `<div>⚠ ${escapeHtml(w)}</div>`).join("")}</div>` : ""}
+      <div class="wf-steps">
+        ${stepsHtml || `<p class="wf-empty">Noch keine Ziffer.</p>`}
+        <button class="wf-add-step" data-wf="add-step">＋ Ziffer</button>
+      </div>
+    </div>`;
+}
+
+function renderWorkflow() {
+  const el = document.querySelector("#workflow-container");
+  if (!el || !activeProject) return;
+  const data = loadWorkflow();
+  el.innerHTML = `
+    <div class="table-panel wf-panel">
+      <div class="table-header">
+        <div>
+          <h2>Prüf-Workflow</h2>
+          <p>Prototypen-Maschinen & Ziffern-Ablauf (IEC 60335) für ${escapeHtml(activeProject.id)}. Jede Maschine hat ihren eigenen Pfad; Übergangsbedingungen sitzen zwischen den Ziffern. Lokal gespeichert.</p>
+        </div>
+        <div class="wf-actions">
+          <button class="wf-secondary" data-wf="print-workflow" type="button">Drucken</button>
+          <button class="wf-secondary" data-wf="reset-workflow" type="button">Zurücksetzen</button>
+          <button class="wf-add-machine" data-wf="add-machine" type="button">＋ Maschine</button>
+        </div>
+      </div>
+      <div class="wf-lanes">
+        ${data.machines.map(wfLaneMarkup).join("")}
+        ${data.machines.length === 0 ? `<p class="empty-state wf-empty-all">Noch keine Maschine angelegt — klick auf „＋ Maschine".</p>` : ""}
+      </div>
+    </div>`;
+  wfAutoSizeTextareas();
+}
+
+// Nur den Warnungs-Block einer Lane neu aufbauen (ohne Inputs anzufassen → kein Fokusverlust).
+function wfRefreshLaneWarnings(machineId) {
+  const data = loadWorkflow();
+  const m = data.machines.find((x) => x.id === machineId);
+  const lane = document.querySelector(`.wf-lane[data-machine="${(window.CSS && CSS.escape) ? CSS.escape(machineId) : machineId}"]`);
+  if (!m || !lane) return;
+  const warns = wfWarnings(m);
+  let warnEl = lane.querySelector(".wf-warn");
+  if (warns.length) {
+    if (!warnEl) { warnEl = document.createElement("div"); warnEl.className = "wf-warn"; lane.querySelector(".wf-lane-head").after(warnEl); }
+    warnEl.innerHTML = warns.map((w) => `<div>⚠ ${escapeHtml(w)}</div>`).join("");
+  } else if (warnEl) {
+    warnEl.remove();
+  }
+}
+
+function wfAutoSizeTextareas(scope = workflowView) {
+  scope?.querySelectorAll(".wf-trans-input").forEach((textarea) => {
+    textarea.style.height = "auto";
+    textarea.style.height = `${textarea.scrollHeight}px`;
+  });
+}
+
+const workflowView = document.querySelector("#workflow-view");
+workflowView.addEventListener("click", (event) => {
+  const t = event.target.closest("[data-wf]");
+  if (!t) return;
+  const data = loadWorkflow();
+  const laneEl = t.closest(".wf-lane");
+  const machine = laneEl ? data.machines.find((m) => m.id === laneEl.dataset.machine) : null;
+
+  if (t.dataset.wf === "add-machine") {
+    data.machines.push(wfNewMachine());
+    saveWorkflow(data); renderWorkflow(); return;
+  }
+  if (t.dataset.wf === "print-workflow") {
+    window.print(); return;
+  }
+  if (t.dataset.wf === "reset-workflow") {
+    if (!confirm("Workflow fuer dieses Projekt zuruecksetzen? Eigene Aenderungen werden geloescht.")) return;
+    localStorage.removeItem(wfStorageKey());
+    renderWorkflow(); return;
+  }
+  if (t.dataset.wf === "clone-machine" && machine) {
+    const idx = data.machines.indexOf(machine);
+    data.machines.splice(idx + 1, 0, wfCloneMachine(machine));
+    saveWorkflow(data); renderWorkflow(); return;
+  }
+  if (t.dataset.wf === "del-machine" && machine) {
+    if (!confirm(`Maschine „${machine.name || machine.number || "ohne Namen"}" löschen?`)) return;
+    data.machines = data.machines.filter((m) => m !== machine);
+    saveWorkflow(data); renderWorkflow(); return;
+  }
+  if (t.dataset.wf === "add-step" && machine) {
+    machine.steps.push(wfNewStep());
+    saveWorkflow(data); renderWorkflow(); return;
+  }
+  if (t.dataset.wf === "move-step" && machine) {
+    const stepEl = t.closest(".wf-step");
+    const from = machine.steps.findIndex((s) => s.id === stepEl.dataset.step);
+    const to = from + Number(t.dataset.dir || 0);
+    if (from >= 0 && to >= 0 && to < machine.steps.length) {
+      const [step] = machine.steps.splice(from, 1);
+      machine.steps.splice(to, 0, step);
+      saveWorkflow(data); renderWorkflow();
+    }
+    return;
+  }
+  if (t.dataset.wf === "del-step" && machine) {
+    const stepEl = t.closest(".wf-step");
+    machine.steps = machine.steps.filter((s) => s.id !== stepEl.dataset.step);
+    saveWorkflow(data); renderWorkflow(); return;
+  }
+});
+
+// Live-Speichern beim Tippen (ohne Re-Render → Fokus bleibt). Textarea wächst mit.
+workflowView.addEventListener("input", (event) => {
+  const t = event.target.closest("[data-wf]");
+  if (!t) return;
+  const field = t.dataset.field;
+  if (!field || field === "color") return;
+  const data = loadWorkflow();
+  const laneEl = t.closest(".wf-lane");
+  const machine = laneEl ? data.machines.find((m) => m.id === laneEl.dataset.machine) : null;
+  if (!machine) return;
+  if (t.dataset.wf === "machine-field") machine[field] = t.value;
+  else if (t.dataset.wf === "step-field") {
+    const step = machine.steps.find((s) => s.id === t.closest(".wf-step").dataset.step);
+    if (step) step[field] = t.value;
+  }
+  saveWorkflow(data);
+  if (t.tagName === "TEXTAREA") { t.style.height = "auto"; t.style.height = `${t.scrollHeight}px`; }
+});
+
+// Bild/Farbe (change) → speichern + Re-Render. Ziffer/Übergang (blur) → nur Warnungen auffrischen.
+workflowView.addEventListener("change", (event) => {
+  const t = event.target.closest("[data-wf]");
+  if (!t) return;
+  const data = loadWorkflow();
+  const laneEl = t.closest(".wf-lane");
+  const machine = laneEl ? data.machines.find((m) => m.id === laneEl.dataset.machine) : null;
+  if (!machine) return;
+  if (t.dataset.wf === "machine-image" && t.files && t.files[0]) {
+    const file = t.files[0];
+    if (file.size > 4 * 1024 * 1024) { alert("Bild zu groß (max. 4 MB)."); t.value = ""; return; }
+    const reader = new FileReader();
+    reader.onload = () => { machine.image = reader.result; saveWorkflow(data); renderWorkflow(); };
+    reader.readAsDataURL(file);
+    return;
+  }
+  if (t.dataset.wf === "machine-field" && t.dataset.field === "color") {
+    machine.color = t.value; saveWorkflow(data); renderWorkflow(); return;
+  }
+  if (t.dataset.field === "ziffer") {
+    renderWorkflow();
+  } else if (t.dataset.field === "transition") {
+    wfRefreshLaneWarnings(machine.id);
+  }
+});
+
 function saveSimpleCalcInput(input) {
   if (!input) return;
   const overrides = loadCalcOverrides();

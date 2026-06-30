@@ -6,7 +6,7 @@
     <title>PCS Kaffee Dashboard</title>
     <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
     <meta name="theme-color" content="#f3f3f3">
-    <link rel="stylesheet" href="styles.css?v=20260617-theme-dropdown">
+    <link rel="stylesheet" href="styles.css?v=20260618-workflow">
   </head>
   <body class="dashboard-mode app-loading">
     <script>
@@ -57,6 +57,7 @@
         <div class="top-actions hidden">
           <button id="view-overview" class="active" type="button">PCS Status</button>
           <button id="view-docs" type="button">Dateien</button>
+          <button id="view-workflow" type="button">Workflow</button>
           <button id="view-calculations" type="button">Berechnungen</button>
           <button id="tabelle24-link" type="button" class="nowrap-btn">Tabelle 24</button>
           <button id="tabelle30-link" type="button" class="nowrap-btn">Tabelle 30</button>
@@ -211,6 +212,10 @@
         </div>
       </section>
 
+      <section id="workflow-view" class="hidden">
+        <div id="workflow-container"></div>
+      </section>
+
       <section id="tabelle24-view" class="hidden tabelle24-view">
         <iframe id="tabelle24-frame" class="tabelle24-frame" title="Tabelle 24"></iframe>
       </section>
@@ -248,6 +253,6 @@
     </div>
     <script src="/assets/pdf.min.js" async></script>
     <script src="config.js"></script>
-    <script src="app.js?v=20260617-theme-dropdown"></script>
+    <script src="app.js?v=20260618-workflow"></script>
   </body>
 </html>
