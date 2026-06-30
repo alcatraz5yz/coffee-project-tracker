@@ -3564,10 +3564,13 @@ function defaultWorkflowForProject(project) {
 function wfShouldUseDefault(project, parsed, fallback) {
   if (!fallback || !parsed || !Array.isArray(parsed.machines)) return false;
   const projectId = String(project?.id || "");
-  if (projectId === "EF1157" && parsed.machines.length === 0) return true;
   const hasSteps = parsed.machines.some((machine) => (machine.steps || []).length > 0);
   const serialized = JSON.stringify(parsed).toLowerCase();
-  if (projectId === "EF1157" && !hasSteps && serialized.includes("ef1234")) return true;
+  if (projectId === "EF1157") {
+    if (parsed.machines.length === 0) return true;
+    if (serialized.includes("ef1234")) return true;
+    if (!hasSteps && parsed.machines.length <= 1) return true;
+  }
   return false;
 }
 
@@ -3577,7 +3580,10 @@ function loadWorkflow() {
     const raw = localStorage.getItem(wfStorageKey());
     if (!raw) return fallback;
     const parsed = JSON.parse(raw);
-    if (wfShouldUseDefault(activeProject, parsed, fallback)) return fallback;
+    if (wfShouldUseDefault(activeProject, parsed, fallback)) {
+      saveWorkflow(fallback);
+      return fallback;
+    }
     return parsed && Array.isArray(parsed.machines) ? parsed : fallback;
   } catch {
     return fallback;
