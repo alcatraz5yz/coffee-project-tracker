@@ -3476,7 +3476,58 @@ const WF_KEY = "pcs-workflow";
 function wfStorageKey() { return `${WF_KEY}:${activeProject?.id || "?"}`; }
 
 function defaultWorkflowForProject(project) {
-  if (!project || !String(project.id || "").includes("1234")) return null;
+  if (!project) return null;
+  const projectId = String(project.id || "");
+  if (projectId === "EF1157") return {
+    machines: [
+      {
+        id: "ef1157-thermal",
+        name: "TS1 · thermischer Sicherheitspfad",
+        number: "EF1157 · §10/§11/§19",
+        color: "#8a5a2b",
+        image: "",
+        steps: [
+          { id: "ef1157-thermal-04", ziffer: "§04", label: "Allgemeine Bedingungen / Scope", transition: "VDE-Auftrag, Produktumfang und Prüfmuster klarziehen; danach Label-/Manual-Abgleich." },
+          { id: "ef1157-thermal-07", ziffer: "§07", label: "Kennzeichnung und Anleitung", transition: "Typenschild, User Manual und Rating konsistent halten; danach Zugangsschutz ohne warmen Aufbau prüfen." },
+          { id: "ef1157-thermal-08", ziffer: "§08", label: "Schutz gegen aktive Teile", transition: "Finger-/Sondenprüfung vor Thermoelement-Aufbau erledigen; danach normale Leistungsaufnahme messen." },
+          { id: "ef1157-thermal-10", ziffer: "§10", label: "Leistungsaufnahme und Strom", transition: "Messwerte 220/230/240 V protokollieren; danach Thermoelemente für §11 montieren." },
+          { id: "ef1157-thermal-11", ziffer: "§11", label: "Erwärmung mit Thermoelementen", transition: "Heiss und mit TCs verkabelt: §13/§16 nicht direkt auf diesem Aufbau. Für HV zuerst TC abbauen und vollständig abkühlen lassen oder zweiten Prototyp nutzen." },
+          { id: "ef1157-thermal-19", ziffer: "§19", label: "Anormaler Betrieb / Motor-Pumpe" }
+        ]
+      },
+      {
+        id: "ef1157-humidity-hv",
+        name: "TS1 · Feuchte- und HV-Pfad",
+        number: "EF1157 · §15/§16/§13",
+        color: "#3f5f77",
+        image: "",
+        steps: [
+          { id: "ef1157-hv-15", ziffer: "§15", label: "Feuchtebeständigkeit / Kammer", transition: "Nach der Feuchtekammer direkt weiterprüfen: feucht & kalt, nicht zuerst mit Kaffeebezügen aufwärmen." },
+          { id: "ef1157-hv-16", ziffer: "§16", label: "Ableitstrom + Hochspannung nach Feuchte", transition: "Direkt nach §16 mit Kaffeebezügen auf Betriebstemperatur bringen; Gerät bleibt TC-frei für HV." },
+          { id: "ef1157-hv-13", ziffer: "§13", label: "Ableitstrom + Hochspannung bei Betrieb", transition: "Betriebstemperatur dokumentieren; danach mechanische/Konstruktionsprüfungen ohne Feuchte-Zwang fortsetzen." },
+          { id: "ef1157-hv-20", ziffer: "§20", label: "Standsicherheit / mechanische Gefahren", transition: "Mechanik-Fotos und Zustände sichern; danach Konstruktionsprüfung mit Schema/Fluidik abgleichen." },
+          { id: "ef1157-hv-22", ziffer: "§22", label: "Konstruktion" }
+        ]
+      },
+      {
+        id: "ef1157-construction-materials",
+        name: "Dokumente · Komponenten/Material",
+        number: "EF1157 · Nachweise",
+        color: "#5f7a53",
+        image: "",
+        steps: [
+          { id: "ef1157-doc-17", ziffer: "§17", label: "Überlastschutz klären", transition: "Nicht einfach offen lassen: N/A oder Nachweis im Matrix-Review festhalten." },
+          { id: "ef1157-doc-24", ziffer: "§24", label: "Komponentenfreigaben", transition: "Pumpen, TCO, Netzkabel, Elektronik und Alternativen gegen BOM/Table 24 prüfen." },
+          { id: "ef1157-doc-25", ziffer: "§25", label: "Netzanschluss / Leitungen", transition: "EU/CH Kabelnachweise und Varianten sauber zuordnen; danach Erdungskonzept prüfen." },
+          { id: "ef1157-doc-27", ziffer: "§27", label: "Erdung / Schutzleiterkonzept", transition: "Wiring Diagram und Geräteklasse prüfen; danach PCB-Abstände dokumentieren." },
+          { id: "ef1157-doc-29", ziffer: "§29", label: "Luft- und Kriechstrecken", transition: "Mainboard/MMI PCB, Artworks und Layoutstände gegen Rev B ablegen; danach Materialprüfungen." },
+          { id: "ef1157-doc-30", ziffer: "§30", label: "Wärme- und Feuerbeständigkeit", transition: "Tabelle 30, GWT/Ball-pressure und Materialnachweise zusammenführen; Restgefahren/Strahlung nur bewusst N/A setzen." },
+          { id: "ef1157-doc-32", ziffer: "§32", label: "Strahlung / Toxizität / ähnliche Gefahren" }
+        ]
+      }
+    ]
+  };
+  if (!projectId.includes("1234")) return null;
   return {
     machines: [
       {
@@ -3510,12 +3561,23 @@ function defaultWorkflowForProject(project) {
   };
 }
 
+function wfShouldUseDefault(project, parsed, fallback) {
+  if (!fallback || !parsed || !Array.isArray(parsed.machines)) return false;
+  const projectId = String(project?.id || "");
+  if (projectId === "EF1157" && parsed.machines.length === 0) return true;
+  const hasSteps = parsed.machines.some((machine) => (machine.steps || []).length > 0);
+  const serialized = JSON.stringify(parsed).toLowerCase();
+  if (projectId === "EF1157" && !hasSteps && serialized.includes("ef1234")) return true;
+  return false;
+}
+
 function loadWorkflow() {
   const fallback = defaultWorkflowForProject(activeProject) || { machines: [] };
   try {
     const raw = localStorage.getItem(wfStorageKey());
     if (!raw) return fallback;
     const parsed = JSON.parse(raw);
+    if (wfShouldUseDefault(activeProject, parsed, fallback)) return fallback;
     return parsed && Array.isArray(parsed.machines) ? parsed : fallback;
   } catch {
     return fallback;
