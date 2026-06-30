@@ -3732,7 +3732,7 @@ function wfRefreshLaneWarnings(machineId) {
 function wfAutoSizeTextareas(scope = workflowView) {
   scope?.querySelectorAll(".wf-trans-input").forEach((textarea) => {
     textarea.style.height = "auto";
-    textarea.style.height = `${textarea.scrollHeight}px`;
+    textarea.style.height = `${textarea.scrollHeight + 10}px`;
   });
 }
 
@@ -3804,7 +3804,7 @@ workflowView.addEventListener("input", (event) => {
     if (step) step[field] = t.value;
   }
   saveWorkflow(data);
-  if (t.tagName === "TEXTAREA") { t.style.height = "auto"; t.style.height = `${t.scrollHeight}px`; }
+  if (t.tagName === "TEXTAREA") { t.style.height = "auto"; t.style.height = `${t.scrollHeight + 10}px`; }
 });
 
 // Bild/Farbe (change) → speichern + Re-Render. Ziffer/Übergang (blur) → nur Warnungen auffrischen.

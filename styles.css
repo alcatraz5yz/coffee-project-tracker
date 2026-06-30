@@ -4732,7 +4732,7 @@ body[data-theme="explorer"] .evidence-file-row:hover:not(.head):not(.explorer-se
   line-height: 1.35;
 }
 .wf-trans-input {
-  flex: 1; resize: none; overflow: hidden; min-height: 30px; font-size: 12.5px;
+  flex: 0 0 auto; resize: vertical; overflow: hidden; min-height: 58px; font-size: 12.5px; line-height: 1.35;
   color: color-mix(in srgb, var(--watch, #9d5d00) 60%, var(--ink));
   background: color-mix(in srgb, var(--watch, #9d5d00) 8%, transparent);
   border-color: color-mix(in srgb, var(--watch, #9d5d00) 22%, var(--line));
