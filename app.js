@@ -3497,24 +3497,28 @@ function wfDeriveType(clause) {
 function wfStepType(s) { return s.type || wfDeriveType(s.clause); }
 function wfTransKind(s) { return s.transKind || "neutral"; }
 
-// Leichte Plausibilitäts-Warnungen je Maschine.
+// Leichte Plausibilitäts-Warnungen je Maschine. Bewusst schmal gehalten, damit
+// ein korrekt aufgebauter Ablauf (Leckstrom .2 heiss ok; nur die HV-Prüfung .3
+// braucht TC-frei) NICHT fälschlich warnt.
 function wfWarnings(machine) {
   const out = [];
   const steps = machine.steps || [];
   const nums = steps.map((s) => wfClauseNo(s.clause));
+  const isHV = steps.map((s) => /\.3\b/.test(String(s.clause || "")));   // Spannungsfestigkeit x.3
   const trans = steps.map((s) => (s.transition || "").toLowerCase());
   steps.forEach((s, i) => {
     const n = nums[i];
-    if ((n === 13 || n === 16) && nums.slice(0, i).includes(11)) {
+    // Nur die HV-Spannungsfestigkeit (x.3) nach §11 ist heikel: Thermoelemente
+    // müssen ab & abgekühlt sein. Wenn ein Übergang davor das schon nennt: ok.
+    if (isHV[i] && nums.slice(0, i).includes(11)) {
       const noteBefore = trans.slice(0, i).join(" ");
-      if (!/(abkühl|thermoelement|\btc\b|\bte\b|abhäng)/.test(noteBefore))
-        out.push(`§${n} folgt auf §11 — vorher Thermoelemente abhängen & abkühlen (im Übergang vermerken).`);
+      if (!/(abkühl|thermoelement|\btc\b|\bte\b|abhäng|kammer)/.test(noteBefore))
+        out.push(`${s.clause || "HV"} (Spannungsfestigkeit) nach §11 — Thermoelemente abhängen & abkühlen (im Übergang vermerken).`);
     }
+    // §16 (Prüfung feucht) gehört unmittelbar nach §15 (Feuchtekammer).
     if (n === 16 && i > 0 && nums[i - 1] !== 15)
       out.push("§16 sollte unmittelbar nach §15 (Feuchtekammer) gemessen werden — feucht & kalt.");
   });
-  if (nums.includes(11) && nums.includes(13))
-    out.push("§11 und §13 auf derselben Maschine: mit Thermoelementen keine HV-Prüfung — ggf. aufteilen.");
   return [...new Set(out)];
 }
 
@@ -3577,10 +3581,47 @@ function wfLaneMarkup(m) {
     </div>`;
 }
 
+// Reale Vorlage für EF1234 (die drei Prototyp-Muster) — wird beim ersten Öffnen
+// des leeren EF1234-Workflows automatisch geladen (nur dort).
+function wfSeedEF1234() {
+  const step = (clause, title, detail, type, transition, transKind) =>
+    ({ id: wfId("s"), clause, title, detail, type: type || "", transition: transition || "", transKind: transKind || "neutral" });
+  return {
+    seeded: true,
+    machines: [
+      { id: wfId("m"), number: "EF1234-PT2-048", fill: "vollbestückt", variant: "Alupumpe", image: "", steps: [
+        step("§10", "Leistungs- & Stromaufnahme", "", "neutral", "Thermoelemente anbringen", "thermal"),
+        step("§11", "Erwärmung im Normalbetrieb", "voll instrumentiert · heiss", "thermal", "direkt im Anschluss, heiss", "thermal"),
+        step("§13", "Ableitstrom", "nur 13.2 · Betriebstemp. · HV (13.3) → 047", "hv", "danach Fehlerfälle", "neutral"),
+        step("§19", "Unsachgemässer Betrieb", "19.2 · 19.3 · 19.4 · 19.7 · 19.11.2/.3", "neutral", "TE ab → abkühlen → Abschluss-HV", "critical"),
+        step("§13.3", "Spannungsfestigkeit", "§19-Abschluss (19.13 → 16.3 → Tab. 4) · 1000 V", "hv", "", "neutral"),
+      ] },
+      { id: wfId("m"), number: "EF1234-PT2-047", fill: "teilbestückt", variant: "Kupferpumpe", image: "", steps: [
+        step("§15", "Feuchtigkeitsbeständigkeit", "Feuchtekammer ~48 h · übers Wochenende", "thermal", "direkt aus der Kammer, noch feucht", "critical"),
+        step("§16.3", "Spannungsfestigkeit feucht", "16.2 + 16.3 · 1250 V", "hv", "Thermoelemente anbringen (teilbestückt)", "thermal"),
+        step("§11", "Erwärmung im Normalbetrieb", "teilbestückt", "thermal", "danach Fehlerfälle", "neutral"),
+        step("§19", "Unsachgemässer Betrieb", "19.4 · 19.7 · 19.11.2/.3", "neutral", "alle TE ab → 12 Bezüge aufheizen", "critical"),
+        step("§13", "Ableitstrom & Spannungsfestigkeit", "13.2 + 13.3 heiss · Betriebstemp. · 1000 V (Tab. 4) · zugleich §19.13-Abschluss", "hv", "", "neutral"),
+      ] },
+      { id: wfId("m"), number: "EF1234-PT2-044", fill: "Schutzleiter / Zug / Druck", variant: "", image: "", steps: [
+        step("§27", "Schutzleiteranschluss", "Schutzleitertest", "neutral", "Reihenfolge egal", "neutral"),
+        step("§25.15", "Netzanschluss", "Zugentlastung / Zugtest", "neutral", "am besten zuletzt (belastend)", "neutral"),
+        step("§22.7", "Druckprüfung", "Aufbau · drucktragende Bauteile", "neutral", "", "neutral"),
+      ] },
+    ],
+  };
+}
+
 function renderWorkflow() {
   const el = document.querySelector("#workflow-container");
   if (!el || !activeProject) return;
-  const data = loadWorkflow();
+  let data = loadWorkflow();
+  // A) EF1234: die reale Vorlage laden, solange noch nie „seeded" (ersetzt auch
+  //    evtl. vorhandene Alt-Daten aus einer früheren Version einmalig).
+  if (activeProject.id === "EF1234" && !data.seeded) {
+    data = wfSeedEF1234();
+    saveWorkflow(data);
+  }
   el.innerHTML = `
     <div class="table-panel wf-panel">
       <div class="table-header">
@@ -3588,7 +3629,10 @@ function renderWorkflow() {
           <h2>Prüf-Workflow</h2>
           <p>Prototypen & Ziffern-Ablauf (IEC 60335) für ${escapeHtml(activeProject.id)}. Jede Maschine hat ihren eigenen Pfad; die Übergänge sitzen zwischen den Ziffern. Lokal gespeichert.</p>
         </div>
-        <button class="wf-add-machine" data-wf="add-machine">＋ Maschine</button>
+        <div class="wf-head-actions">
+          ${data.machines.length ? `<button class="wf-reset" data-wf="reset">${activeProject.id === "EF1234" ? "Vorlage neu laden" : "Zurücksetzen"}</button>` : (activeProject.id === "EF1234" ? `<button class="wf-reset" data-wf="reset">Vorlage laden</button>` : "")}
+          <button class="wf-add-machine" data-wf="add-machine">＋ Maschine</button>
+        </div>
       </div>
       <div class="wf-legend">
         <span class="wf-leg"><i class="wf-sw wf-c-thermal"></i>thermisch</span>
@@ -3614,8 +3658,20 @@ workflowView.addEventListener("click", (event) => {
   const act = t.dataset.wf;
 
   if (act === "add-machine") {
-    data.machines.push({ id: wfId("m"), number: "", fill: "", variant: "", image: "", steps: [] });
+    // B) Nummer nach Konvention vorbelegen: <EF-Nummer>-PT2-  (Muster-Nr. tippst du selbst)
+    data.machines.push({ id: wfId("m"), number: `${activeProject.id}-PT2-`, fill: "", variant: "", image: "", steps: [] });
     saveWorkflow(data); renderWorkflow(); return;
+  }
+  if (act === "reset") {
+    if (activeProject.id === "EF1234") {
+      if (!confirm("EF1234-Workflow auf die Standard-Vorlage zurücksetzen? Eigene Änderungen gehen verloren.")) return;
+      saveWorkflow(wfSeedEF1234());   // EF1234: zurück auf die offizielle Vorlage
+    } else {
+      if (!confirm("Workflow dieses Projekts komplett zurücksetzen (alle Maschinen entfernen)?")) return;
+      // seeded=true behalten, damit nichts wieder automatisch lädt.
+      saveWorkflow({ seeded: true, machines: [] });
+    }
+    renderWorkflow(); return;
   }
   if (act === "del-machine" && machine) {
     if (!confirm(`Maschine „${machine.number || "ohne Nummer"}" löschen?`)) return;
