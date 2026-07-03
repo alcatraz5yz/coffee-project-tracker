@@ -1,9 +1,8 @@
-' Legt eine Desktop-Verknuepfung "PCS Dashboard" an, die das Dashboard im
-' randlosen Edge-App-Modus startet (ueber start.vbs). Als Symbol wird das ECHTE
-' Windows-Datei-Explorer-Icon verwendet (explorer.exe,0) -> auf dem Desktop nicht
-' vom echten Explorer zu unterscheiden.
+' Legt eine Desktop-Verknuepfung "PCS Dashboard" an, die den lokalen Server
+' startet (ueber start.vbs, versteckt). Den Browser oeffnest du danach selbst:
+' http://127.0.0.1:8090  (z.B. in Chrome).
 '
-' Einmal doppelklicken. Danach das Desktop-Icon nutzen.
+' Einmal doppelklicken. Danach das Desktop-Icon zum Starten nutzen.
 
 Option Explicit
 Dim fso, sh, baseDir, desktop, lnk, target
@@ -21,10 +20,10 @@ lnk.TargetPath       = "wscript.exe"
 lnk.Arguments        = """" & target & """"
 lnk.WorkingDirectory = baseDir
 lnk.WindowStyle      = 1
-lnk.Description       = "PCS Kaffee Dashboard"
-' Echtes Datei-Explorer-Icon aus Windows.
+lnk.Description       = "PCS Server starten – danach http://127.0.0.1:8090 im Browser oeffnen"
 lnk.IconLocation     = sh.ExpandEnvironmentStrings("%SystemRoot%") & "\explorer.exe,0"
 lnk.Save
 
-MsgBox "Verknuepfung 'PCS Dashboard' wurde auf dem Desktop angelegt.", _
+MsgBox "Verknuepfung 'PCS Dashboard' wurde auf dem Desktop angelegt." & vbCrLf & _
+       "Sie startet den Server – oeffne danach http://127.0.0.1:8090 selbst im Browser.", _
        vbInformation, "PCS Dashboard"
