@@ -377,8 +377,9 @@ function applyTheme(theme) {
     const bg = getComputedStyle(document.body).getPropertyValue("--bg").trim();
     if (bg) metaTC.setAttribute("content", bg);
   }
-  // Knopf zeigt das AKTUELLE Theme (Auswahl erfolgt jetzt per Dropdown).
-  themeToggle.querySelector("strong").textContent = theme.charAt(0).toUpperCase() + theme.slice(1);
+  // Knopf zeigt das NÄCHSTE Theme; ein Klick schaltet der Reihe nach weiter.
+  const next = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+  themeToggle.querySelector("strong").textContent = next.charAt(0).toUpperCase() + next.slice(1);
   themeToggle.setAttribute("aria-pressed", String(theme !== "light"));
 }
 
@@ -3736,39 +3737,12 @@ function setThemeFull(theme) {
   }
 }
 
-// Theme-Knopf öffnet ein Dropdown zur DIREKTEN Auswahl (statt Durchklicken).
-const THEME_LABELS = { light: "Light", dark: "Dark", cyber: "Cyber", explorer: "Explorer" };
-function toggleThemeMenu() {
-  const existing = document.querySelector(".theme-menu");
-  if (existing) { existing.remove(); return; }
+// Theme-Knopf: ein Klick schaltet der Reihe nach durch die vier Themes
+// (Light → Dark → Cyber → Explorer → …).
+themeToggle.addEventListener("click", () => {
   const cur = document.body.dataset.theme || "light";
-  const menu = document.createElement("div");
-  menu.className = "theme-menu";
-  menu.setAttribute("role", "menu");
-  menu.innerHTML = THEMES.map((t) =>
-    `<button type="button" role="menuitemradio" aria-checked="${t === cur}" data-theme-choice="${t}" class="${t === cur ? "active" : ""}"><span class="theme-menu-check">${t === cur ? "✓" : ""}</span>${THEME_LABELS[t] || t}</button>`
-  ).join("");
-  document.body.appendChild(menu);
-  const r = themeToggle.getBoundingClientRect();
-  menu.style.top = `${Math.round(r.bottom + 6)}px`;
-  menu.style.right = `${Math.round(window.innerWidth - r.right)}px`;   // rechtsbündig unter dem Knopf
-  menu.addEventListener("click", (e) => {
-    const b = e.target.closest("[data-theme-choice]");
-    if (!b) return;
-    setThemeFull(b.dataset.themeChoice);
-    menu.remove();
-  });
-  setTimeout(() => {
-    const close = (ev) => {
-      if (!menu.contains(ev.target) && ev.target !== themeToggle && !themeToggle.contains(ev.target)) {
-        menu.remove();
-        document.removeEventListener("mousedown", close);
-      }
-    };
-    document.addEventListener("mousedown", close);
-  }, 0);
-}
-themeToggle.addEventListener("click", toggleThemeMenu);
+  setThemeFull(THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length]);
+});
 
 // ── Scanner UI ────────────────────────────────────────────────
 // ── Excel sidebar ─────────────────────────────────────────────
