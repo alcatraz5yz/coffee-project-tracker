@@ -4679,3 +4679,19 @@ body[data-theme="explorer"] .evidence-file-row:hover:not(.head):not(.explorer-se
 .wf-step-card:hover .wf-step-top .wf-del-step,
 .wf-transition:hover .wf-dots { display: inline-flex; }
 .wf-lane-head:hover .wf-del-machine { display: block; }
+
+/* ── Explorer-Theme: App-Kopf verschlanken (nur explorer) ────────────────────
+   Große Titelzeile + Shortcut-/Link-Buttons weg, Tabs kompakt, Theme-Schalter
+   bleibt (damit man das Theme wieder wechseln kann). */
+body[data-theme="explorer"] .topbar { padding-top: 6px; padding-bottom: 6px; align-items: center; }
+body[data-theme="explorer"] .topbar-title { display: none; }
+body[data-theme="explorer"] .topbar-end .hero-shortcut-btn,
+body[data-theme="explorer"] .topbar-end .topbar-divider { display: none; }
+body[data-theme="explorer"] .top-actions { padding: 3px; }
+body[data-theme="explorer"] .top-actions button { padding: 5px 11px; font-size: 12.5px; }
+
+/* ── Explorer-Theme: linke Navigationsspalte ein-/ausklappen ─────────────────*/
+body[data-theme="explorer"] .winex-window.winex-nav-collapsed #document-group-grid { display: none; }
+body[data-theme="explorer"] .winex-panel-toggle .winex-ico::before {
+  background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23444' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'><rect x='2.5' y='3' width='11' height='10' rx='1.2'/><path d='M6.5 3v10'/></svg>");
+}

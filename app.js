@@ -1192,6 +1192,7 @@ function renderDocs(project) {
 // Navigationspfeile ← → ↑ sowie eine Statusleiste unten. Die Knoten werden
 // VERSCHOBEN (nicht kopiert) — alle Handler liegen per Delegation auf #docs-view
 // und bleiben dadurch funktionsfähig. Andere Themes sind komplett unberührt.
+let _winexNavCollapsed = (() => { try { return localStorage.getItem("pcs-winex-nav-collapsed") === "1"; } catch { return false; } })();
 function applyExplorerDocsChrome() {
   const two = document.querySelector("#docs-view .docs-two-pane");
   const panel = two?.parentElement;
@@ -1209,6 +1210,7 @@ function applyExplorerDocsChrome() {
   }
 
   panel.classList.add("winex-window");
+  panel.classList.toggle("winex-nav-collapsed", _winexNavCollapsed);
 
   if (!chrome) {
     chrome = document.createElement("div");
@@ -1224,6 +1226,7 @@ function applyExplorerDocsChrome() {
         '</div>' +
       '</div>' +
       '<div class="winex-addrbar">' +
+        '<button type="button" class="winex-navbtn winex-panel-toggle" data-winex-nav="toggle-nav" title="Navigationsbereich ein-/ausblenden" aria-label="Navigationsbereich"><span class="winex-ico"></span></button>' +
         '<div class="winex-navbtns">' +
           '<button type="button" class="winex-navbtn" data-winex-nav="back" title="Zurück" aria-label="Zurück"><span class="winex-ico"></span></button>' +
           '<button type="button" class="winex-navbtn" data-winex-nav="forward" title="Vorwärts" aria-label="Vorwärts"><span class="winex-ico"></span></button>' +
@@ -1240,6 +1243,12 @@ function applyExplorerDocsChrome() {
     chrome.querySelector('[data-winex-nav="refresh"]').addEventListener("click", () => {
       const c = currentEvidenceContext?.();
       if (c) loadEvidenceEntries(c.group, c.currentHref, { force: true, preserveTreeForward: true });
+    });
+    chrome.querySelector('[data-winex-nav="toggle-nav"]').addEventListener("click", () => {
+      _winexNavCollapsed = !_winexNavCollapsed;
+      try { localStorage.setItem("pcs-winex-nav-collapsed", _winexNavCollapsed ? "1" : "0"); } catch {}
+      panel.classList.toggle("winex-nav-collapsed", _winexNavCollapsed);
+      requestAnimationFrame(fitDocsPanes);
     });
     chrome.querySelector('[data-winex-sort]').addEventListener("click", (e) => toggleWinexSortMenu(e.currentTarget));
   }
