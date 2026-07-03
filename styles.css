@@ -4611,152 +4611,101 @@ body[data-theme="explorer"] .evidence-file-row:hover:not(.head):not(.explorer-se
 /* Caret macht den Knopf als Dropdown erkennbar */
 .theme-toggle::after { content: "▾"; margin-left: 6px; opacity: 0.7; font-size: 11px; }
 
-/* ── Prüf-Workflow-Tab ───────────────────────────────────────────────────── */
-.wf-panel { padding: 18px 20px 22px; }
-.wf-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+/* ── Prüf-Workflow-Tab (farbcodierte Lanes wie das Referenzblatt) ─────────── */
+.wf-panel { padding: 18px 20px 24px; }
 .wf-add-machine {
   background: var(--accent); color: #fff; border: 0; border-radius: 8px;
   padding: 9px 16px; font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap;
 }
 .wf-add-machine:hover { filter: brightness(1.07); }
-.wf-secondary {
-  background: color-mix(in srgb, var(--panel) 86%, var(--ink));
-  color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px 12px;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.wf-secondary:hover { border-color: var(--accent); color: var(--accent); }
 
-.wf-lanes {
-  display: flex; gap: 16px; align-items: flex-start;
-  overflow-x: auto; padding: 6px 2px 12px;
-}
+/* Legende */
+.wf-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin: 6px 2px 16px; font-size: 12.5px; color: var(--muted); }
+.wf-leg { display: inline-flex; align-items: center; gap: 7px; }
+.wf-sw { width: 16px; height: 16px; border-radius: 5px; display: inline-block; border: 1px solid rgba(0,0,0,.12); }
+.wf-leg-note { margin-left: auto; font-style: italic; }
+
+.wf-lanes { display: flex; gap: 18px; align-items: flex-start; overflow-x: auto; padding: 4px 2px 12px; }
 .wf-empty-all { flex: 1; }
+.wf-lane { flex: 0 0 322px; max-width: 322px; display: flex; flex-direction: column; }
 
-.wf-lane {
-  flex: 0 0 320px; max-width: 320px;
-  background: var(--panel); border: 1px solid var(--line);
-  border-top: 4px solid var(--lane-accent, var(--accent));
-  border-radius: 12px; padding: 14px; box-shadow: var(--shadow);
+/* Maschinen-Kopf: Icon/Bild, Nummer, Bestückungs-Pille, Pumpentyp — zentriert */
+.wf-lane-head {
+  position: relative; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 14px; padding: 16px 14px 14px; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 6px; box-shadow: var(--shadow);
 }
-.wf-lane-head { display: flex; gap: 12px; align-items: flex-start; }
+.wf-del-machine { position: absolute; top: 6px; right: 8px; background: none; border: 0; cursor: pointer; font-size: 13px; opacity: .35; }
+.wf-del-machine:hover { opacity: 1; }
 .wf-img {
-  flex: 0 0 64px; width: 64px; height: 64px; border-radius: 10px; overflow: hidden;
-  border: 1px dashed color-mix(in srgb, var(--lane-accent, var(--accent)) 60%, var(--line));
-  display: flex; align-items: center; justify-content: center; cursor: pointer;
-  background: var(--panel-soft); color: var(--muted); font-size: 11px; text-align: center;
+  width: 56px; height: 56px; border-radius: 12px; overflow: hidden; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--panel-soft); color: var(--muted); border: 1px dashed var(--line);
 }
 .wf-img img { width: 100%; height: 100%; object-fit: cover; }
-.wf-img:hover { border-style: solid; }
-.wf-lane-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-.wf-m-name, .wf-m-number, .wf-ziffer, .wf-step-label, .wf-trans-input {
-  width: 100%; border: 1px solid transparent; background: transparent;
-  border-radius: 6px; padding: 5px 7px; font: inherit; color: var(--ink); box-sizing: border-box;
-}
-.wf-m-name { font-weight: 700; font-size: 15px; }
-.wf-m-number { font-family: var(--mono, monospace); font-size: 12px; color: var(--muted); }
-.wf-m-name:hover, .wf-m-number:hover, .wf-ziffer:hover, .wf-step-label:hover, .wf-trans-input:hover { background: var(--panel-soft); }
-.wf-m-name:focus, .wf-m-number:focus, .wf-ziffer:focus, .wf-step-label:focus, .wf-trans-input:focus {
-  outline: none; border-color: var(--accent); background: var(--panel);
-}
-.wf-lane-tools { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.wf-m-color { width: 26px; height: 26px; border: 1px solid var(--line); border-radius: 6px; padding: 0; background: none; cursor: pointer; }
-.wf-del-machine { background: none; border: 0; cursor: pointer; font-size: 15px; opacity: .6; }
-.wf-del-machine:hover { opacity: 1; }
-.wf-icon-btn {
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--panel) 80%, transparent);
-  color: var(--muted);
-  font: inherit;
-  font-size: 12px;
-  line-height: 1;
-  cursor: pointer;
-}
-.wf-icon-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 8%, var(--panel));
-}
+.wf-img:hover { border-color: var(--accent); }
+.wf-cup { font-size: 26px; }
+.wf-m-number { width: 100%; text-align: center; border: 1px solid transparent; background: transparent; border-radius: 7px; padding: 3px 6px; font: inherit; font-weight: 800; font-size: 19px; color: var(--ink); box-sizing: border-box; }
+.wf-m-fill { max-width: 100%; text-align: center; border: 1px solid var(--line); background: var(--panel-soft); border-radius: 999px; padding: 3px 12px; font: inherit; font-size: 12.5px; color: var(--muted); box-sizing: border-box; }
+.wf-m-variant { width: 100%; text-align: center; border: 1px solid transparent; background: transparent; border-radius: 7px; padding: 2px 6px; font: inherit; font-size: 13px; color: var(--muted); box-sizing: border-box; }
+.wf-m-number:hover, .wf-m-variant:hover { background: var(--panel-soft); }
+.wf-m-number:focus, .wf-m-fill:focus, .wf-m-variant:focus { outline: none; border-color: var(--accent); background: var(--panel); }
 
-.wf-warn {
-  margin: 12px 0 4px; padding: 9px 11px; border-radius: 8px;
-  background: color-mix(in srgb, var(--watch, #9d5d00) 14%, var(--panel));
-  border: 1px solid color-mix(in srgb, var(--watch, #9d5d00) 40%, var(--line));
-  font-size: 12px; line-height: 1.4; color: color-mix(in srgb, var(--watch, #9d5d00) 75%, var(--ink));
-  display: flex; flex-direction: column; gap: 5px;
-}
+.wf-steps { display: flex; flex-direction: column; margin-top: 10px; }
+.wf-empty { color: var(--muted); font-size: 13px; margin: 2px 2px 8px; text-align: center; }
 
-.wf-steps { margin-top: 12px; display: flex; flex-direction: column; }
-.wf-empty { color: var(--muted); font-size: 13px; margin: 4px 2px 8px; }
-.wf-step-card {
-  display: flex; align-items: center; gap: 6px;
-  border: 1px solid var(--line); border-left: 3px solid var(--lane-accent, var(--accent));
-  border-radius: 8px; background: var(--panel-soft); padding: 4px 6px;
-}
-.wf-ziffer { flex: 0 0 54px; width: 54px; font-weight: 700; color: var(--lane-accent, var(--accent)); text-align: center; }
-.wf-step-label { flex: 1; min-width: 0; }
-.wf-step-tools { flex: 0 0 auto; display: flex; gap: 3px; }
-.wf-del-step { flex: 0 0 auto; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 12px; padding: 4px 6px; border-radius: 5px; }
-.wf-del-step:hover { background: color-mix(in srgb, var(--bad, #c42b1c) 14%, transparent); color: var(--bad, #c42b1c); }
+/* Ziffern-Karte */
+.wf-step-card { border-radius: 11px; padding: 9px 11px; border: 1px solid transparent; }
+.wf-step-top { display: flex; align-items: center; gap: 6px; }
+.wf-clause { flex: 0 0 auto; width: 58px; border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 3px 4px; font: inherit; font-weight: 800; font-size: 14px; box-sizing: border-box; color: inherit; }
+.wf-title { flex: 1; min-width: 0; border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 3px 5px; font: inherit; font-weight: 700; font-size: 14px; box-sizing: border-box; color: inherit; }
+.wf-detail { width: 100%; border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 2px 5px; margin-top: 2px; font: inherit; font-size: 12px; box-sizing: border-box; color: inherit; opacity: .85; }
+.wf-step-card input::placeholder { color: currentColor; opacity: .5; }
+.wf-step-card input:hover { background: rgba(0,0,0,.05); }
+.wf-step-card input:focus { outline: none; background: rgba(255,255,255,.55); border-color: rgba(0,0,0,.15); }
+.wf-del-step { flex: 0 0 auto; background: none; border: 0; cursor: pointer; font-size: 11px; color: inherit; opacity: .4; padding: 2px 4px; border-radius: 5px; }
+.wf-del-step:hover { opacity: 1; }
+
+/* Kartenfarben nach Typ */
+.wf-c-thermal { background: #f8e3b8; color: #7a4f16; border-color: #e7c485; }
+.wf-c-hv      { background: #d3e2fb; color: #28518f; border-color: #aec8ef; }
+.wf-c-neutral { background: var(--panel); color: var(--ink); border-color: var(--line); }
+
+/* Farb-Punkte zum Umschalten (Typ / Kritikalität) */
+.wf-dots { display: inline-flex; gap: 3px; flex: 0 0 auto; }
+.wf-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(0,0,0,.25); cursor: pointer; padding: 0; opacity: .5; }
+.wf-dot.on { opacity: 1; box-shadow: 0 0 0 2px rgba(0,0,0,.18); }
+.wf-dot-thermal { background: #e7b64f; }
+.wf-dot-hv { background: #5f92e0; }
+.wf-dot-neutral { background: #cfcfcf; }
+.wf-dot-critical { background: #e07a72; }
 
 /* Übergangsband zwischen zwei Ziffern */
-.wf-transition {
-  display: flex; align-items: flex-start; gap: 8px; margin: 2px 0 2px 16px;
-  padding: 6px 8px; border-left: 2px dashed color-mix(in srgb, var(--watch, #9d5d00) 55%, var(--line));
-}
-.wf-trans-ico { color: var(--muted); font-size: 13px; line-height: 1.8; }
-.wf-trans-body { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.wf-trans-hints {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.wf-trans-hints span {
-  border: 1px solid color-mix(in srgb, var(--watch, #9d5d00) 32%, var(--line));
-  border-radius: 7px;
-  padding: 5px 7px;
-  background: color-mix(in srgb, var(--watch, #9d5d00) 12%, var(--panel));
-  color: color-mix(in srgb, var(--watch, #9d5d00) 70%, var(--ink));
-  font-size: 11.5px;
-  line-height: 1.35;
-}
-.wf-trans-input {
-  flex: 0 0 auto; resize: vertical; overflow: hidden; min-height: 58px; font-size: 12.5px; line-height: 1.35;
-  color: color-mix(in srgb, var(--watch, #9d5d00) 60%, var(--ink));
-  background: color-mix(in srgb, var(--watch, #9d5d00) 8%, transparent);
-  border-color: color-mix(in srgb, var(--watch, #9d5d00) 22%, var(--line));
-}
-.wf-add-step {
-  margin-top: 10px; align-self: flex-start;
-  background: none; border: 1px dashed var(--line); border-radius: 8px;
-  padding: 7px 12px; font: inherit; font-size: 13px; color: var(--muted); cursor: pointer;
-}
+.wf-transition { display: flex; align-items: center; gap: 8px; margin: 5px 10px; padding: 5px 10px; border-radius: 8px; }
+.wf-trans-ico { flex: 0 0 auto; font-size: 13px; opacity: .7; }
+.wf-trans-input { flex: 1; min-width: 0; border: 1px solid transparent; background: transparent; border-radius: 6px; padding: 3px 5px; font: inherit; font-size: 12.5px; font-style: italic; box-sizing: border-box; color: inherit; }
+.wf-trans-input::placeholder { color: currentColor; opacity: .55; }
+.wf-trans-input:hover { background: rgba(0,0,0,.05); }
+.wf-trans-input:focus { outline: none; background: rgba(255,255,255,.5); }
+.wf-t-neutral { background: var(--panel-soft); color: var(--muted); border: 1px solid var(--line); }
+.wf-t-thermal { background: #f8e3b8; color: #7a4f16; }
+.wf-t-critical { background: #f8d5d2; color: #b3403a; }
+
+.wf-add-step { margin: 10px 4px 0; align-self: center; background: none; border: 1px dashed var(--line); border-radius: 8px; padding: 6px 14px; font: inherit; font-size: 13px; color: var(--muted); cursor: pointer; }
 .wf-add-step:hover { border-color: var(--accent); color: var(--accent); }
 
-@media print {
-  body { background: #fff !important; }
-  .sidebar,
-  .topbar,
-  #bg-shadows,
-  .wf-actions,
-  .wf-lane-tools,
-  .wf-step-tools,
-  .wf-del-step,
-  .wf-add-step { display: none !important; }
-  main { margin: 0 !important; width: 100% !important; }
-  #workflow-view.hidden { display: block !important; }
-  .table-panel.wf-panel { box-shadow: none; border: 0; padding: 0; }
-  .wf-lanes { overflow: visible; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .wf-lane { max-width: none; flex: none; break-inside: avoid; }
+.wf-warn {
+  margin: 8px 2px 0; padding: 8px 10px; border-radius: 8px;
+  background: color-mix(in srgb, var(--watch, #9d5d00) 12%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--watch, #9d5d00) 35%, var(--line));
+  font-size: 11.5px; line-height: 1.4; color: color-mix(in srgb, var(--watch, #9d5d00) 78%, var(--ink));
+  display: flex; flex-direction: column; gap: 4px;
 }
+
+/* Bedienelemente (Farb-Punkte, Löschen, Maschine löschen) nur beim Hover →
+   im Ruhezustand cleane Karten mit voller Titelbreite wie das Referenzblatt. */
+.wf-step-top .wf-dots, .wf-step-top .wf-del-step, .wf-transition .wf-dots, .wf-del-machine { display: none; }
+.wf-step-card:hover .wf-step-top .wf-dots,
+.wf-step-card:hover .wf-step-top .wf-del-step,
+.wf-transition:hover .wf-dots { display: inline-flex; }
+.wf-lane-head:hover .wf-del-machine { display: block; }

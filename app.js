@@ -3474,217 +3474,99 @@ buttons.packaging.addEventListener("click", async () => {
 // Übergangsbedingungen dazwischen, plus leichte Plausibilitäts-Warnungen.
 const WF_KEY = "pcs-workflow";
 function wfStorageKey() { return `${WF_KEY}:${activeProject?.id || "?"}`; }
-
-function defaultWorkflowForProject(project) {
-  if (!project) return null;
-  const projectId = String(project.id || "");
-  if (projectId === "EF1157") return {
-    machines: [
-      {
-        id: "ef1157-thermal",
-        name: "TS1 · thermischer Sicherheitspfad",
-        number: "EF1157 · §10/§11/§19",
-        color: "#8a5a2b",
-        image: "",
-        steps: [
-          { id: "ef1157-thermal-04", ziffer: "§04", label: "Allgemeine Bedingungen / Scope", transition: "VDE-Auftrag, Produktumfang und Prüfmuster klarziehen; danach Label-/Manual-Abgleich." },
-          { id: "ef1157-thermal-07", ziffer: "§07", label: "Kennzeichnung und Anleitung", transition: "Typenschild, User Manual und Rating konsistent halten; danach Zugangsschutz ohne warmen Aufbau prüfen." },
-          { id: "ef1157-thermal-08", ziffer: "§08", label: "Schutz gegen aktive Teile", transition: "Finger-/Sondenprüfung vor Thermoelement-Aufbau erledigen; danach normale Leistungsaufnahme messen." },
-          { id: "ef1157-thermal-10", ziffer: "§10", label: "Leistungsaufnahme und Strom", transition: "Messwerte 220/230/240 V protokollieren; danach Thermoelemente für §11 montieren." },
-          { id: "ef1157-thermal-11", ziffer: "§11", label: "Erwärmung mit Thermoelementen", transition: "Heiss und mit TCs verkabelt: §13/§16 nicht direkt auf diesem Aufbau. Für HV zuerst TC abbauen und vollständig abkühlen lassen oder zweiten Prototyp nutzen." },
-          { id: "ef1157-thermal-19", ziffer: "§19", label: "Anormaler Betrieb / Motor-Pumpe" }
-        ]
-      },
-      {
-        id: "ef1157-humidity-hv",
-        name: "TS1 · Feuchte- und HV-Pfad",
-        number: "EF1157 · §15/§16/§13",
-        color: "#3f5f77",
-        image: "",
-        steps: [
-          { id: "ef1157-hv-15", ziffer: "§15", label: "Feuchtebeständigkeit / Kammer", transition: "Nach der Feuchtekammer direkt weiterprüfen: feucht & kalt, nicht zuerst mit Kaffeebezügen aufwärmen." },
-          { id: "ef1157-hv-16", ziffer: "§16", label: "Ableitstrom + Hochspannung nach Feuchte", transition: "Direkt nach §16 mit Kaffeebezügen auf Betriebstemperatur bringen; Gerät bleibt TC-frei für HV." },
-          { id: "ef1157-hv-13", ziffer: "§13", label: "Ableitstrom + Hochspannung bei Betrieb", transition: "Betriebstemperatur dokumentieren; danach mechanische/Konstruktionsprüfungen ohne Feuchte-Zwang fortsetzen." },
-          { id: "ef1157-hv-20", ziffer: "§20", label: "Standsicherheit / mechanische Gefahren", transition: "Mechanik-Fotos und Zustände sichern; danach Konstruktionsprüfung mit Schema/Fluidik abgleichen." },
-          { id: "ef1157-hv-22", ziffer: "§22", label: "Konstruktion" }
-        ]
-      },
-      {
-        id: "ef1157-construction-materials",
-        name: "Dokumente · Komponenten/Material",
-        number: "EF1157 · Nachweise",
-        color: "#5f7a53",
-        image: "",
-        steps: [
-          { id: "ef1157-doc-17", ziffer: "§17", label: "Überlastschutz klären", transition: "Nicht einfach offen lassen: N/A oder Nachweis im Matrix-Review festhalten." },
-          { id: "ef1157-doc-24", ziffer: "§24", label: "Komponentenfreigaben", transition: "Pumpen, TCO, Netzkabel, Elektronik und Alternativen gegen BOM/Table 24 prüfen." },
-          { id: "ef1157-doc-25", ziffer: "§25", label: "Netzanschluss / Leitungen", transition: "EU/CH Kabelnachweise und Varianten sauber zuordnen; danach Erdungskonzept prüfen." },
-          { id: "ef1157-doc-27", ziffer: "§27", label: "Erdung / Schutzleiterkonzept", transition: "Wiring Diagram und Geräteklasse prüfen; danach PCB-Abstände dokumentieren." },
-          { id: "ef1157-doc-29", ziffer: "§29", label: "Luft- und Kriechstrecken", transition: "Mainboard/MMI PCB, Artworks und Layoutstände gegen Rev B ablegen; danach Materialprüfungen." },
-          { id: "ef1157-doc-30", ziffer: "§30", label: "Wärme- und Feuerbeständigkeit", transition: "Tabelle 30, GWT/Ball-pressure und Materialnachweise zusammenführen; Restgefahren/Strahlung nur bewusst N/A setzen." },
-          { id: "ef1157-doc-32", ziffer: "§32", label: "Strahlung / Toxizität / ähnliche Gefahren" }
-        ]
-      }
-    ]
-  };
-  if (!projectId.includes("1234")) return null;
-  return {
-    machines: [
-      {
-        id: "ef1234-008-thermal",
-        name: "weiss · thermischer Pfad",
-        number: "PT1-EF1234-008",
-        color: "#c28a35",
-        image: "",
-        steps: [
-          { id: "ef1234-008-07", ziffer: "§07", label: "Kennzeichnung", transition: "Sichtprüfung abschliessen; danach Zugangsschutz ohne warmen Aufbau prüfen." },
-          { id: "ef1234-008-08", ziffer: "§08", label: "Schutz gegen Zugang zu aktiven Teilen", transition: "Keine Thermoelemente/HV-Leitungen montiert; normaler Aufbau fuer Leistungsaufnahme." },
-          { id: "ef1234-008-10", ziffer: "§10", label: "Leistungsaufnahme", transition: "Messwerte protokollieren, dann Thermoelemente fuer §11 montieren." },
-          { id: "ef1234-008-11", ziffer: "§11", label: "Erwaermung mit Thermoelementen", transition: "Heiss und verkabelt: §13/§16 auf dieser Maschine nicht direkt fahren. TCs dranlassen bis §11 dokumentiert; fuer HV zuerst TC abbauen und abkuehlen lassen." },
-          { id: "ef1234-008-19", ziffer: "§19", label: "Anormaler Betrieb" }
-        ]
-      },
-      {
-        id: "ef1234-009-humidity",
-        name: "schwarz · Feuchte/HV-Pfad",
-        number: "PT1-EF1234-009",
-        color: "#475160",
-        image: "",
-        steps: [
-          { id: "ef1234-009-15", ziffer: "§15", label: "Feuchtekammer ca. 48 h", transition: "Direkt aus der Kammer weiterpruefen: feucht & kalt, nicht zuerst mit Kaffee aufwaermen." },
-          { id: "ef1234-009-16", ziffer: "§16", label: "Ableitstrom + Hochspannung nach Feuchte", transition: "Nach §16 mit ein paar Kaffeebezuegen auf Betriebstemperatur bringen; Maschine bleibt TC-frei." },
-          { id: "ef1234-009-13", ziffer: "§13", label: "Ableitstrom + Hochspannung bei Betrieb", transition: "Betriebstemperatur dokumentieren; danach Konstruktion/weitere Sichtpruefungen ohne Feuchte-Zwang." },
-          { id: "ef1234-009-22", ziffer: "§22", label: "Konstruktion" }
-        ]
-      }
-    ]
-  };
-}
-
-function wfShouldUseDefault(project, parsed, fallback) {
-  if (!fallback || !parsed || !Array.isArray(parsed.machines)) return false;
-  const projectId = String(project?.id || "");
-  const hasSteps = parsed.machines.some((machine) => (machine.steps || []).length > 0);
-  const serialized = JSON.stringify(parsed).toLowerCase();
-  if (projectId === "EF1157") {
-    if (parsed.machines.length === 0) return true;
-    if (serialized.includes("ef1234")) return true;
-    if (!hasSteps && parsed.machines.length <= 1) return true;
-  }
-  return false;
-}
-
 function loadWorkflow() {
-  const fallback = defaultWorkflowForProject(activeProject) || { machines: [] };
-  try {
-    const raw = localStorage.getItem(wfStorageKey());
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw);
-    if (wfShouldUseDefault(activeProject, parsed, fallback)) {
-      saveWorkflow(fallback);
-      return fallback;
-    }
-    return parsed && Array.isArray(parsed.machines) ? parsed : fallback;
-  } catch {
-    return fallback;
-  }
+  try { return JSON.parse(localStorage.getItem(wfStorageKey())) || { machines: [] }; }
+  catch { return { machines: [] }; }
 }
 function saveWorkflow(data) {
-  try { localStorage.setItem(wfStorageKey(), JSON.stringify(data)); } catch (e) { console.warn("Workflow speichern fehlgeschlagen", e); }
+  try { localStorage.setItem(wfStorageKey(), JSON.stringify(data)); }
+  catch (e) { console.warn("Workflow speichern fehlgeschlagen", e); }
 }
 function wfId(prefix) { return prefix + Math.random().toString(36).slice(2, 8); }
 function wfClauseNo(z) { const m = String(z || "").match(/(\d+)/); return m ? parseInt(m[1]) : null; }
-function wfNewMachine() {
-  return { id: wfId("m"), name: "", number: "", color: "#8a5a2b", image: "", steps: [] };
-}
-function wfNewStep() {
-  return { id: wfId("s"), ziffer: "", label: "", transition: "" };
-}
-function wfCloneMachine(machine) {
-  return {
-    ...machine,
-    id: wfId("m"),
-    name: machine.name ? `${machine.name} Kopie` : "",
-    number: machine.number || "",
-    steps: (machine.steps || []).map((step) => ({ ...step, id: wfId("s") }))
-  };
-}
 
-function wfTransitionHints(machine, index) {
-  const steps = machine.steps || [];
-  const current = wfClauseNo(steps[index]?.ziffer);
-  const next = wfClauseNo(steps[index + 1]?.ziffer);
-  const before = steps.slice(0, index + 1).map((s) => wfClauseNo(s.ziffer));
-  const hints = [];
-  if (current === 10 && next === 11) hints.push("Vor §11: Thermoelemente montieren und Messstellen dokumentieren.");
-  if (current === 11) hints.push("Nach §11: heiss & mit TCs verkabelt. §13/§16 nur nach TC-Abbau/Abkuehlen oder auf anderer Maschine.");
-  if (current === 15 && next === 16) hints.push("§16 direkt aus der Feuchtekammer: feucht & kalt, nicht zuerst aufwaermen.");
-  if (current === 16 && next === 13) hints.push("Vor §13 mit Kaffeebezuegen auf Betriebstemperatur bringen.");
-  if ((next === 13 || next === 16) && before.includes(11)) hints.push("HV-Pruefung nach §11: Thermoelemente muessen weg, sonst anderer Prototyp.");
-  return [...new Set(hints)];
+// Kartenfarbe automatisch aus der Ziffer ableiten (falls nicht manuell gesetzt):
+// thermisch (11, 15, 20) = gelb; 13/16 (Ableitstrom/HV) = blau; sonst neutral.
+function wfDeriveType(clause) {
+  const n = wfClauseNo(clause);
+  if ([11, 15, 20].includes(n)) return "thermal";
+  if ([13, 16].includes(n)) return "hv";
+  return "neutral";
 }
+function wfStepType(s) { return s.type || wfDeriveType(s.clause); }
+function wfTransKind(s) { return s.transKind || "neutral"; }
 
-// Leichte Plausibilitäts-Prüfung der Ziffern-Reihenfolge je Maschine.
+// Leichte Plausibilitäts-Warnungen je Maschine.
 function wfWarnings(machine) {
   const out = [];
   const steps = machine.steps || [];
-  const nums = steps.map((s) => wfClauseNo(s.ziffer));
+  const nums = steps.map((s) => wfClauseNo(s.clause));
   const trans = steps.map((s) => (s.transition || "").toLowerCase());
   steps.forEach((s, i) => {
     const n = nums[i];
     if ((n === 13 || n === 16) && nums.slice(0, i).includes(11)) {
       const noteBefore = trans.slice(0, i).join(" ");
-      if (!/(abkühl|abkuehl|thermoelement|\btc\b|abhäng|abhaeng)/.test(noteBefore))
-        out.push(`§${n} folgt auf §11 — vorher Thermoelemente abhängen & abkühlen lassen (im Übergang vermerken).`);
+      if (!/(abkühl|thermoelement|\btc\b|\bte\b|abhäng)/.test(noteBefore))
+        out.push(`§${n} folgt auf §11 — vorher Thermoelemente abhängen & abkühlen (im Übergang vermerken).`);
     }
     if (n === 16 && i > 0 && nums[i - 1] !== 15)
       out.push("§16 sollte unmittelbar nach §15 (Feuchtekammer) gemessen werden — feucht & kalt.");
   });
   if (nums.includes(11) && nums.includes(13))
-    out.push("§11 und §13 auf derselben Maschine: mit Thermoelementen ist keine HV-Prüfung möglich — ggf. auf zwei Maschinen aufteilen.");
+    out.push("§11 und §13 auf derselben Maschine: mit Thermoelementen keine HV-Prüfung — ggf. aufteilen.");
   return [...new Set(out)];
 }
 
+function wfDots(role, current, opts) {
+  return `<div class="wf-dots">${opts.map(([val, cls, title]) =>
+    `<button type="button" class="wf-dot wf-dot-${cls} ${current === val ? "on" : ""}" data-wf="${role}" data-val="${val}" title="${title}"></button>`
+  ).join("")}</div>`;
+}
+
+function wfStepMarkup(m, s, isLast) {
+  const type = wfStepType(s);
+  const kind = wfTransKind(s);
+  const typeDots = wfDots("set-type", s.type || "", [
+    ["thermal", "thermal", "thermisch"], ["hv", "hv", "Ableitstrom / HV"], ["neutral", "neutral", "neutral"]
+  ]);
+  const kindDots = wfDots("set-kind", kind, [
+    ["neutral", "neutral", "neutral"], ["thermal", "thermal", "thermisch"], ["critical", "critical", "kritisch"]
+  ]);
+  return `
+    <div class="wf-step" data-step="${s.id}">
+      <div class="wf-step-card wf-c-${type}">
+        <div class="wf-step-top">
+          <input class="wf-clause" data-wf="step-field" data-field="clause" value="${escapeHtml(s.clause || "")}" placeholder="§13">
+          <input class="wf-title" data-wf="step-field" data-field="title" value="${escapeHtml(s.title || "")}" placeholder="Titel (z.B. Ableitstrom)">
+          ${typeDots}
+          <button class="wf-del-step" data-wf="del-step" title="Schritt löschen">✕</button>
+        </div>
+        <input class="wf-detail" data-wf="step-field" data-field="detail" value="${escapeHtml(s.detail || "")}" placeholder="Details (z.B. nur 13.2 · Betriebstemp. · HV 13.3)">
+      </div>
+      ${isLast ? "" : `
+      <div class="wf-transition wf-t-${kind}">
+        <span class="wf-trans-ico">↓</span>
+        <input class="wf-trans-input" data-wf="step-field" data-field="transition" value="${escapeHtml(s.transition || "")}" placeholder="Übergang … (z.B. TE ab → abkühlen → HV)">
+        ${kindDots}
+      </div>`}
+    </div>`;
+}
+
 function wfLaneMarkup(m) {
-  const accent = m.color || "#8a5a2b";
   const steps = m.steps || [];
   const warns = wfWarnings(m);
-  const stepsHtml = steps.map((s, i) => `
-    <div class="wf-step" data-step="${s.id}">
-      <div class="wf-step-card">
-        <input class="wf-ziffer" data-wf="step-field" data-field="ziffer" value="${escapeHtml(s.ziffer || "")}" placeholder="§11">
-        <input class="wf-step-label" data-wf="step-field" data-field="label" value="${escapeHtml(s.label || "")}" placeholder="Erwärmung (Thermoelemente)">
-        <div class="wf-step-tools">
-          <button class="wf-icon-btn" data-wf="move-step" data-dir="-1" title="Ziffer nach oben">↑</button>
-          <button class="wf-icon-btn" data-wf="move-step" data-dir="1" title="Ziffer nach unten">↓</button>
-        </div>
-        <button class="wf-del-step" data-wf="del-step" title="Schritt löschen">✕</button>
-      </div>
-      ${i < steps.length - 1 ? `
-      <div class="wf-transition">
-        <span class="wf-trans-ico">↓</span>
-        <div class="wf-trans-body">
-          ${wfTransitionHints(m, i).length ? `<div class="wf-trans-hints">${wfTransitionHints(m, i).map((hint) => `<span>${escapeHtml(hint)}</span>`).join("")}</div>` : ""}
-          <textarea class="wf-trans-input" data-wf="step-field" data-field="transition" rows="1" placeholder="Übergangsbedingung … (z.B. abkühlen lassen · TC abhängen · direkt aus der Kammer)">${escapeHtml(s.transition || "")}</textarea>
-        </div>
-      </div>` : ""}
-    </div>`).join("");
+  const stepsHtml = steps.map((s, i) => wfStepMarkup(m, s, i === steps.length - 1)).join("");
   return `
-    <div class="wf-lane" data-machine="${m.id}" style="--lane-accent:${escapeHtml(accent)}">
+    <div class="wf-lane" data-machine="${m.id}">
       <div class="wf-lane-head">
+        <button class="wf-del-machine" data-wf="del-machine" title="Maschine löschen">🗑</button>
         <label class="wf-img" title="Bild wählen">
-          ${m.image ? `<img src="${m.image}" alt="">` : `<span class="wf-img-ph">＋ Bild</span>`}
+          ${m.image ? `<img src="${m.image}" alt="">` : `<span class="wf-cup">☕</span>`}
           <input type="file" accept="image/*" data-wf="machine-image" hidden>
         </label>
-        <div class="wf-lane-meta">
-          <input class="wf-m-name" data-wf="machine-field" data-field="name" value="${escapeHtml(m.name || "")}" placeholder="Bezeichnung (z.B. weiss)">
-          <input class="wf-m-number" data-wf="machine-field" data-field="number" value="${escapeHtml(m.number || "")}" placeholder="PT1-EF1234-008">
-        </div>
-        <div class="wf-lane-tools">
-          <input type="color" class="wf-m-color" data-wf="machine-field" data-field="color" value="${escapeHtml(accent)}" title="Farbe">
-          <button class="wf-icon-btn" data-wf="clone-machine" title="Maschine duplizieren">⧉</button>
-          <button class="wf-del-machine" data-wf="del-machine" title="Maschine löschen">🗑</button>
-        </div>
+        <input class="wf-m-number" data-wf="machine-field" data-field="number" value="${escapeHtml(m.number || "")}" placeholder="EF1234-PT2-048">
+        <input class="wf-m-fill" data-wf="machine-field" data-field="fill" value="${escapeHtml(m.fill || "")}" placeholder="z.B. vollbestückt">
+        <input class="wf-m-variant" data-wf="machine-field" data-field="variant" value="${escapeHtml(m.variant || "")}" placeholder="z.B. Alupumpe">
       </div>
       ${warns.length ? `<div class="wf-warn">${warns.map((w) => `<div>⚠ ${escapeHtml(w)}</div>`).join("")}</div>` : ""}
       <div class="wf-steps">
@@ -3703,43 +3585,21 @@ function renderWorkflow() {
       <div class="table-header">
         <div>
           <h2>Prüf-Workflow</h2>
-          <p>Prototypen-Maschinen & Ziffern-Ablauf (IEC 60335) für ${escapeHtml(activeProject.id)}. Jede Maschine hat ihren eigenen Pfad; Übergangsbedingungen sitzen zwischen den Ziffern. Lokal gespeichert.</p>
+          <p>Prototypen & Ziffern-Ablauf (IEC 60335) für ${escapeHtml(activeProject.id)}. Jede Maschine hat ihren eigenen Pfad; die Übergänge sitzen zwischen den Ziffern. Lokal gespeichert.</p>
         </div>
-        <div class="wf-actions">
-          <button class="wf-secondary" data-wf="print-workflow" type="button">Drucken</button>
-          <button class="wf-secondary" data-wf="reset-workflow" type="button">Zurücksetzen</button>
-          <button class="wf-add-machine" data-wf="add-machine" type="button">＋ Maschine</button>
-        </div>
+        <button class="wf-add-machine" data-wf="add-machine">＋ Maschine</button>
+      </div>
+      <div class="wf-legend">
+        <span class="wf-leg"><i class="wf-sw wf-c-thermal"></i>thermisch</span>
+        <span class="wf-leg"><i class="wf-sw wf-c-hv"></i>Ableitstrom / HV</span>
+        <span class="wf-leg"><i class="wf-sw wf-t-critical"></i>kritischer Übergang</span>
+        <span class="wf-leg-note">.2 = Ableitstrom · .3 = Spannungsfestigkeit (HV)</span>
       </div>
       <div class="wf-lanes">
         ${data.machines.map(wfLaneMarkup).join("")}
-        ${data.machines.length === 0 ? `<p class="empty-state wf-empty-all">Noch keine Maschine angelegt — klick auf „＋ Maschine".</p>` : ""}
+        ${data.machines.length === 0 ? `<p class="empty-state wf-empty-all">Noch keine Maschine — klick auf „＋ Maschine".</p>` : ""}
       </div>
     </div>`;
-  wfAutoSizeTextareas();
-}
-
-// Nur den Warnungs-Block einer Lane neu aufbauen (ohne Inputs anzufassen → kein Fokusverlust).
-function wfRefreshLaneWarnings(machineId) {
-  const data = loadWorkflow();
-  const m = data.machines.find((x) => x.id === machineId);
-  const lane = document.querySelector(`.wf-lane[data-machine="${(window.CSS && CSS.escape) ? CSS.escape(machineId) : machineId}"]`);
-  if (!m || !lane) return;
-  const warns = wfWarnings(m);
-  let warnEl = lane.querySelector(".wf-warn");
-  if (warns.length) {
-    if (!warnEl) { warnEl = document.createElement("div"); warnEl.className = "wf-warn"; lane.querySelector(".wf-lane-head").after(warnEl); }
-    warnEl.innerHTML = warns.map((w) => `<div>⚠ ${escapeHtml(w)}</div>`).join("");
-  } else if (warnEl) {
-    warnEl.remove();
-  }
-}
-
-function wfAutoSizeTextareas(scope = workflowView) {
-  scope?.querySelectorAll(".wf-trans-input").forEach((textarea) => {
-    textarea.style.height = "auto";
-    textarea.style.height = `${textarea.scrollHeight + 10}px`;
-  });
 }
 
 const workflowView = document.querySelector("#workflow-view");
@@ -3749,71 +3609,56 @@ workflowView.addEventListener("click", (event) => {
   const data = loadWorkflow();
   const laneEl = t.closest(".wf-lane");
   const machine = laneEl ? data.machines.find((m) => m.id === laneEl.dataset.machine) : null;
+  const stepOf = () => machine && machine.steps.find((s) => s.id === t.closest(".wf-step")?.dataset.step);
+  const act = t.dataset.wf;
 
-  if (t.dataset.wf === "add-machine") {
-    data.machines.push(wfNewMachine());
+  if (act === "add-machine") {
+    data.machines.push({ id: wfId("m"), number: "", fill: "", variant: "", image: "", steps: [] });
     saveWorkflow(data); renderWorkflow(); return;
   }
-  if (t.dataset.wf === "print-workflow") {
-    window.print(); return;
-  }
-  if (t.dataset.wf === "reset-workflow") {
-    if (!confirm("Workflow fuer dieses Projekt zuruecksetzen? Eigene Aenderungen werden geloescht.")) return;
-    localStorage.removeItem(wfStorageKey());
-    renderWorkflow(); return;
-  }
-  if (t.dataset.wf === "clone-machine" && machine) {
-    const idx = data.machines.indexOf(machine);
-    data.machines.splice(idx + 1, 0, wfCloneMachine(machine));
-    saveWorkflow(data); renderWorkflow(); return;
-  }
-  if (t.dataset.wf === "del-machine" && machine) {
-    if (!confirm(`Maschine „${machine.name || machine.number || "ohne Namen"}" löschen?`)) return;
+  if (act === "del-machine" && machine) {
+    if (!confirm(`Maschine „${machine.number || "ohne Nummer"}" löschen?`)) return;
     data.machines = data.machines.filter((m) => m !== machine);
     saveWorkflow(data); renderWorkflow(); return;
   }
-  if (t.dataset.wf === "add-step" && machine) {
-    machine.steps.push(wfNewStep());
+  if (act === "add-step" && machine) {
+    machine.steps.push({ id: wfId("s"), clause: "", title: "", detail: "", type: "", transition: "", transKind: "neutral" });
     saveWorkflow(data); renderWorkflow(); return;
   }
-  if (t.dataset.wf === "move-step" && machine) {
-    const stepEl = t.closest(".wf-step");
-    const from = machine.steps.findIndex((s) => s.id === stepEl.dataset.step);
-    const to = from + Number(t.dataset.dir || 0);
-    if (from >= 0 && to >= 0 && to < machine.steps.length) {
-      const [step] = machine.steps.splice(from, 1);
-      machine.steps.splice(to, 0, step);
-      saveWorkflow(data); renderWorkflow();
-    }
+  if (act === "del-step" && machine) {
+    const step = stepOf();
+    if (step) machine.steps = machine.steps.filter((s) => s !== step);
+    saveWorkflow(data); renderWorkflow(); return;
+  }
+  if (act === "set-type" && machine) {
+    const step = stepOf();
+    if (step) { step.type = t.dataset.val; saveWorkflow(data); renderWorkflow(); }
     return;
   }
-  if (t.dataset.wf === "del-step" && machine) {
-    const stepEl = t.closest(".wf-step");
-    machine.steps = machine.steps.filter((s) => s.id !== stepEl.dataset.step);
-    saveWorkflow(data); renderWorkflow(); return;
+  if (act === "set-kind" && machine) {
+    const step = stepOf();
+    if (step) { step.transKind = t.dataset.val; saveWorkflow(data); renderWorkflow(); }
+    return;
   }
 });
 
-// Live-Speichern beim Tippen (ohne Re-Render → Fokus bleibt). Textarea wächst mit.
+// Live-Speichern beim Tippen (ohne Re-Render → Fokus bleibt).
 workflowView.addEventListener("input", (event) => {
   const t = event.target.closest("[data-wf]");
-  if (!t) return;
-  const field = t.dataset.field;
-  if (!field || field === "color") return;
+  if (!t || !t.dataset.field) return;
   const data = loadWorkflow();
   const laneEl = t.closest(".wf-lane");
   const machine = laneEl ? data.machines.find((m) => m.id === laneEl.dataset.machine) : null;
   if (!machine) return;
-  if (t.dataset.wf === "machine-field") machine[field] = t.value;
+  if (t.dataset.wf === "machine-field") machine[t.dataset.field] = t.value;
   else if (t.dataset.wf === "step-field") {
     const step = machine.steps.find((s) => s.id === t.closest(".wf-step").dataset.step);
-    if (step) step[field] = t.value;
+    if (step) step[t.dataset.field] = t.value;
   }
   saveWorkflow(data);
-  if (t.tagName === "TEXTAREA") { t.style.height = "auto"; t.style.height = `${t.scrollHeight + 10}px`; }
 });
 
-// Bild/Farbe (change) → speichern + Re-Render. Ziffer/Übergang (blur) → nur Warnungen auffrischen.
+// Bild (change) → speichern + Re-Render. Ziffer/Übergang (blur) → Auto-Farbe + Warnungen neu.
 workflowView.addEventListener("change", (event) => {
   const t = event.target.closest("[data-wf]");
   if (!t) return;
@@ -3829,14 +3674,7 @@ workflowView.addEventListener("change", (event) => {
     reader.readAsDataURL(file);
     return;
   }
-  if (t.dataset.wf === "machine-field" && t.dataset.field === "color") {
-    machine.color = t.value; saveWorkflow(data); renderWorkflow(); return;
-  }
-  if (t.dataset.field === "ziffer") {
-    renderWorkflow();
-  } else if (t.dataset.field === "transition") {
-    wfRefreshLaneWarnings(machine.id);
-  }
+  if (t.dataset.field === "clause" || t.dataset.field === "transition") renderWorkflow();
 });
 
 function saveSimpleCalcInput(input) {
