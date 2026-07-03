@@ -2761,7 +2761,7 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
       try {
         await apiFetch("/api/open-path", {
           method: "POST",
-          body: JSON.stringify({ href: new URL(href, window.location.href).pathname, app: "word" })
+          body: JSON.stringify({ href: new URL(href, window.location.href).pathname, app: officeApp(entryRow.dataset.evidenceEntryName) })
         });
       } catch (err) {
         console.error("Open office file error:", err);
