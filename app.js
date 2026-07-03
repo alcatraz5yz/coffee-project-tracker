@@ -1290,6 +1290,100 @@ function applyExplorerDocsChrome() {
   const folderName = chrome.querySelector(".evidence-crumb.current")?.textContent?.trim()
     || activeEvidenceGroup || "Dateien";
   document.title = folderName;
+
+  // Aufklappbaren Ordner-Baum in der linken Navigation aufbauen.
+  decorateWinexTree();
+}
+
+// ── Explorer: aufklappbarer Ordner-Baum in der linken Navigation ────────────
+// Jeder Ordner bekommt ein ›-Chevron; Klick klappt seine UNTERORDNER darunter
+// auf (eingerückt, beliebig tief), wie der echte Explorer-Navigationsbaum.
+// Unterordner-Listen kommen aus dem vorhandenen evidencePathEntries-Cache
+// (vom Prefetch/Browsing warm) oder werden einmalig per /api/list-path geholt.
+const _winexExpanded = new Set();   // hrefs mit aufgeklappten Unterordnern
+const _winexLeaf = new Set();       // hrefs, die nachweislich keine Unterordner haben
+
+function winexCachedSubfolders(group, href) {
+  const key = evidenceCacheKey(activeProject.id, group.primary);
+  const cached = evidencePathEntries.get(`${key}:${href}`);
+  if (!cached) return null;
+  return (cached.entries || []).filter((e) => e.type === "Ordner");
+}
+
+async function winexToggle(group, href) {
+  if (_winexExpanded.has(href)) {
+    _winexExpanded.delete(href);
+    decorateWinexTree();
+    return;
+  }
+  _winexExpanded.add(href);
+  if (!winexCachedSubfolders(group, href)) {
+    try {
+      const data = await apiFetch(`/api/list-path?href=${encodeURIComponent(href)}`);
+      const key = evidenceCacheKey(activeProject.id, group.primary);
+      evidencePathEntries.set(`${key}:${href}`, {
+        loading: false, entries: data.entries || [], browseHref: href, rootHref: evidenceHref(group)
+      });
+    } catch (err) {
+      console.error("Baum: Unterordner laden fehlgeschlagen", err);
+      _winexExpanded.delete(href);
+    }
+  }
+  const subs = winexCachedSubfolders(group, href) || [];
+  if (!subs.length) { _winexExpanded.delete(href); _winexLeaf.add(href); }
+  decorateWinexTree();
+}
+
+function winexTreeHtml(group, href, depth) {
+  // Alphabetisch wie der echte Explorer-Baum (Server liefert nach Datum sortiert).
+  const subs = (winexCachedSubfolders(group, href) || [])
+    .slice().sort((a, b) => String(a.name).localeCompare(String(b.name), "de", { numeric: true, sensitivity: "base" }));
+  return subs.map((e) => {
+    const isOpen = _winexExpanded.has(e.href);
+    const isLeaf = _winexLeaf.has(e.href) || e.empty;
+    const row = `
+      <div class="winex-tree-item" style="--wx-depth:${depth}" data-tree-href="${escapeHtml(e.href)}">
+        <button type="button" class="winex-chevron${isOpen ? " open" : ""}${isLeaf ? " leaf" : ""}" data-tree-toggle aria-label="Unterordner auf-/zuklappen"></button>
+        <button type="button" class="winex-tree-label" data-tree-open><span class="winex-folder-ico"></span>${escapeHtml(e.name)}</button>
+      </div>`;
+    return row + (isOpen ? winexTreeHtml(group, e.href, depth + 1) : "");
+  }).join("");
+}
+
+function decorateWinexTree() {
+  if (!activeProject || document.body.dataset.theme !== "explorer") return;
+  const grid = document.querySelector("#document-group-grid");
+  if (!grid) return;
+  grid.querySelectorAll(".winex-subtree").forEach((el) => el.remove());
+  const ctx = currentEvidenceContext?.();
+  grid.querySelectorAll(".document-group-card[data-evidence-group-card]").forEach((card) => {
+    const group = activeProject.documentGroups?.find((g) => g.primary === card.dataset.evidenceGroupCard);
+    if (!group) return;
+    const rootHref = evidenceHref(group);
+    // Chevron als erstes Element der Zeile (einmal pro Render einfügen)
+    if (!card.querySelector(".winex-chevron")) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "winex-chevron" + (_winexExpanded.has(rootHref) ? " open" : "") + (_winexLeaf.has(rootHref) ? " leaf" : "");
+      btn.setAttribute("aria-label", "Unterordner auf-/zuklappen");
+      btn.addEventListener("click", (e) => { e.stopPropagation(); winexToggle(group, rootHref); });
+      card.prepend(btn);
+    }
+    if (!_winexExpanded.has(rootHref)) return;
+    const wrap = document.createElement("div");
+    wrap.className = "winex-subtree";
+    wrap.innerHTML = winexTreeHtml(group, rootHref, 1);
+    card.after(wrap);
+    wrap.querySelectorAll(".winex-tree-item").forEach((item) => {
+      if (ctx && item.dataset.treeHref === ctx.currentHref) item.classList.add("current");
+      item.querySelector("[data-tree-toggle]").addEventListener("click", (e) => {
+        e.stopPropagation(); winexToggle(group, item.dataset.treeHref);
+      });
+      item.querySelector("[data-tree-open]").addEventListener("click", (e) => {
+        e.stopPropagation(); navigateEvidenceFolder(group, item.dataset.treeHref);
+      });
+    });
+  });
 }
 
 // Sortier-Menü der Befehlsleiste (öffnet wie im Explorer ein kleines Popup).
