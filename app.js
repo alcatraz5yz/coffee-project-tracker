@@ -3219,6 +3219,12 @@ document.querySelector("#docs-view").addEventListener("click", (event) => {
   toggle.addEventListener("click", () => {
     const collapsed = document.body.classList.toggle("sb-collapsed");
     toggle.textContent = collapsed ? "»" : "«";
+    // Die Topbar-Höhe ändert sich (Titel bricht anders um) → Dateien-Panels
+    // neu bis zum unteren Rand ausmessen, sonst bleibt unten mal mehr, mal
+    // weniger Rand stehen. Zweiter Aufruf nach evtl. CSS-Übergang.
+    requestAnimationFrame(fitDocsPanes);
+    setTimeout(fitDocsPanes, 80);
+    setTimeout(fitDocsPanes, 260);
   });
 
   let dragging = false;
@@ -3234,12 +3240,15 @@ document.querySelector("#docs-view").addEventListener("click", (event) => {
     // Breite = Mausposition von links; begrenzt auf einen sinnvollen Bereich
     const w = Math.max(180, Math.min(520, event.clientX));
     setVar(w);
+    // Auch beim Ziehen kann der Titel umbrechen → Höhe laufend nachführen.
+    requestAnimationFrame(fitDocsPanes);
   });
   document.addEventListener("mouseup", () => {
     if (!dragging) return;
     dragging = false;
     document.body.style.userSelect = "";
     document.body.style.cursor = "";
+    setTimeout(fitDocsPanes, 50);   // finale Höhe nach dem Loslassen
   });
 })();
 
