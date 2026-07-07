@@ -2847,8 +2847,9 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
       else selectedEvidenceHrefs.add(href);
       evidenceSelectionAnchor = href;
     } else if (addSelect) {
-      selectedEvidenceHrefs.add(href);
-      if (!evidenceSelectionAnchor) evidenceSelectionAnchor = href;
+      if (selectedEvidenceHrefs.has(href)) selectedEvidenceHrefs.delete(href);
+      else selectedEvidenceHrefs.add(href);
+      evidenceSelectionAnchor = selectedEvidenceHrefs.has(href) ? href : ([...selectedEvidenceHrefs][0] || null);
     } else {
       selectedEvidenceHrefs = new Set([href]);
       evidenceSelectionAnchor = href;
