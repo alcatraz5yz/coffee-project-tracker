@@ -462,19 +462,40 @@ function writeEvidenceFolderHistory(group, href, mode = "replace") {
   fn.call(history, state, "", `#${activeProject.id}`);
 }
 
+function evidenceHistoryStateMatches(state, group, href) {
+  const expected = evidenceFolderHistoryState(group, href);
+  if (!state || !expected) return false;
+  return state.projectId === expected.projectId
+    && state.view === expected.view
+    && state.openGroup === expected.openGroup
+    && (state.subfolderHref || "") === (expected.subfolderHref || "");
+}
+
 async function navigateEvidenceFolder(group, href, options = {}) {
   if (!group || !activeProject) return false;
   const {
     clearForward = true,
     clearSelection = true,
-    historyMode = "replace",
+    historyMode = "push",
     preserveTreeForward = false,
   } = options;
+  const previousCtx = currentEvidenceContext();
   const targetHref = href || evidenceHref(group);
   activeEvidenceGroup = group.primary;
   if (clearForward) _treeForwardStack = [];
   if (clearSelection) clearEvidenceSelection();
-  if (historyMode) writeEvidenceFolderHistory(group, targetHref, historyMode);
+  if (historyMode === "push") {
+    const previousGroup = previousCtx?.group || group;
+    const previousHref = previousCtx?.currentHref || evidenceHref(group);
+    if (!evidenceHistoryStateMatches(history.state, previousGroup, previousHref)) {
+      writeEvidenceFolderHistory(previousGroup, previousHref, "replace");
+    }
+    if (!evidenceHistoryStateMatches(history.state, group, targetHref)) {
+      writeEvidenceFolderHistory(group, targetHref, "push");
+    }
+  } else if (historyMode) {
+    writeEvidenceFolderHistory(group, targetHref, historyMode);
+  }
   await loadEvidenceEntries(group, targetHref, { preserveTreeForward });
   return true;
 }
