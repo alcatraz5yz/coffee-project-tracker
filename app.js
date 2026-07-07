@@ -2836,25 +2836,19 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     const group = activeProject.documentGroups?.find((g) => g.primary === entryRow.dataset.evidenceEntryGroup);
     const rows = [...document.querySelectorAll(`.evidence-file-row[data-evidence-entry-group="${CSS.escape(entryRow.dataset.evidenceEntryGroup)}"]`)];
     const alreadySelected = selectedEvidenceHrefs.has(href) && selectedEvidenceHrefs.size === 1;
-    // Strg/Cmd-Klick: einzelnes Element zur Auswahl hinzufügen/entfernen — auch
-    // nicht benachbarte, wie im echten Datei-Explorer. Nur auswählen, nicht öffnen.
+    // Strg/Cmd-Klick toggelt einzelne Elemente. Shift-Klick fügt nur das
+    // angeklickte Element hinzu; keine Bereichsauswahl, weil das hier beim
+    // gezielten Zusammenstellen einzelner Dateien zu leicht "Zwischenzeilen" erwischt.
     const toggleSelect = (event.metaKey || event.ctrlKey) && !event.shiftKey;
+    const addSelect = event.shiftKey && !event.metaKey && !event.ctrlKey;
 
     if (toggleSelect) {
       if (selectedEvidenceHrefs.has(href)) selectedEvidenceHrefs.delete(href);
       else selectedEvidenceHrefs.add(href);
       evidenceSelectionAnchor = href;
-    } else if (event.shiftKey && evidenceSelectionAnchor) {
-      const start = rows.findIndex((row) => row.dataset.evidenceEntryHref === evidenceSelectionAnchor);
-      const end = rows.indexOf(entryRow);
-      selectedEvidenceHrefs = new Set();
-      if (start >= 0 && end >= 0) {
-        const [from, to] = start < end ? [start, end] : [end, start];
-        rows.slice(from, to + 1).forEach((row) => selectedEvidenceHrefs.add(row.dataset.evidenceEntryHref));
-      } else {
-        selectedEvidenceHrefs.add(href);
-        evidenceSelectionAnchor = href;
-      }
+    } else if (addSelect) {
+      selectedEvidenceHrefs.add(href);
+      if (!evidenceSelectionAnchor) evidenceSelectionAnchor = href;
     } else {
       selectedEvidenceHrefs = new Set([href]);
       evidenceSelectionAnchor = href;
@@ -2868,8 +2862,8 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     const newScroller = document.querySelector("#docs-detail-pane .evidence-file-table");
     if (newScroller) newScroller.scrollTop = savedScroll;
 
-    // Strg/Cmd-Klick nur (de)selektieren — nicht öffnen/navigieren.
-    if (toggleSelect) return;
+    // Mehrfachauswahl nur auswählen — nicht öffnen/navigieren.
+    if (toggleSelect || addSelect) return;
 
     if (type === "Ordner") {
       if (!group) return;
