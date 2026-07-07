@@ -2836,8 +2836,15 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     const group = activeProject.documentGroups?.find((g) => g.primary === entryRow.dataset.evidenceEntryGroup);
     const rows = [...document.querySelectorAll(`.evidence-file-row[data-evidence-entry-group="${CSS.escape(entryRow.dataset.evidenceEntryGroup)}"]`)];
     const alreadySelected = selectedEvidenceHrefs.has(href) && selectedEvidenceHrefs.size === 1;
+    // Strg/Cmd-Klick: einzelnes Element zur Auswahl hinzufügen/entfernen — auch
+    // nicht benachbarte, wie im echten Datei-Explorer. Nur auswählen, nicht öffnen.
+    const toggleSelect = (event.metaKey || event.ctrlKey) && !event.shiftKey;
 
-    if (event.shiftKey && evidenceSelectionAnchor) {
+    if (toggleSelect) {
+      if (selectedEvidenceHrefs.has(href)) selectedEvidenceHrefs.delete(href);
+      else selectedEvidenceHrefs.add(href);
+      evidenceSelectionAnchor = href;
+    } else if (event.shiftKey && evidenceSelectionAnchor) {
       const start = rows.findIndex((row) => row.dataset.evidenceEntryHref === evidenceSelectionAnchor);
       const end = rows.indexOf(entryRow);
       selectedEvidenceHrefs = new Set();
@@ -2852,7 +2859,7 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
       selectedEvidenceHrefs = new Set([href]);
       evidenceSelectionAnchor = href;
     }
-    selectedEvidenceHref = href;
+    selectedEvidenceHref = selectedEvidenceHrefs.has(href) ? href : null;
     // Beim Auswählen einer Datei die Scroll-Position der Liste erhalten, damit
     // sie nicht nach oben springt. Der Scroll-Container ist .evidence-file-table,
     // den renderDocs neu erzeugt → Wert sichern und auf dem neuen Element setzen.
@@ -2860,6 +2867,9 @@ document.querySelector("#docs-view").addEventListener("click", async (event) => 
     renderDocs(activeProject);
     const newScroller = document.querySelector("#docs-detail-pane .evidence-file-table");
     if (newScroller) newScroller.scrollTop = savedScroll;
+
+    // Strg/Cmd-Klick nur (de)selektieren — nicht öffnen/navigieren.
+    if (toggleSelect) return;
 
     if (type === "Ordner") {
       if (!group) return;
