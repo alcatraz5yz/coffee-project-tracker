@@ -807,14 +807,28 @@ function evidenceRelativePath(link) {
   if (!link.href?.startsWith(trackerConfig.localDocumentRoot)) return link.href || "";
   return link.href.replace(trackerConfig.localDocumentRoot, "");
 }
+// Einen Pfad-href KANONISCH single-kodiert machen: erst vollständig dekodieren
+// (fängt versehentliche Mehrfachkodierung ab), dann jedes Segment GENAU EINMAL
+// kodieren. Idempotent → aus "01%20Administration" wie aus "01 Administration"
+// wird immer "01%20Administration", nie "01%2520Administration". Ohne das
+// verdoppelte encodeURI() Sonderzeichen (+, Leerzeichen) bei jedem Aufruf, was
+// auf echten Pfaden wie "EF1156+1157 Delica" zum 400 führte.
+function canonicalizeHref(raw) {
+  let v = String(raw || "");
+  for (let i = 0; i < 5; i++) {
+    try { const d = decodeURIComponent(v); if (d === v) break; v = d; } catch { break; }
+  }
+  return v.split("/").map((seg) => (seg ? encodeURIComponent(seg) : seg)).join("/");
+}
+
 function evidenceHref(link) {
   const rel = evidenceRelativePath(link);
   if (!rel) return "";
-  if (/^(evidence-\d+|files)\//.test(rel)) return encodeURI(rel);
+  if (/^(evidence-\d+|files)\//.test(rel)) return canonicalizeHref(rel);
   if (trackerConfig.documentMode === "sharepoint") {
-    return trackerConfig.sharePointRoot + rel.split("/").map(encodeURIComponent).join("/");
+    return trackerConfig.sharePointRoot + canonicalizeHref(rel);
   }
-  return encodeURI(trackerConfig.localDocumentRoot + rel);
+  return canonicalizeHref(trackerConfig.localDocumentRoot + rel);
 }
 function parentEvidenceHref(currentHref, rootHref) {
   // Genau EINE Ebene hoch. Dekodiert vergleichen (sonst klemmt %20/NFD-Mismatch

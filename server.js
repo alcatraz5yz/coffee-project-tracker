@@ -268,6 +268,28 @@ function decodeHrefPath(href) {
   return value;
 }
 
+// Fallback: wenn der exakte Pfad nicht existiert, den echten Ordnerbaum Segment
+// für Segment entlanglaufen und jeweils den passenden Eintrag tolerant finden
+// (exakt → NFC/NFD-normalisiert → case-insensitiv). Das fängt in der DB
+// gespeicherte hrefs ab, deren Kodierung/Unicode-Form (z.B. NFD "Ä" statt
+// NFC "Ä") nicht 1:1 zum echten Ordnernamen auf der Platte passt — der Scan
+// liest die echten Namen, das href-Resolving traf sie bisher nicht.
+async function walkResolve(safeRoot, rel) {
+  const nfc = (s) => { try { return s.normalize("NFC"); } catch { return s; } };
+  const ci = (s) => nfc(s).toLowerCase();
+  let cur = safeRoot;
+  for (const seg of rel.split("/").filter(Boolean)) {
+    let entries;
+    try { entries = await fsReaddir(cur); } catch { return null; }
+    const hit = entries.find((n) => n === seg)
+      || entries.find((n) => nfc(n) === nfc(seg))
+      || entries.find((n) => ci(n) === ci(seg));
+    if (!hit) return null;
+    cur = path.join(cur, hit);
+  }
+  return isWithin(safeRoot, cur) && await fsExists(cur) ? cur : null;
+}
+
 async function resolveAllowedHref(href) {
   if (!href || typeof href !== "string") return null;
   const rawPath = decodeHrefPath(href);
@@ -280,6 +302,8 @@ async function resolveAllowedHref(href) {
     const safeRoot = await cachedRealpath(root);
     const target = path.resolve(safeRoot, rel);
     if (isWithin(safeRoot, target) && await fsExists(target)) return target;
+    const walked = await walkResolve(safeRoot, rel);
+    if (walked) return walked;
   }
 
   if (urlPath.startsWith("/files/")) {
@@ -294,6 +318,13 @@ async function resolveAllowedHref(href) {
     if (projectMatch) {
       const fallback = path.resolve(safeRoot, projectMatch[1], ...parts.slice(1));
       if (isWithin(safeRoot, fallback) && await fsExists(fallback)) return fallback;
+    }
+
+    const walked = await walkResolve(safeRoot, rel);
+    if (walked) return walked;
+    if (projectMatch) {
+      const walkedFb = await walkResolve(safeRoot, [projectMatch[1], ...parts.slice(1)].join("/"));
+      if (walkedFb) return walkedFb;
     }
   }
 
