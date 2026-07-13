@@ -16,6 +16,7 @@ const {
   updateTaskStatus,
   updateArchiveLocation,
   updateProjectNo,
+  updateIdmNo,
   updateSwVersion,
   updateHwVersion,
   updateMachineType,
@@ -660,6 +661,11 @@ app.put("/api/projects/:id/archive-location", (req, res) => {
 
 app.put("/api/projects/:id/project-no", (req, res) => {
   updateProjectNo(req.params.id, req.body?.project_no);
+  res.json({ ok: true });
+});
+
+app.put("/api/projects/:id/idm-no", (req, res) => {
+  updateIdmNo(req.params.id, req.body?.idm_no);
   res.json({ ok: true });
 });
 

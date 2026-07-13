@@ -191,11 +191,14 @@ try { db.exec("ALTER TABLE tasks ADD COLUMN block_reason TEXT DEFAULT ''"); } ca
 try { db.exec("ALTER TABLE document_groups ADD COLUMN folder_mtime TEXT"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE projects ADD COLUMN archive_location TEXT DEFAULT ''"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE projects ADD COLUMN project_no TEXT DEFAULT ''"); } catch { /* exists */ }
+try { db.exec("ALTER TABLE projects ADD COLUMN idm_no TEXT DEFAULT ''"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE projects ADD COLUMN sw_version TEXT DEFAULT ''"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE projects ADD COLUMN hw_version TEXT DEFAULT ''"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE projects ADD COLUMN machine_type TEXT DEFAULT ''"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE projects ADD COLUMN machine_use TEXT DEFAULT ''"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE projects ADD COLUMN colors TEXT DEFAULT ''"); } catch { /* exists */ }
+db.prepare("UPDATE projects SET idm_no = ? WHERE id = ? AND (idm_no IS NULL OR idm_no = '')").run("0157836", "EF1219");
+db.prepare("UPDATE projects SET idm_no = ? WHERE id = ? AND (idm_no IS NULL OR idm_no = '')").run("0158171", "EF1221");
 try { db.exec("ALTER TABLE ziffern ADD COLUMN not_needed_reason TEXT DEFAULT ''"); } catch { /* exists */ }
 db.prepare("UPDATE fachfreigabe_gates SET status = 'Offen' WHERE status = 'Teilweise'").run();
 
@@ -358,6 +361,10 @@ function updateProjectNo(projectId, projectNo) {
   db.prepare("UPDATE projects SET project_no = ? WHERE id = ?").run(projectNo || "", projectId);
 }
 
+function updateIdmNo(projectId, idmNo) {
+  db.prepare("UPDATE projects SET idm_no = ? WHERE id = ?").run(idmNo || "", projectId);
+}
+
 function updateSwVersion(projectId, version) {
   db.prepare("UPDATE projects SET sw_version = ? WHERE id = ?").run(version || "", projectId);
 }
@@ -466,6 +473,7 @@ module.exports = {
   getProject,
   updateArchiveLocation,
   updateProjectNo,
+  updateIdmNo,
   updateSwVersion,
   updateHwVersion,
   updateMachineType,

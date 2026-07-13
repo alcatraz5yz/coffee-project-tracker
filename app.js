@@ -608,7 +608,7 @@ function renderDashboard() {
   renderRecentlyOpened();
   const q = (dashboardSearch?.value || search.value).trim().toLowerCase();
   const projects = projectList.filter((p) =>
-    [p.id, p.name, p.owner, p.family, p.market, p.phase, p.variant_group, p.variant_of, p.project_no, p.sw_version, p.hw_version, p.machine_type, p.machine_use]
+    [p.id, p.name, p.owner, p.family, p.market, p.phase, p.variant_group, p.variant_of, p.project_no, p.idm_no, p.sw_version, p.hw_version, p.machine_type, p.machine_use]
       .join(" ").toLowerCase().includes(q)
   );
   document.querySelector("#project-family").textContent = "PCS Projektübersicht";
@@ -620,6 +620,7 @@ function renderDashboard() {
         <span class="dashboard-card-brand">
           ${escapeHtml(p.family || "PCS Maschine")}
           ${p.project_no ? `<em class="project-no-badge">${escapeHtml(p.project_no)}</em>` : `<em class="project-no-badge project-no-empty" title="Project No. eingeben">+ Nr.</em>`}
+          ${p.idm_no ? `<em class="idm-no-badge" title="Infor IDM Nummer bearbeiten">IDM: ${escapeHtml(p.idm_no)}</em>` : `<em class="idm-no-badge idm-no-empty" title="Infor IDM Nummer eingeben">IDM: -</em>`}
         </span>
       </div>
       <strong>${p.id}</strong>
@@ -2274,6 +2275,36 @@ tabelle30Link?.addEventListener("click", () => {
 });
 
 document.querySelector("#dashboard-grid").addEventListener("click", (event) => {
+  // Click on IDM badge → inline edit, don't navigate
+  const idmBadge = event.target.closest(".idm-no-badge");
+  if (idmBadge) {
+    event.stopPropagation();
+    const card = idmBadge.closest("[data-dashboard-project]");
+    const projectId = card.dataset.dashboardProject;
+    const project = projectList.find((p) => p.id === projectId);
+    if (!project) return;
+    const current = project.idm_no || "";
+    const input = document.createElement("input");
+    input.className = "idm-no-input";
+    input.value = current;
+    input.placeholder = "z.B. 0158171";
+    idmBadge.replaceWith(input);
+    input.focus();
+    input.select();
+    const save = async () => {
+      const val = input.value.trim();
+      project.idm_no = val;
+      await apiPut(`/api/projects/${projectId}/idm-no`, { idm_no: val }).catch(console.error);
+      renderDashboard();
+    };
+    input.addEventListener("blur", save);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+      if (e.key === "Escape") { input.removeEventListener("blur", save); renderDashboard(); }
+    });
+    return;
+  }
+
   // Click on project-no badge → inline edit, don't navigate
   const badge = event.target.closest(".project-no-badge");
   if (badge) {
