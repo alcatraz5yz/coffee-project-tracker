@@ -616,6 +616,7 @@ function renderDashboard() {
   document.querySelector("#dashboard-count").textContent = `${projects.length} Projekte`;
   document.querySelector("#dashboard-grid").innerHTML = projects.length ? projects.map((p) => `
     <button class="dashboard-card" type="button" data-dashboard-project="${p.id}">
+      <img class="dashboard-machine-image" data-dashboard-image="${p.id}" alt="">
       <div class="dashboard-card-top">
         <span class="dashboard-card-brand">
           ${escapeHtml(p.family || "PCS Maschine")}
@@ -645,6 +646,7 @@ function renderDashboard() {
       </div>
     </button>
   `).join("") : `<p class="empty-state">Keine Projekte gefunden.</p>`;
+  hydrateDashboardImages();
 }
 
 function updateSidebarBuildSelection() {
@@ -655,26 +657,45 @@ function updateSidebarBuildSelection() {
 }
 
 // ── Product image ─────────────────────────────────────────────
-function loadProductImage(projectId) {
+function productImageCandidates(projectId) {
   const n = projectId.replace(/\D/g, "");
-  const img = document.querySelector("#product-image");
-  const candidates = [
+  return [
     `evidence-${n}/product.jpg`,
     `evidence-${n}/product.png`,
     `evidence-${n}/thumbnail.jpg`,
     `evidence-${n}/thumbnail.png`
   ];
+}
+
+function tryLoadImage(img, candidates, onFound) {
   img.style.display = "none";
   img.src = "";
+  img.classList.remove("loaded");
   let i = 0;
   function tryNext() {
     if (i >= candidates.length) return;
     const src = candidates[i++];
     fetch(src, { method: "HEAD" })
-      .then((r) => { if (r.ok) { img.src = src; img.style.display = "block"; } else tryNext(); })
+      .then((r) => { if (r.ok) { img.src = src; img.style.display = ""; onFound?.(img); } else tryNext(); })
       .catch(tryNext);
   }
   tryNext();
+}
+
+function hydrateDashboardImages() {
+  document.querySelectorAll("[data-dashboard-image]").forEach((img) => {
+    tryLoadImage(img, productImageCandidates(img.dataset.dashboardImage), (el) => {
+      el.classList.add("loaded");
+      el.closest(".dashboard-card")?.classList.add("has-machine-image");
+    });
+  });
+}
+
+function loadProductImage(projectId) {
+  const img = document.querySelector("#product-image");
+  tryLoadImage(img, productImageCandidates(projectId), (el) => {
+    el.style.display = "block";
+  });
 }
 
 // ── Summary cards ─────────────────────────────────────────────
@@ -2388,9 +2409,7 @@ document.querySelector("#dashboard-grid").addEventListener("click", (event) => {
     const save = async () => {
       const val = sel.value;
       project[field] = val;
-      const endpoint = field === "machine_type" ? "machine-type" : "machine-use";
-      const body = field === "machine_type" ? { machine_type: val } : { machine_use: val };
-      await apiPut(`/api/projects/${projectId}/${endpoint}`, body).catch(console.error);
+      await apiPut(`/api/projects/${projectId}/machine-use`, { machine_use: val }).catch(console.error);
       renderDashboard();
     };
     sel.addEventListener("change", save);

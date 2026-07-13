@@ -967,6 +967,7 @@ body:not(.dashboard-mode) .topbar-divider {
 }
 
 .dashboard-card {
+  position: relative;
   display: grid;
   gap: 6px;
   min-height: 0;
@@ -978,6 +979,29 @@ body:not(.dashboard-mode) .topbar-divider {
   text-align: left;
   cursor: pointer;
   box-shadow: var(--shadow);
+}
+
+.dashboard-card.has-machine-image {
+  padding-right: 82px;
+}
+
+.dashboard-machine-image {
+  display: none;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 78%, transparent);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.10);
+  pointer-events: none;
+}
+
+.dashboard-machine-image.loaded {
+  display: block;
 }
 
 .dashboard-card:hover {
