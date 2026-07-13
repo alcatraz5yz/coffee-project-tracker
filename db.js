@@ -198,6 +198,22 @@ try { db.exec("ALTER TABLE projects ADD COLUMN hw_version TEXT DEFAULT ''"); } c
 try { db.exec("ALTER TABLE projects ADD COLUMN machine_type TEXT DEFAULT ''"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE projects ADD COLUMN machine_use TEXT DEFAULT ''"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE projects ADD COLUMN colors TEXT DEFAULT ''"); } catch { /* exists */ }
+
+const ndgVariantGroup = "EF1216+EF1217+EF1218+EF1219+EF1221";
+db.prepare(`
+  INSERT OR IGNORE INTO projects
+    (id, name, family, market, variant_of, variant_group, owner, phase, health, progress, updated_at,
+     machine_type, machine_use)
+  VALUES
+    ('EF1219', 'NDG Genio-S Variante', 'NDG', 'Global', 'EF1216', ?, 'PCS', 'Approbation', 'Watch', 5,
+     datetime('now'), 'Nespresso', 'Private Use')
+`).run(ndgVariantGroup);
+db.prepare(`
+  UPDATE projects
+  SET variant_group = ?
+  WHERE id IN ('EF1216', 'EF1217', 'EF1218', 'EF1219', 'EF1221')
+    AND (variant_group IS NULL OR variant_group = '' OR variant_group = 'EF1216+EF1217+EF1218+EF1221')
+`).run(ndgVariantGroup);
 db.prepare("UPDATE projects SET idm_no = ? WHERE id = ? AND (idm_no IS NULL OR idm_no = '')").run("0157836", "EF1219");
 db.prepare("UPDATE projects SET idm_no = ? WHERE id = ? AND (idm_no IS NULL OR idm_no = '')").run("0158171", "EF1221");
 db.prepare("UPDATE projects SET vde_auftragsnr = ? WHERE id = ? AND (vde_auftragsnr IS NULL OR vde_auftragsnr = '')").run("343213", "EF1234");
