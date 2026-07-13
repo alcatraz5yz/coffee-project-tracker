@@ -608,7 +608,7 @@ function renderDashboard() {
   renderRecentlyOpened();
   const q = (dashboardSearch?.value || search.value).trim().toLowerCase();
   const projects = projectList.filter((p) =>
-    [p.id, p.name, p.owner, p.family, p.market, p.phase, p.variant_group, p.variant_of, p.project_no, p.idm_no, p.vde_auftragsnr, p.sw_version, p.hw_version, p.machine_type, p.machine_use]
+    [p.id, p.name, p.owner, p.family, p.market, p.phase, p.variant_group, p.variant_of, p.project_no, p.idm_no, p.vde_auftragsnr, p.sw_version, p.hw_version, p.machine_use]
       .join(" ").toLowerCase().includes(q)
   );
   document.querySelector("#project-family").textContent = "PCS Projektübersicht";
@@ -639,9 +639,6 @@ function renderDashboard() {
         </span>
       </div>
       <div class="dashboard-card-meta">
-        <span class="meta-badge ${p.machine_type ? "meta-badge--type" : "meta-badge--empty"}" data-meta-field="machine_type" data-meta-project="${p.id}" title="Maschinentyp bearbeiten">
-          ${p.machine_type ? escapeHtml(p.machine_type) : `<em class="version-empty">Typ?</em>`}
-        </span>
         <span class="meta-badge ${p.machine_use === "Commercial Use" ? "meta-badge--commercial" : p.machine_use === "Private Use" ? "meta-badge--privat" : "meta-badge--empty"}" data-meta-field="machine_use" data-meta-project="${p.id}" title="Verwendung bearbeiten">
           ${p.machine_use ? escapeHtml(p.machine_use) : `<em class="version-empty">Verw.?</em>`}
         </span>
@@ -2368,17 +2365,15 @@ document.querySelector("#dashboard-grid").addEventListener("click", (event) => {
     return;
   }
 
-  // Click on machine type/use badge → dropdown select
+  // Click on machine use badge → dropdown select
   const metaBadge = event.target.closest("[data-meta-field]");
   if (metaBadge) {
     event.stopPropagation();
-    const field = metaBadge.dataset.metaField;       // "machine_type" or "machine_use"
+    const field = metaBadge.dataset.metaField;
     const projectId = metaBadge.dataset.metaProject;
     const project = projectList.find((p) => p.id === projectId);
-    if (!project) return;
-    const options = field === "machine_type"
-      ? ["", "Nespresso"]
-      : ["", "Commercial Use", "Private Use"];
+    if (!project || field !== "machine_use") return;
+    const options = ["", "Commercial Use", "Private Use"];
     const sel = document.createElement("select");
     sel.className = "meta-select";
     options.forEach((opt) => {
