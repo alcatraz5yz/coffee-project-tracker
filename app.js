@@ -2377,7 +2377,7 @@ document.querySelector("#dashboard-grid").addEventListener("click", (event) => {
     const project = projectList.find((p) => p.id === projectId);
     if (!project) return;
     const options = field === "machine_type"
-      ? ["", "Nespresso", "Kapselmaschine / Nespresso Vertuo", "Kapselmaschine / CoffeeB", "Cafissimo", "Carogusto", "Kapselmaschine", "Vollautomatisch"]
+      ? ["", "Nespresso"]
       : ["", "Commercial Use", "Private Use"];
     const sel = document.createElement("select");
     sel.className = "meta-select";
