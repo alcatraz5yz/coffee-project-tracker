@@ -608,7 +608,7 @@ function renderDashboard() {
   renderRecentlyOpened();
   const q = (dashboardSearch?.value || search.value).trim().toLowerCase();
   const projects = projectList.filter((p) =>
-    [p.id, p.name, p.owner, p.family, p.market, p.phase, p.variant_group, p.variant_of, p.project_no, p.idm_no, p.sw_version, p.hw_version, p.machine_type, p.machine_use]
+    [p.id, p.name, p.owner, p.family, p.market, p.phase, p.variant_group, p.variant_of, p.project_no, p.idm_no, p.vde_auftragsnr, p.sw_version, p.hw_version, p.machine_type, p.machine_use]
       .join(" ").toLowerCase().includes(q)
   );
   document.querySelector("#project-family").textContent = "PCS Projektübersicht";
@@ -624,6 +624,7 @@ function renderDashboard() {
       <div class="dashboard-number-lines">
         ${p.project_no ? `<em class="project-no-badge" title="Project Nummer bearbeiten"><i>Project</i>${escapeHtml(p.project_no)}</em>` : `<em class="project-no-badge project-no-empty" title="Project Nummer eingeben"><i>Project</i>-</em>`}
         ${p.idm_no ? `<em class="idm-no-badge" title="Infor IDM Nummer bearbeiten"><i>IDM</i>${escapeHtml(p.idm_no)}</em>` : `<em class="idm-no-badge idm-no-empty" title="Infor IDM Nummer eingeben"><i>IDM</i>-</em>`}
+        ${p.vde_auftragsnr ? `<em class="vde-order-badge" title="VDE-Auftragsnr bearbeiten"><i>VDE-Auftragsnr</i>${escapeHtml(p.vde_auftragsnr)}</em>` : `<em class="vde-order-badge vde-order-empty" title="VDE-Auftragsnr eingeben"><i>VDE-Auftragsnr</i>-</em>`}
       </div>
       <strong>${p.id}</strong>
       <p>${escapeHtml(p.name)}</p>
@@ -2277,6 +2278,36 @@ tabelle30Link?.addEventListener("click", () => {
 });
 
 document.querySelector("#dashboard-grid").addEventListener("click", (event) => {
+  // Click on VDE-Auftragsnr badge → inline edit, don't navigate
+  const vdeOrderBadge = event.target.closest(".vde-order-badge");
+  if (vdeOrderBadge) {
+    event.stopPropagation();
+    const card = vdeOrderBadge.closest("[data-dashboard-project]");
+    const projectId = card.dataset.dashboardProject;
+    const project = projectList.find((p) => p.id === projectId);
+    if (!project) return;
+    const current = project.vde_auftragsnr || "";
+    const input = document.createElement("input");
+    input.className = "vde-order-input";
+    input.value = current;
+    input.placeholder = "z.B. 343213";
+    vdeOrderBadge.replaceWith(input);
+    input.focus();
+    input.select();
+    const save = async () => {
+      const val = input.value.trim();
+      project.vde_auftragsnr = val;
+      await apiPut(`/api/projects/${projectId}/vde-auftragsnr`, { vde_auftragsnr: val }).catch(console.error);
+      renderDashboard();
+    };
+    input.addEventListener("blur", save);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+      if (e.key === "Escape") { input.removeEventListener("blur", save); renderDashboard(); }
+    });
+    return;
+  }
+
   // Click on IDM badge → inline edit, don't navigate
   const idmBadge = event.target.closest(".idm-no-badge");
   if (idmBadge) {

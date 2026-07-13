@@ -192,6 +192,7 @@ try { db.exec("ALTER TABLE document_groups ADD COLUMN folder_mtime TEXT"); } cat
 try { db.exec("ALTER TABLE projects ADD COLUMN archive_location TEXT DEFAULT ''"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE projects ADD COLUMN project_no TEXT DEFAULT ''"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE projects ADD COLUMN idm_no TEXT DEFAULT ''"); } catch { /* exists */ }
+try { db.exec("ALTER TABLE projects ADD COLUMN vde_auftragsnr TEXT DEFAULT ''"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE projects ADD COLUMN sw_version TEXT DEFAULT ''"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE projects ADD COLUMN hw_version TEXT DEFAULT ''"); } catch { /* exists */ }
 try { db.exec("ALTER TABLE projects ADD COLUMN machine_type TEXT DEFAULT ''"); } catch { /* exists */ }
@@ -199,6 +200,7 @@ try { db.exec("ALTER TABLE projects ADD COLUMN machine_use TEXT DEFAULT ''"); } 
 try { db.exec("ALTER TABLE projects ADD COLUMN colors TEXT DEFAULT ''"); } catch { /* exists */ }
 db.prepare("UPDATE projects SET idm_no = ? WHERE id = ? AND (idm_no IS NULL OR idm_no = '')").run("0157836", "EF1219");
 db.prepare("UPDATE projects SET idm_no = ? WHERE id = ? AND (idm_no IS NULL OR idm_no = '')").run("0158171", "EF1221");
+db.prepare("UPDATE projects SET vde_auftragsnr = ? WHERE id = ? AND (vde_auftragsnr IS NULL OR vde_auftragsnr = '')").run("343213", "EF1234");
 try { db.exec("ALTER TABLE ziffern ADD COLUMN not_needed_reason TEXT DEFAULT ''"); } catch { /* exists */ }
 db.prepare("UPDATE fachfreigabe_gates SET status = 'Offen' WHERE status = 'Teilweise'").run();
 
@@ -365,6 +367,10 @@ function updateIdmNo(projectId, idmNo) {
   db.prepare("UPDATE projects SET idm_no = ? WHERE id = ?").run(idmNo || "", projectId);
 }
 
+function updateVdeAuftragsnr(projectId, vdeAuftragsnr) {
+  db.prepare("UPDATE projects SET vde_auftragsnr = ? WHERE id = ?").run(vdeAuftragsnr || "", projectId);
+}
+
 function updateSwVersion(projectId, version) {
   db.prepare("UPDATE projects SET sw_version = ? WHERE id = ?").run(version || "", projectId);
 }
@@ -474,6 +480,7 @@ module.exports = {
   updateArchiveLocation,
   updateProjectNo,
   updateIdmNo,
+  updateVdeAuftragsnr,
   updateSwVersion,
   updateHwVersion,
   updateMachineType,

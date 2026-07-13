@@ -17,6 +17,7 @@ const {
   updateArchiveLocation,
   updateProjectNo,
   updateIdmNo,
+  updateVdeAuftragsnr,
   updateSwVersion,
   updateHwVersion,
   updateMachineType,
@@ -666,6 +667,11 @@ app.put("/api/projects/:id/project-no", (req, res) => {
 
 app.put("/api/projects/:id/idm-no", (req, res) => {
   updateIdmNo(req.params.id, req.body?.idm_no);
+  res.json({ ok: true });
+});
+
+app.put("/api/projects/:id/vde-auftragsnr", (req, res) => {
+  updateVdeAuftragsnr(req.params.id, req.body?.vde_auftragsnr);
   res.json({ ok: true });
 });
 
