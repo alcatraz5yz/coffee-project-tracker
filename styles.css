@@ -999,12 +999,23 @@ body:not(.dashboard-mode) .topbar-divider {
   flex-wrap: wrap;
 }
 
+.dashboard-number-lines {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+  margin-top: 2px;
+  width: 100%;
+}
+
 .project-no-badge,
 .idm-no-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-style: normal;
   font-size: 11px;
   font-weight: 700;
-  padding: 1px 6px;
+  padding: 2px 7px;
   border-radius: 4px;
   background: var(--accent-soft);
   color: var(--accent);
@@ -1012,6 +1023,16 @@ body:not(.dashboard-mode) .topbar-divider {
   cursor: pointer;
   border: 1px dashed transparent;
   transition: border-color 120ms;
+}
+
+.project-no-badge i,
+.idm-no-badge i {
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .idm-no-badge {

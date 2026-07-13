@@ -619,9 +619,11 @@ function renderDashboard() {
       <div class="dashboard-card-top">
         <span class="dashboard-card-brand">
           ${escapeHtml(p.family || "PCS Maschine")}
-          ${p.project_no ? `<em class="project-no-badge">${escapeHtml(p.project_no)}</em>` : `<em class="project-no-badge project-no-empty" title="Project No. eingeben">+ Nr.</em>`}
-          ${p.idm_no ? `<em class="idm-no-badge" title="Infor IDM Nummer bearbeiten">IDM: ${escapeHtml(p.idm_no)}</em>` : `<em class="idm-no-badge idm-no-empty" title="Infor IDM Nummer eingeben">IDM: -</em>`}
         </span>
+      </div>
+      <div class="dashboard-number-lines">
+        ${p.project_no ? `<em class="project-no-badge" title="Project Nummer bearbeiten"><i>Project</i>${escapeHtml(p.project_no)}</em>` : `<em class="project-no-badge project-no-empty" title="Project Nummer eingeben"><i>Project</i>-</em>`}
+        ${p.idm_no ? `<em class="idm-no-badge" title="Infor IDM Nummer bearbeiten"><i>IDM</i>${escapeHtml(p.idm_no)}</em>` : `<em class="idm-no-badge idm-no-empty" title="Infor IDM Nummer eingeben"><i>IDM</i>-</em>`}
       </div>
       <strong>${p.id}</strong>
       <p>${escapeHtml(p.name)}</p>
